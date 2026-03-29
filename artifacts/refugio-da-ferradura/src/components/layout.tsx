@@ -39,13 +39,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <Link href="/" className="group flex items-center gap-2 z-50 relative">
+          <Link href="/" className="group flex items-center gap-3 z-50 relative">
             <img 
               src={logoImg} 
               alt="Refúgio da Ferradura" 
-              className={cn("h-12 w-12 rounded-full object-cover transition-all duration-300", isScrolled ? "shadow-md" : "brightness-110")}
+              className={cn(
+                "h-16 w-16 rounded-full object-cover transition-all duration-300 shrink-0",
+                isScrolled
+                  ? "shadow-md ring-2 ring-border/30"
+                  : "brightness-110 drop-shadow-xl ring-2 ring-white/20"
+              )}
             />
-            <span className={cn("font-serif font-semibold text-xl tracking-tight transition-colors", isScrolled ? "text-foreground" : "text-white drop-shadow-md")}>
+            <span className={cn("font-serif font-semibold text-2xl tracking-tight transition-colors leading-tight", isScrolled ? "text-foreground" : "text-white drop-shadow-lg")}>
               Refúgio da Ferradura
             </span>
           </Link>
