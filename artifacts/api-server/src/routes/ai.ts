@@ -52,6 +52,8 @@ router.post("/ai/generate-from-url", async (req, res): Promise<void> => {
     apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   });
 
+  const VALID_TAGS = ["lugares", "experiencias", "gastronomia", "hospedagem", "natureza", "turismo", "cultura", "aventura"];
+
   const prompt = `Você é um redator especialista em turismo da região da Rota da Ferradura em Guarapari, Espírito Santo, Brasil. 
   
 Com base no seguinte conteúdo extraído de uma página web, reescreva e crie uma matéria jornalística original, envolvente e de alta qualidade para o site "Refúgio da Ferradura". 
@@ -64,6 +66,8 @@ IMPORTANTE:
 - Inclua detalhes que tornem o artigo rico e informativo
 - O HTML do conteúdo deve ter parágrafos com <p>, subtítulos com <h2>, e listas com <ul><li> quando apropriado
 
+Tags disponíveis: lugares, experiencias, gastronomia, hospedagem, natureza, turismo, cultura, aventura
+
 Conteúdo de referência:
 ${articleContent}
 
@@ -72,18 +76,18 @@ Responda APENAS com JSON válido no formato:
   "title": "Título atraente do artigo",
   "excerpt": "Resumo em 1-2 frases para preview (sem HTML)",
   "content": "Conteúdo completo em HTML com parágrafos, subtítulos e formatação rica",
-  "category": "Uma categoria de: Turismo, Gastronomia, Natureza, Cultura, Aventura"
+  "tags": ["tag1", "tag2"]
 }`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-5.2",
-    max_completion_tokens: 8192,
+    model: "gpt-4o",
+    max_completion_tokens: 4096,
     messages: [{ role: "user", content: prompt }],
   });
 
   const rawContent = completion.choices[0]?.message?.content ?? "";
 
-  let generated: { title: string; excerpt: string; content: string; category: string };
+  let generated: { title: string; excerpt: string; content: string; tags: string[] };
   try {
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON found");
@@ -94,7 +98,17 @@ Responda APENAS com JSON válido no formato:
     return;
   }
 
-  res.json(GenerateFromUrlResponse.parse(generated));
+  // Normalize tags: filter to valid values, fallback to ["turismo"]
+  const rawTags = Array.isArray(generated.tags) ? generated.tags : [];
+  const validTags = rawTags.filter((t: string) => VALID_TAGS.includes(t));
+  const finalTags = validTags.length > 0 ? validTags : ["turismo"];
+
+  res.json(GenerateFromUrlResponse.parse({
+    title: generated.title,
+    excerpt: generated.excerpt,
+    content: generated.content,
+    tags: JSON.stringify(finalTags),
+  }));
 });
 
 export default router;
