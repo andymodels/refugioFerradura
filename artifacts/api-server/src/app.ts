@@ -37,7 +37,6 @@ app.use(
   session({
     store: new PgSession({
       conString: process.env.DATABASE_URL,
-      createTableIfMissing: true,
       tableName: "session",
     }),
     secret: process.env.SESSION_SECRET ?? "refugio-ferradura-secret-key-2024",
