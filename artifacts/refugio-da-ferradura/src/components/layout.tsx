@@ -44,7 +44,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <img 
               src={logoIcon} 
               alt="Refúgio da Ferradura" 
-              className="h-[90px] w-auto object-contain transition-all duration-300 shrink-0 drop-shadow-lg"
+              className="h-[130px] w-auto object-contain transition-all duration-300 shrink-0 drop-shadow-lg"
             />
           </Link>
 
