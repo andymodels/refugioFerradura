@@ -6,97 +6,86 @@ import { cn } from "./ui-elements";
 const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
 const logoIcon = `${import.meta.env.BASE_URL}images/logo-icon.png`;
 
-export function Layout({ children, hideHeader }: { children: React.ReactNode; hideHeader?: boolean }) {
-  const [isScrolled, setIsScrolled] = useState(false);
+const navLinks = [
+  { name: "Início", href: "/" },
+  { name: "Lugares", href: "/lugares" },
+  { name: "Experiências", href: "/experiencias" },
+  { name: "Gastronomia", href: "/gastronomia" },
+  { name: "Hospedagem", href: "/hospedagem" },
+  { name: "Buscar", href: "/buscar" },
+];
+
+export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location] = useLocation();
-
-  useEffect(() => {
-    const handleScroll = () => setIsScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location]);
 
-  const navLinks = [
-    { name: "Início", href: "/" },
-    { name: "Lugares", href: "/lugares" },
-    { name: "Experiências", href: "/experiencias" },
-    { name: "Gastronomia", href: "/gastronomia" },
-    { name: "Hospedagem", href: "/hospedagem" },
-    { name: "Buscar", href: "/buscar" },
-  ];
-
   return (
     <div className="min-h-screen flex flex-col bg-background selection:bg-primary/20">
-      {/* Navigation — hidden on pages that embed nav in the hero */}
-      {!hideHeader && (
-        <header
+      {/* Fixed transparent header — no scroll-based changes */}
+      <header className="fixed top-0 inset-x-0 z-50 bg-transparent">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <Link href="/">
+            <img
+              src={logoIcon}
+              alt="Refúgio da Ferradura"
+              className="h-[64px] w-auto object-contain drop-shadow-lg"
+            />
+          </Link>
+
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex items-center gap-8">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className={cn(
+                  "text-sm font-semibold tracking-wide text-white drop-shadow-md transition-opacity hover:opacity-100",
+                  location === link.href
+                    ? "opacity-100 border-b border-white/70 pb-0.5"
+                    : "opacity-80"
+                )}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Mobile toggle */}
+          <button
+            className="md:hidden p-2 text-white drop-shadow-md"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
+
+        {/* Mobile Nav Overlay */}
+        <div
           className={cn(
-            "fixed top-0 inset-x-0 z-50 transition-all duration-500",
-            isScrolled
-              ? "bg-black/60 backdrop-blur-md border-b border-white/10 py-2 shadow-lg"
-              : "bg-transparent py-4"
+            "fixed inset-0 bg-background z-40 flex flex-col pt-24 px-6 transition-transform duration-300 ease-in-out md:hidden",
+            mobileMenuOpen ? "translate-x-0" : "translate-x-full"
           )}
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-            <Link href="/" className="group flex items-center gap-3 z-50 relative">
-              <img
-                src={logoIcon}
-                alt="Refúgio da Ferradura"
+          <nav className="flex flex-col gap-6 text-2xl font-serif">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
                 className={cn(
-                  "w-auto object-contain transition-all duration-500 shrink-0 drop-shadow-lg",
-                  isScrolled ? "h-[64px]" : "h-[80px]"
+                  "border-b border-border pb-4 transition-colors",
+                  location === link.href ? "text-primary" : "text-foreground"
                 )}
-              />
-            </Link>
-
-            <nav className="hidden md:flex items-center gap-8">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={cn(
-                    "text-sm font-semibold tracking-wide transition-all hover:opacity-100 text-white drop-shadow-md",
-                    location === link.href ? "opacity-100 border-b border-white/60 pb-0.5" : "opacity-80"
-                  )}
-                >
-                  {link.name}
-                </Link>
-              ))}
-            </nav>
-
-            <button
-              className="md:hidden p-2 z-50 relative text-white drop-shadow-md"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
-
-          <div
-            className={cn(
-              "fixed inset-0 bg-background z-40 flex flex-col pt-24 px-6 transition-transform duration-300 ease-in-out md:hidden",
-              mobileMenuOpen ? "translate-x-0" : "translate-x-full"
-            )}
-          >
-            <nav className="flex flex-col gap-6 text-2xl font-serif">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={cn("border-b border-border pb-4 transition-colors", location === link.href ? "text-primary" : "text-foreground")}
-                >
-                  {link.name}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </header>
-      )}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
 
       {/* Main Content */}
       <main className="flex-grow flex flex-col">{children}</main>
@@ -114,7 +103,7 @@ export function Layout({ children, hideHeader }: { children: React.ReactNode; hi
                 Descubra a magia e tranquilidade da Rota da Ferradura em Guarapari, ES. Natureza, gastronomia e paz.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-serif font-medium text-white mb-4">Navegação</h4>
               <ul className="space-y-3 text-sm text-muted-foreground">
@@ -132,7 +121,7 @@ export function Layout({ children, hideHeader }: { children: React.ReactNode; hi
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>Rota da Ferradura, Buenos Aires<br/>Guarapari - ES</span>
+                  <span>Rota da Ferradura, Buenos Aires<br />Guarapari - ES</span>
                 </li>
                 <li className="flex items-center gap-4 pt-4">
                   <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-primary hover:text-white transition-colors">
@@ -145,7 +134,7 @@ export function Layout({ children, hideHeader }: { children: React.ReactNode; hi
               </ul>
             </div>
           </div>
-          
+
           <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
             <p>© {new Date().getFullYear()} Refúgio da Ferradura. Todos os direitos reservados.</p>
             <p>Feito com amor pela natureza.</p>
