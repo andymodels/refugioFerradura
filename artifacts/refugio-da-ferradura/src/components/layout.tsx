@@ -45,7 +45,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               src={logoIcon} 
               alt="Refúgio da Ferradura" 
               className={cn(
-                "h-16 w-16 rounded-full object-cover transition-all duration-300 shrink-0",
+                "h-[50px] w-[50px] rounded-full object-cover transition-all duration-300 shrink-0",
                 isScrolled
                   ? "shadow-md ring-2 ring-border/30"
                   : "brightness-110 drop-shadow-xl ring-2 ring-white/20"
