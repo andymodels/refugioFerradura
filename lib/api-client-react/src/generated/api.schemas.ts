@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Refúgio da Ferradura API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 export interface HealthStatus {
   status: string;
@@ -35,13 +35,29 @@ export interface LoginResponse {
 export interface Post {
   id: number;
   title: string;
+  /** @nullable */
+  subtitle?: string | null;
   slug: string;
   /** @nullable */
   excerpt?: string | null;
   content: string;
   /** @nullable */
   coverImage?: string | null;
-  category: string;
+  /**
+   * JSON array of image URLs
+   * @nullable
+   */
+  gallery?: string | null;
+  /**
+   * JSON array of video embed URLs
+   * @nullable
+   */
+  videoEmbeds?: string | null;
+  /**
+   * JSON array of tag strings
+   * @nullable
+   */
+  tags?: string | null;
   status: string;
   /** @nullable */
   metaDescription?: string | null;
@@ -56,13 +72,20 @@ export interface PostListResponse {
 
 export interface CreatePostBody {
   title: string;
+  /** @nullable */
+  subtitle?: string | null;
   slug: string;
   /** @nullable */
   excerpt?: string | null;
   content: string;
   /** @nullable */
   coverImage?: string | null;
-  category: string;
+  /** @nullable */
+  gallery?: string | null;
+  /** @nullable */
+  videoEmbeds?: string | null;
+  /** @nullable */
+  tags?: string | null;
   status: string;
   /** @nullable */
   metaDescription?: string | null;
@@ -70,87 +93,21 @@ export interface CreatePostBody {
 
 export interface UpdatePostBody {
   title?: string;
+  /** @nullable */
+  subtitle?: string | null;
   slug?: string;
   /** @nullable */
   excerpt?: string | null;
   content?: string;
   /** @nullable */
   coverImage?: string | null;
-  category?: string;
+  /** @nullable */
+  gallery?: string | null;
+  /** @nullable */
+  videoEmbeds?: string | null;
+  /** @nullable */
+  tags?: string | null;
   status?: string;
-  /** @nullable */
-  metaDescription?: string | null;
-}
-
-export interface Place {
-  id: number;
-  name: string;
-  slug: string;
-  description: string;
-  category: string;
-  /** @nullable */
-  coverImage?: string | null;
-  /** @nullable */
-  images?: string | null;
-  /** @nullable */
-  address?: string | null;
-  /** @nullable */
-  phone?: string | null;
-  /** @nullable */
-  website?: string | null;
-  /** @nullable */
-  openingHours?: string | null;
-  featured: boolean;
-  /** @nullable */
-  metaDescription?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PlaceListResponse {
-  places: Place[];
-}
-
-export interface CreatePlaceBody {
-  name: string;
-  slug: string;
-  description: string;
-  category: string;
-  /** @nullable */
-  coverImage?: string | null;
-  /** @nullable */
-  images?: string | null;
-  /** @nullable */
-  address?: string | null;
-  /** @nullable */
-  phone?: string | null;
-  /** @nullable */
-  website?: string | null;
-  /** @nullable */
-  openingHours?: string | null;
-  featured?: boolean;
-  /** @nullable */
-  metaDescription?: string | null;
-}
-
-export interface UpdatePlaceBody {
-  name?: string;
-  slug?: string;
-  description?: string;
-  category?: string;
-  /** @nullable */
-  coverImage?: string | null;
-  /** @nullable */
-  images?: string | null;
-  /** @nullable */
-  address?: string | null;
-  /** @nullable */
-  phone?: string | null;
-  /** @nullable */
-  website?: string | null;
-  /** @nullable */
-  openingHours?: string | null;
-  featured?: boolean;
   /** @nullable */
   metaDescription?: string | null;
 }
@@ -168,19 +125,14 @@ export interface GeneratedArticle {
   title: string;
   excerpt: string;
   content: string;
-  category: string;
+  tags: string;
 }
 
 export type ListPostsParams = {
   search?: string;
-  category?: string;
+  tag?: string;
   page?: number;
   limit?: number;
-};
-
-export type ListPlacesParams = {
-  category?: string;
-  search?: string;
 };
 
 export type UploadMediaBody = {

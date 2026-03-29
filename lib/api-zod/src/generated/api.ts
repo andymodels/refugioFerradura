@@ -3,7 +3,7 @@
  * Do not edit manually.
  * Api
  * Refúgio da Ferradura API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 import * as zod from "zod";
 
@@ -50,7 +50,7 @@ export const GetMeResponse = zod.object({
  */
 export const ListPostsQueryParams = zod.object({
   search: zod.coerce.string().optional(),
-  category: zod.coerce.string().optional(),
+  tag: zod.coerce.string().optional(),
   page: zod.coerce.number().optional(),
   limit: zod.coerce.number().optional(),
 });
@@ -60,11 +60,17 @@ export const ListPostsResponse = zod.object({
     zod.object({
       id: zod.number(),
       title: zod.string(),
+      subtitle: zod.string().nullish(),
       slug: zod.string(),
       excerpt: zod.string().nullish(),
       content: zod.string(),
       coverImage: zod.string().nullish(),
-      category: zod.string(),
+      gallery: zod.string().nullish().describe("JSON array of image URLs"),
+      videoEmbeds: zod
+        .string()
+        .nullish()
+        .describe("JSON array of video embed URLs"),
+      tags: zod.string().nullish().describe("JSON array of tag strings"),
       status: zod.string(),
       metaDescription: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -82,11 +88,17 @@ export const ListPostsAdminResponse = zod.object({
     zod.object({
       id: zod.number(),
       title: zod.string(),
+      subtitle: zod.string().nullish(),
       slug: zod.string(),
       excerpt: zod.string().nullish(),
       content: zod.string(),
       coverImage: zod.string().nullish(),
-      category: zod.string(),
+      gallery: zod.string().nullish().describe("JSON array of image URLs"),
+      videoEmbeds: zod
+        .string()
+        .nullish()
+        .describe("JSON array of video embed URLs"),
+      tags: zod.string().nullish().describe("JSON array of tag strings"),
       status: zod.string(),
       metaDescription: zod.string().nullish(),
       createdAt: zod.coerce.date(),
@@ -106,11 +118,17 @@ export const GetPostParams = zod.object({
 export const GetPostResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
+  subtitle: zod.string().nullish(),
   slug: zod.string(),
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  category: zod.string(),
+  gallery: zod.string().nullish().describe("JSON array of image URLs"),
+  videoEmbeds: zod
+    .string()
+    .nullish()
+    .describe("JSON array of video embed URLs"),
+  tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -127,11 +145,17 @@ export const GetPostAdminParams = zod.object({
 export const GetPostAdminResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
+  subtitle: zod.string().nullish(),
   slug: zod.string(),
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  category: zod.string(),
+  gallery: zod.string().nullish().describe("JSON array of image URLs"),
+  videoEmbeds: zod
+    .string()
+    .nullish()
+    .describe("JSON array of video embed URLs"),
+  tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -147,11 +171,14 @@ export const UpdatePostParams = zod.object({
 
 export const UpdatePostBody = zod.object({
   title: zod.string().optional(),
+  subtitle: zod.string().nullish(),
   slug: zod.string().optional(),
   excerpt: zod.string().nullish(),
   content: zod.string().optional(),
   coverImage: zod.string().nullish(),
-  category: zod.string().optional(),
+  gallery: zod.string().nullish(),
+  videoEmbeds: zod.string().nullish(),
+  tags: zod.string().nullish(),
   status: zod.string().optional(),
   metaDescription: zod.string().nullish(),
 });
@@ -159,11 +186,17 @@ export const UpdatePostBody = zod.object({
 export const UpdatePostResponse = zod.object({
   id: zod.number(),
   title: zod.string(),
+  subtitle: zod.string().nullish(),
   slug: zod.string(),
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  category: zod.string(),
+  gallery: zod.string().nullish().describe("JSON array of image URLs"),
+  videoEmbeds: zod
+    .string()
+    .nullish()
+    .describe("JSON array of video embed URLs"),
+  tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
   createdAt: zod.coerce.date(),
@@ -182,182 +215,15 @@ export const DeletePostParams = zod.object({
  */
 export const CreatePostBody = zod.object({
   title: zod.string(),
+  subtitle: zod.string().nullish(),
   slug: zod.string(),
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  category: zod.string(),
+  gallery: zod.string().nullish(),
+  videoEmbeds: zod.string().nullish(),
+  tags: zod.string().nullish(),
   status: zod.string(),
-  metaDescription: zod.string().nullish(),
-});
-
-/**
- * @summary List all places
- */
-export const ListPlacesQueryParams = zod.object({
-  category: zod.coerce.string().optional(),
-  search: zod.coerce.string().optional(),
-});
-
-export const ListPlacesResponse = zod.object({
-  places: zod.array(
-    zod.object({
-      id: zod.number(),
-      name: zod.string(),
-      slug: zod.string(),
-      description: zod.string(),
-      category: zod.string(),
-      coverImage: zod.string().nullish(),
-      images: zod.string().nullish(),
-      address: zod.string().nullish(),
-      phone: zod.string().nullish(),
-      website: zod.string().nullish(),
-      openingHours: zod.string().nullish(),
-      featured: zod.boolean(),
-      metaDescription: zod.string().nullish(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-    }),
-  ),
-});
-
-/**
- * @summary List all places for admin
- */
-export const ListPlacesAdminResponse = zod.object({
-  places: zod.array(
-    zod.object({
-      id: zod.number(),
-      name: zod.string(),
-      slug: zod.string(),
-      description: zod.string(),
-      category: zod.string(),
-      coverImage: zod.string().nullish(),
-      images: zod.string().nullish(),
-      address: zod.string().nullish(),
-      phone: zod.string().nullish(),
-      website: zod.string().nullish(),
-      openingHours: zod.string().nullish(),
-      featured: zod.boolean(),
-      metaDescription: zod.string().nullish(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-    }),
-  ),
-});
-
-/**
- * @summary Get place by slug
- */
-export const GetPlaceParams = zod.object({
-  slug: zod.coerce.string(),
-});
-
-export const GetPlaceResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  slug: zod.string(),
-  description: zod.string(),
-  category: zod.string(),
-  coverImage: zod.string().nullish(),
-  images: zod.string().nullish(),
-  address: zod.string().nullish(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  openingHours: zod.string().nullish(),
-  featured: zod.boolean(),
-  metaDescription: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * @summary Get place by ID for admin
- */
-export const GetPlaceAdminParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const GetPlaceAdminResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  slug: zod.string(),
-  description: zod.string(),
-  category: zod.string(),
-  coverImage: zod.string().nullish(),
-  images: zod.string().nullish(),
-  address: zod.string().nullish(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  openingHours: zod.string().nullish(),
-  featured: zod.boolean(),
-  metaDescription: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * @summary Update a place
- */
-export const UpdatePlaceParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const UpdatePlaceBody = zod.object({
-  name: zod.string().optional(),
-  slug: zod.string().optional(),
-  description: zod.string().optional(),
-  category: zod.string().optional(),
-  coverImage: zod.string().nullish(),
-  images: zod.string().nullish(),
-  address: zod.string().nullish(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  openingHours: zod.string().nullish(),
-  featured: zod.boolean().optional(),
-  metaDescription: zod.string().nullish(),
-});
-
-export const UpdatePlaceResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  slug: zod.string(),
-  description: zod.string(),
-  category: zod.string(),
-  coverImage: zod.string().nullish(),
-  images: zod.string().nullish(),
-  address: zod.string().nullish(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  openingHours: zod.string().nullish(),
-  featured: zod.boolean(),
-  metaDescription: zod.string().nullish(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
-
-/**
- * @summary Delete a place
- */
-export const DeletePlaceParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-/**
- * @summary Create a new place
- */
-export const CreatePlaceBody = zod.object({
-  name: zod.string(),
-  slug: zod.string(),
-  description: zod.string(),
-  category: zod.string(),
-  coverImage: zod.string().nullish(),
-  images: zod.string().nullish(),
-  address: zod.string().nullish(),
-  phone: zod.string().nullish(),
-  website: zod.string().nullish(),
-  openingHours: zod.string().nullish(),
-  featured: zod.boolean().optional(),
   metaDescription: zod.string().nullish(),
 });
 
@@ -384,5 +250,5 @@ export const GenerateFromUrlResponse = zod.object({
   title: zod.string(),
   excerpt: zod.string(),
   content: zod.string(),
-  category: zod.string(),
+  tags: zod.string(),
 });

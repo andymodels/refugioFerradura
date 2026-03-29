@@ -1,15 +1,18 @@
-import { pgTable, text, serial, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const postsTable = pgTable("posts", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
+  subtitle: text("subtitle"),
   slug: text("slug").notNull().unique(),
   excerpt: text("excerpt"),
   content: text("content").notNull().default(""),
   coverImage: text("cover_image"),
-  category: text("category").notNull().default("Turismo"),
+  gallery: text("gallery"),
+  videoEmbeds: text("video_embeds"),
+  tags: text("tags"),
   status: text("status").notNull().default("draft"),
   metaDescription: text("meta_description"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

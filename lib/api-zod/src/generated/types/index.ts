@@ -3,26 +3,21 @@
  * Do not edit manually.
  * Api
  * Refúgio da Ferradura API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 
 export * from "./adminUser";
-export * from "./createPlaceBody";
 export * from "./createPostBody";
 export * from "./errorResponse";
 export * from "./generatedArticle";
 export * from "./generateFromUrlBody";
 export * from "./healthStatus";
-export * from "./listPlacesParams";
 export * from "./listPostsParams";
 export * from "./loginBody";
 export * from "./loginResponse";
 export * from "./mediaUploadResponse";
-export * from "./place";
-export * from "./placeListResponse";
 export * from "./post";
 export * from "./postListResponse";
 export * from "./successResponse";
-export * from "./updatePlaceBody";
 export * from "./updatePostBody";
 export * from "./uploadMediaBody";

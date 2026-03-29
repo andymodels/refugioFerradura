@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Api
-  version: 0.1.0
+  version: 0.2.0
   description: Refúgio da Ferradura API
 servers:
   - url: /api
@@ -10,9 +10,7 @@ tags:
   - name: health
     description: Health operations
   - name: posts
-    description: Blog posts and articles
-  - name: places
-    description: Places and locations
+    description: Unified content posts (articles, places, experiences)
   - name: media
     description: Media upload
   - name: auth
@@ -100,7 +98,7 @@ paths:
           in: query
           schema:
             type: string
-        - name: category
+        - name: tag
           in: query
           schema:
             type: string
@@ -244,152 +242,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Post"
 
-  /places:
-    get:
-      operationId: listPlaces
-      tags: [places]
-      summary: List all places
-      parameters:
-        - name: category
-          in: query
-          schema:
-            type: string
-        - name: search
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of places
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PlaceListResponse"
-
-  /places/admin:
-    get:
-      operationId: listPlacesAdmin
-      tags: [places]
-      summary: List all places for admin
-      responses:
-        "200":
-          description: List of places
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PlaceListResponse"
-
-  /places/{slug}:
-    get:
-      operationId: getPlace
-      tags: [places]
-      summary: Get place by slug
-      parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Place detail
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Place"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /places/admin/{id}:
-    get:
-      operationId: getPlaceAdmin
-      tags: [places]
-      summary: Get place by ID for admin
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Place
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Place"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    patch:
-      operationId: updatePlace
-      tags: [places]
-      summary: Update a place
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdatePlaceBody"
-      responses:
-        "200":
-          description: Updated place
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Place"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    delete:
-      operationId: deletePlace
-      tags: [places]
-      summary: Delete a place
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "204":
-          description: Deleted
-
-  /places/admin/create:
-    post:
-      operationId: createPlace
-      tags: [places]
-      summary: Create a new place
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreatePlaceBody"
-      responses:
-        "201":
-          description: Created place
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Place"
-
   /media/upload:
     post:
       operationId: uploadMedia
@@ -506,6 +358,8 @@ components:
           type: integer
         title:
           type: string
+        subtitle:
+          type: ["string", "null"]
         slug:
           type: string
         excerpt:
@@ -514,8 +368,15 @@ components:
           type: string
         coverImage:
           type: ["string", "null"]
-        category:
-          type: string
+        gallery:
+          type: ["string", "null"]
+          description: JSON array of image URLs
+        videoEmbeds:
+          type: ["string", "null"]
+          description: JSON array of video embed URLs
+        tags:
+          type: ["string", "null"]
+          description: JSON array of tag strings
         status:
           type: string
         metaDescription:
@@ -531,7 +392,6 @@ components:
         - title
         - slug
         - content
-        - category
         - status
         - createdAt
         - updatedAt
@@ -554,6 +414,8 @@ components:
       properties:
         title:
           type: string
+        subtitle:
+          type: ["string", "null"]
         slug:
           type: string
         excerpt:
@@ -562,8 +424,12 @@ components:
           type: string
         coverImage:
           type: ["string", "null"]
-        category:
-          type: string
+        gallery:
+          type: ["string", "null"]
+        videoEmbeds:
+          type: ["string", "null"]
+        tags:
+          type: ["string", "null"]
         status:
           type: string
         metaDescription:
@@ -572,7 +438,6 @@ components:
         - title
         - slug
         - content
-        - category
         - status
 
     UpdatePostBody:
@@ -580,6 +445,8 @@ components:
       properties:
         title:
           type: string
+        subtitle:
+          type: ["string", "null"]
         slug:
           type: string
         excerpt:
@@ -588,126 +455,14 @@ components:
           type: string
         coverImage:
           type: ["string", "null"]
-        category:
-          type: string
+        gallery:
+          type: ["string", "null"]
+        videoEmbeds:
+          type: ["string", "null"]
+        tags:
+          type: ["string", "null"]
         status:
           type: string
-        metaDescription:
-          type: ["string", "null"]
-
-    Place:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
-          type: string
-        slug:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-        coverImage:
-          type: ["string", "null"]
-        images:
-          type: ["string", "null"]
-        address:
-          type: ["string", "null"]
-        phone:
-          type: ["string", "null"]
-        website:
-          type: ["string", "null"]
-        openingHours:
-          type: ["string", "null"]
-        featured:
-          type: boolean
-        metaDescription:
-          type: ["string", "null"]
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
-      required:
-        - id
-        - name
-        - slug
-        - description
-        - category
-        - featured
-        - createdAt
-        - updatedAt
-
-    PlaceListResponse:
-      type: object
-      properties:
-        places:
-          type: array
-          items:
-            $ref: "#/components/schemas/Place"
-      required:
-        - places
-
-    CreatePlaceBody:
-      type: object
-      properties:
-        name:
-          type: string
-        slug:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-        coverImage:
-          type: ["string", "null"]
-        images:
-          type: ["string", "null"]
-        address:
-          type: ["string", "null"]
-        phone:
-          type: ["string", "null"]
-        website:
-          type: ["string", "null"]
-        openingHours:
-          type: ["string", "null"]
-        featured:
-          type: boolean
-        metaDescription:
-          type: ["string", "null"]
-      required:
-        - name
-        - slug
-        - description
-        - category
-
-    UpdatePlaceBody:
-      type: object
-      properties:
-        name:
-          type: string
-        slug:
-          type: string
-        description:
-          type: string
-        category:
-          type: string
-        coverImage:
-          type: ["string", "null"]
-        images:
-          type: ["string", "null"]
-        address:
-          type: ["string", "null"]
-        phone:
-          type: ["string", "null"]
-        website:
-          type: ["string", "null"]
-        openingHours:
-          type: ["string", "null"]
-        featured:
-          type: boolean
         metaDescription:
           type: ["string", "null"]
 
@@ -739,10 +494,10 @@ components:
           type: string
         content:
           type: string
-        category:
+        tags:
           type: string
       required:
         - title
         - excerpt
         - content
-        - category
+        - tags

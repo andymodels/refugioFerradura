@@ -20,12 +20,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Project: Refúgio da Ferradura
 
-A premium tourism website for "Rota da Ferradura" in Guarapari, Espírito Santo, Brazil.
+A premium tourism website for "Rota da Ferradura" in Guarapari, Espírito Santo, Brazil. All content in Brazilian Portuguese.
 
 ### Features
-- **Public site**: Home, Blog, Places (Cachoeiras/Trilhas/Gastronomia/Hospedagem/Praias/Mirantes), Search
-- **Admin panel**: Dashboard, Posts CRUD with WYSIWYG editor, Places CRUD, Media upload
+- **Public site**: Home, Blog (with tag filters), Lugares (places by tag), Search, individual post/place pages
+- **Admin panel**: Dashboard with stats, unified Posts CRUD (blog + places unified), Media upload
 - **AI Integration**: Generate articles from URLs using OpenAI gpt-5.2
+- **Unified content model**: Posts hold both editorial articles AND places data, distinguished by tags
 
 ### Admin Credentials
 - Username: `admin`
@@ -33,23 +34,28 @@ A premium tourism website for "Rota da Ferradura" in Guarapari, Espírito Santo,
 
 ### Database Tables
 - `admins` — admin users (username + password hash)
-- `posts` — blog posts (title, slug, content HTML, category, status draft/published)
-- `places` — places/locations (name, slug, description HTML, category, address, phone, etc.)
+- `posts` — unified content (blog posts + places); has: title, subtitle, slug, excerpt, content (HTML), coverImage, gallery (JSON array), videoEmbeds (JSON array), tags (JSON array), status (draft/published), metaDescription
+- `places` — legacy table (no longer used; data migrated into posts with tags)
+
+### Tag System
+Posts are categorized using a JSON array `tags` column:
+- `turismo` — general tourism content
+- `natureza` — nature, waterfalls, beaches
+- `gastronomia` — restaurants, food
+- `hospedagem` — accommodation
+- `lugares` — flag for place-type content shown on /lugares page
+- `experiencias` — activities, trails, adventures
+- `cultura`, `aventura` — additional categories
 
 ### API Routes (all under /api)
 - `POST /auth/login` — admin login
 - `POST /auth/logout` — admin logout
 - `GET /auth/me` — get current admin
-- `GET /posts` — list published posts (public)
+- `GET /posts` — list published posts (public); supports `?search=` and `?tag=` filters
 - `GET /posts/admin` — list all posts (admin)
 - `POST /posts/admin/create` — create post (admin)
 - `GET/PATCH/DELETE /posts/admin/:id` — manage post (admin)
 - `GET /posts/:slug` — get post by slug (public)
-- `GET /places` — list places with optional category/search filters (public)
-- `GET /places/admin` — list all places (admin)
-- `POST /places/admin/create` — create place (admin)
-- `GET/PATCH/DELETE /places/admin/:id` — manage place (admin)
-- `GET /places/:slug` — get place by slug (public)
 - `POST /media/upload` — upload image file (returns URL)
 - `GET /media/files/:filename` — serve uploaded files
 - `POST /ai/generate-from-url` — AI generate article from URL (admin)
@@ -59,12 +65,12 @@ A premium tourism website for "Rota da Ferradura" in Guarapari, Espírito Santo,
 ```text
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
-│   ├── api-server/         # Express API server
+│   ├── api-server/         # Express API server (routes: posts, auth, media, ai)
 │   └── refugio-da-ferradura/  # React + Vite frontend (the main website)
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
+│   ├── api-client-react/   # Generated React Query hooks (via codegen)
+│   ├── api-zod/            # Generated Zod schemas from OpenAPI (via codegen)
 │   ├── db/                 # Drizzle ORM schema + DB connection
 │   └── integrations-openai-ai-server/  # OpenAI AI integration
 ├── scripts/                # Utility scripts (single workspace package)
@@ -90,6 +96,14 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 ## Key Commands
 
 - `pnpm --filter @workspace/api-spec run codegen` — re-generate API client/Zod from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes
+- `pnpm --filter @workspace/db run push` — push DB schema changes (use direct SQL ALTER TABLE if interactive prompt blocks)
 - `pnpm --filter @workspace/refugio-da-ferradura run dev` — run frontend dev server
 - `pnpm --filter @workspace/api-server run dev` — run API server
+
+## Notes
+
+- `cn()` utility lives in `@/components/ui-elements` (NOT `@/lib/utils`)
+- Logo: `${import.meta.env.BASE_URL}images/logo-refugio.png` (served from public/images/)
+- Uploads served at `/api/media/files/:filename`
+- gallery, tags, videoEmbeds stored as JSON text strings in DB
+- Category column still exists in DB but is superseded by tags

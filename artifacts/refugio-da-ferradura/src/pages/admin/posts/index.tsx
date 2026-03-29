@@ -47,7 +47,7 @@ export default function AdminPosts() {
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-4 font-medium">Título</th>
-                <th className="px-6 py-4 font-medium">Categoria</th>
+                <th className="px-6 py-4 font-medium">Tags</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium">Data</th>
                 <th className="px-6 py-4 font-medium text-right">Ações</th>
@@ -62,7 +62,13 @@ export default function AdminPosts() {
                 posts.map(post => (
                   <tr key={post.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">{post.title}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{post.category}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {(post.tags ? JSON.parse(post.tags) : []).slice(0, 3).map((t: string) => (
+                          <span key={t} className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full capitalize">{t}</span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${post.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                         {post.status === 'published' ? 'Publicado' : 'Rascunho'}

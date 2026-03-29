@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, postsTable } from "@workspace/db";
-import { eq, ilike, or, and } from "drizzle-orm";
+import { eq, ilike, or, and, sql } from "drizzle-orm";
 import {
   ListPostsQueryParams,
   ListPostsResponse,
@@ -21,23 +21,33 @@ const router: IRouter = Router();
 router.get("/posts", async (req, res): Promise<void> => {
   const query = ListPostsQueryParams.safeParse(req.query);
   const search = query.success ? query.data.search : undefined;
-  const category = query.success ? query.data.category : undefined;
+  const tag = query.success ? (query.data as any).tag : undefined;
+  const limit = query.success ? query.data.limit : undefined;
 
-  let dbQuery = db.select().from(postsTable).$dynamic();
+  const conditions: any[] = [eq(postsTable.status, "published")];
 
-  const conditions = [eq(postsTable.status, "published")];
   if (search) {
-    conditions.push(or(ilike(postsTable.title, `%${search}%`), ilike(postsTable.excerpt || postsTable.title, `%${search}%`))!);
-  }
-  if (category) {
-    conditions.push(eq(postsTable.category, category));
+    conditions.push(
+      or(
+        ilike(postsTable.title, `%${search}%`),
+        ilike(postsTable.content, `%${search}%`)
+      )!
+    );
   }
 
-  const posts = await db
+  if (tag) {
+    conditions.push(
+      sql`${postsTable.tags}::text ILIKE ${"%" + tag + "%"}`
+    );
+  }
+
+  let q = db
     .select()
     .from(postsTable)
     .where(and(...conditions))
     .orderBy(postsTable.createdAt);
+
+  const posts = limit ? await (q as any).limit(limit) : await q;
 
   res.json(ListPostsResponse.parse({ posts, total: posts.length }));
 });
@@ -113,7 +123,7 @@ router.patch("/posts/admin/:id", async (req, res): Promise<void> => {
 
   const [post] = await db
     .update(postsTable)
-    .set(parsed.data)
+    .set({ ...parsed.data, updatedAt: new Date() })
     .where(eq(postsTable.id, params.data.id))
     .returning();
 

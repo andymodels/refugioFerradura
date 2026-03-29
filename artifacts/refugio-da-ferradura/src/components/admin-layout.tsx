@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, Map as MapIcon, Image as ImageIcon, LogOut, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, FileText, Image as ImageIcon, LogOut, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "./ui-elements";
 
@@ -21,8 +21,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Postagens", href: "/admin/posts", icon: FileText },
-    { name: "Lugares", href: "/admin/places", icon: MapIcon },
+    { name: "Publicações", href: "/admin/posts", icon: FileText },
     { name: "Mídia", href: "/admin/media", icon: ImageIcon },
   ];
 

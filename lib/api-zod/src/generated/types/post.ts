@@ -3,19 +3,35 @@
  * Do not edit manually.
  * Api
  * Refúgio da Ferradura API
- * OpenAPI spec version: 0.1.0
+ * OpenAPI spec version: 0.2.0
  */
 
 export interface Post {
   id: number;
   title: string;
+  /** @nullable */
+  subtitle?: string | null;
   slug: string;
   /** @nullable */
   excerpt?: string | null;
   content: string;
   /** @nullable */
   coverImage?: string | null;
-  category: string;
+  /**
+   * JSON array of image URLs
+   * @nullable
+   */
+  gallery?: string | null;
+  /**
+   * JSON array of video embed URLs
+   * @nullable
+   */
+  videoEmbeds?: string | null;
+  /**
+   * JSON array of tag strings
+   * @nullable
+   */
+  tags?: string | null;
   status: string;
   /** @nullable */
   metaDescription?: string | null;

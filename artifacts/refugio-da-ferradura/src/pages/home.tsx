@@ -1,30 +1,32 @@
 import React from "react";
 import { Link } from "wouter";
-import { ArrowRight, MapPin, Clock } from "lucide-react";
+import { ArrowRight, Clock } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button, Card, cn } from "@/components/ui-elements";
-import { useListPosts, useListPlaces } from "@workspace/api-client-react";
+import { useListPosts } from "@workspace/api-client-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export default function Home() {
-  const { data: postsData } = useListPosts({ limit: 3 });
-  const { data: placesData } = useListPlaces({ category: "Gastronomia" }); // Feature gastronomy
+  const { data: latestData } = useListPosts({ limit: 3 } as any);
+  const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
 
-  const featuredPosts = postsData?.posts || [];
-  const featuredPlaces = placesData?.places?.slice(0, 3) || [];
+  const latestPosts = latestData?.posts || [];
+  const lugaresPosts = lugaresData?.posts || [];
 
   return (
     <Layout>
       {/* Hero Section */}
       <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop" 
-            alt="Vista aérea da Mata Atlântica e montanhas de Guarapari" 
+          <img
+            src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop"
+            alt="Vista aérea da Mata Atlântica e montanhas de Guarapari"
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-background via-black/20 to-black/60" />
         </div>
-        
+
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-20">
           <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-6 block drop-shadow-md">
             Guarapari - Espírito Santo
@@ -65,7 +67,7 @@ export default function Home() {
           <div className="flex justify-between items-end mb-12">
             <div>
               <span className="text-primary font-medium tracking-wider uppercase text-xs mb-2 block">Destaques</span>
-              <h2 className="text-3xl md:text-4xl font-serif">Gastronomia Local</h2>
+              <h2 className="text-3xl md:text-4xl font-serif">Lugares para Visitar</h2>
             </div>
             <Link href="/lugares" className="hidden sm:flex items-center gap-2 text-primary font-medium hover:opacity-80 transition-opacity">
               Ver todos <ArrowRight className="w-4 h-4" />
@@ -73,34 +75,38 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredPlaces.map((place) => (
-              <Link key={place.id} href={`/lugares/${place.slug}`} className="group block h-full">
-                <Card className="h-full border-transparent hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 bg-background/50 backdrop-blur-sm">
-                  <div className="aspect-[4/3] overflow-hidden relative">
-                    <img 
-                      src={place.coverImage || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=800&auto=format&fit=crop"} 
-                      alt={place.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                    />
-                    <div className="absolute top-4 left-4 bg-background/90 backdrop-blur px-3 py-1 text-xs font-medium rounded-full text-primary">
-                      {place.category}
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-xl font-serif font-medium mb-2 group-hover:text-primary transition-colors">{place.name}</h3>
-                    <p className="text-muted-foreground text-sm line-clamp-2 mb-4">{place.description.replace(/<[^>]*>?/gm, '')}</p>
-                    {place.address && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-auto pt-4 border-t border-border">
-                        <MapPin className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{place.address}</span>
+            {lugaresPosts.map((post) => {
+              const tags: string[] = post.tags ? JSON.parse(post.tags) : [];
+              return (
+                <Link key={post.id} href={`/blog/${post.slug}`} className="group block h-full">
+                  <Card className="h-full border-transparent hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 bg-background/50 backdrop-blur-sm">
+                    <div className="aspect-[4/3] overflow-hidden relative">
+                      <img
+                        src={post.coverImage || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=800&auto=format&fit=crop"}
+                        alt={post.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      />
+                      <div className="absolute top-4 left-4 flex gap-2 flex-wrap">
+                        {tags.filter(t => t !== "lugares").slice(0, 1).map(t => (
+                          <span key={t} className="bg-background/90 backdrop-blur px-3 py-1 text-xs font-medium rounded-full text-primary capitalize">
+                            {t}
+                          </span>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                </Card>
-              </Link>
-            ))}
+                    </div>
+                    <div className="p-6">
+                      <h3 className="text-xl font-serif font-medium mb-2 group-hover:text-primary transition-colors">{post.title}</h3>
+                      {post.subtitle && <p className="text-xs text-primary/60 italic mb-2">{post.subtitle}</p>}
+                      <p className="text-muted-foreground text-sm line-clamp-2 mb-4">
+                        {post.excerpt || post.content.replace(/<[^>]*>?/gm, '').substring(0, 100)}
+                      </p>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
-          
+
           <div className="mt-8 sm:hidden text-center">
             <Link href="/lugares">
               <Button variant="outline" className="w-full">Ver todos os lugares</Button>
@@ -118,24 +124,31 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {featuredPosts.map((post, idx) => (
+            {latestPosts.map((post, idx) => (
               <Link key={post.id} href={`/blog/${post.slug}`} className={cn("group block", idx === 0 && "lg:col-span-2 lg:row-span-2")}>
                 <div className="relative h-full overflow-hidden rounded-xl bg-muted aspect-square lg:aspect-auto">
-                  <img 
-                    src={post.coverImage || "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1200&auto=format&fit=crop"} 
+                  <img
+                    src={post.coverImage || "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1200&auto=format&fit=crop"}
                     alt={post.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 p-6 sm:p-8 w-full">
-                    <span className="text-primary-foreground/90 text-xs font-medium tracking-wider uppercase mb-3 block">
-                      {post.category}
-                    </span>
-                    <h3 className={cn("font-serif text-white font-medium group-hover:text-primary-foreground/90 transition-colors mb-2", idx === 0 ? "text-2xl sm:text-4xl" : "text-xl")}>
+                    <div className="flex gap-2 mb-3 flex-wrap">
+                      {(post.tags ? JSON.parse(post.tags) : []).slice(0, 2).map((t: string) => (
+                        <span key={t} className="text-primary-foreground/90 text-xs font-medium tracking-wider uppercase bg-white/10 px-2 py-0.5 rounded capitalize">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    <h3 className={cn("font-serif text-white font-medium group-hover:text-primary-foreground/90 transition-colors mb-1", idx === 0 ? "text-2xl sm:text-4xl" : "text-xl")}>
                       {post.title}
                     </h3>
+                    {post.subtitle && idx === 0 && (
+                      <p className="text-white/60 text-sm italic mt-1">{post.subtitle}</p>
+                    )}
                     <p className="text-white/70 text-sm line-clamp-2 mt-2 font-light">
-                      {post.excerpt || post.content.replace(/<[^>]*>?/gm, '').substring(0, 100) + '...'}
+                      {post.excerpt || post.content.replace(/<[^>]*>?/gm, '').substring(0, 100)}
                     </p>
                   </div>
                 </div>
