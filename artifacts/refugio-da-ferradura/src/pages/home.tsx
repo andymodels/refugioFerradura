@@ -30,10 +30,10 @@ export default function Home() {
             Guarapari - Espírito Santo
           </span>
           <h1 className="text-5xl md:text-7xl font-serif text-white mb-6 drop-shadow-lg leading-tight">
-            Descubra o refúgio perfeito na Rota da Ferradura
+            Explore a Rota da Ferradura
           </h1>
           <p className="text-lg md:text-xl text-white/90 mb-10 max-w-2xl mx-auto font-light drop-shadow-md">
-            Um convite para se conectar com a natureza, provar sabores inesquecíveis e vivenciar a paz nas montanhas capixabas.
+            Um guia completo com os melhores lugares, experiências, gastronomia e hospedagens nas montanhas de Guarapari.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/lugares">
