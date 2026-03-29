@@ -1,5 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -29,7 +31,15 @@ app.use(
     },
   }),
 );
-app.use(cors({ credentials: true, origin: true }));
+
+const allowedOrigin = process.env.FRONTEND_URL;
+app.use(
+  cors({
+    credentials: true,
+    origin: allowedOrigin ?? true,
+  }),
+);
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
@@ -45,11 +55,23 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
-  })
+  }),
 );
 
 app.use("/api", router);
+
+if (process.env.NODE_ENV === "production") {
+  const staticDir = path.join(
+    process.cwd(),
+    "artifacts/refugio-da-ferradura/dist/public",
+  );
+  app.use(express.static(staticDir));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+}
 
 export default app;
