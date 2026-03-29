@@ -6,9 +6,8 @@ import NotFound from "@/pages/not-found";
 
 // Public Pages
 import Home from "./pages/home";
-import Blog from "./pages/blog";
+import TagPage from "./pages/tag-page";
 import BlogPost from "./pages/blog-post";
-import Places from "./pages/places";
 import Search from "./pages/search";
 
 // Admin Pages
@@ -32,9 +31,11 @@ function Router() {
     <Switch>
       {/* Public Routes */}
       <Route path="/" component={Home} />
-      <Route path="/blog" component={Blog} />
       <Route path="/blog/:slug" component={BlogPost} />
-      <Route path="/lugares" component={Places} />
+      <Route path="/lugares">{() => <TagPage tag="lugares" />}</Route>
+      <Route path="/experiencias">{() => <TagPage tag="experiencias" />}</Route>
+      <Route path="/gastronomia">{() => <TagPage tag="gastronomia" />}</Route>
+      <Route path="/hospedagem">{() => <TagPage tag="hospedagem" />}</Route>
       <Route path="/buscar" component={Search} />
 
       {/* Admin Routes */}

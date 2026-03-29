@@ -1,18 +1,16 @@
 import React from "react";
 import { Link } from "wouter";
-import { ArrowRight, Clock } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button, Card, cn } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 export default function Home() {
-  const { data: latestData } = useListPosts({ limit: 3 } as any);
   const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
+  const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
 
-  const latestPosts = latestData?.posts || [];
   const lugaresPosts = lugaresData?.posts || [];
+  const experienciasPosts = experienciasData?.posts || [];
 
   return (
     <Layout>
@@ -41,9 +39,9 @@ export default function Home() {
             <Link href="/lugares">
               <Button size="lg" className="w-full sm:w-auto text-base">Explorar Lugares</Button>
             </Link>
-            <Link href="/blog">
+            <Link href="/experiencias">
               <Button variant="outline" size="lg" className="w-full sm:w-auto text-base text-white border-white hover:bg-white hover:text-foreground">
-                Ler Histórias
+                Ver Experiências
               </Button>
             </Link>
           </div>
@@ -115,16 +113,21 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Latest Stories */}
+      {/* Latest Experiências */}
       <section className="py-24 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="text-primary font-medium tracking-wider uppercase text-xs mb-2 block">Inspire-se</span>
-            <h2 className="text-3xl md:text-4xl font-serif">Últimas Histórias</h2>
+          <div className="flex justify-between items-end mb-16">
+            <div className="text-center flex-1">
+              <span className="text-primary font-medium tracking-wider uppercase text-xs mb-2 block">Inspire-se</span>
+              <h2 className="text-3xl md:text-4xl font-serif">Experiências em Destaque</h2>
+            </div>
+            <Link href="/experiencias" className="hidden sm:flex items-center gap-2 text-primary font-medium hover:opacity-80 transition-opacity shrink-0">
+              Ver todas <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {latestPosts.map((post, idx) => (
+            {experienciasPosts.map((post, idx) => (
               <Link key={post.id} href={`/blog/${post.slug}`} className={cn("group block", idx === 0 && "lg:col-span-2 lg:row-span-2")}>
                 <div className="relative h-full overflow-hidden rounded-xl bg-muted aspect-square lg:aspect-auto">
                   <img

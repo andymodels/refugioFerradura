@@ -23,7 +23,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navLinks = [
     { name: "Início", href: "/" },
     { name: "Lugares", href: "/lugares" },
-    { name: "Blog", href: "/blog" },
+    { name: "Experiências", href: "/experiencias" },
+    { name: "Gastronomia", href: "/gastronomia" },
+    { name: "Hospedagem", href: "/hospedagem" },
     { name: "Buscar", href: "/buscar" },
   ];
 
@@ -117,7 +119,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li><Link href="/" className="hover:text-primary transition-colors">Início</Link></li>
                 <li><Link href="/lugares" className="hover:text-primary transition-colors">Lugares</Link></li>
-                <li><Link href="/blog" className="hover:text-primary transition-colors">Blog</Link></li>
+                <li><Link href="/experiencias" className="hover:text-primary transition-colors">Experiências</Link></li>
+                <li><Link href="/gastronomia" className="hover:text-primary transition-colors">Gastronomia</Link></li>
+                <li><Link href="/hospedagem" className="hover:text-primary transition-colors">Hospedagem</Link></li>
                 <li><Link href="/admin/login" className="hover:text-primary transition-colors">Área Restrita</Link></li>
               </ul>
             </div>
