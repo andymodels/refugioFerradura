@@ -222,7 +222,7 @@ function PostPreviewOverlay({ post, tags, gallery, videoEmbeds, onClose }: {
         {/* Content */}
         {post.content && (
           <div
-            className="prose prose-stone prose-lg max-w-none prose-headings:font-serif prose-p:text-muted-foreground prose-p:leading-relaxed prose-a:text-primary mb-16"
+            className="post-content mb-16"
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
         )}

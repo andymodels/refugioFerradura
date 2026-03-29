@@ -97,12 +97,7 @@ export default function BlogPost() {
         {/* Content */}
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
-            className="prose prose-stone prose-lg max-w-none 
-              prose-headings:font-serif prose-headings:text-foreground
-              prose-h2:text-3xl prose-h2:mt-12 prose-h2:mb-6
-              prose-p:text-muted-foreground prose-p:leading-relaxed prose-p:mb-6
-              prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-              prose-img:rounded-xl prose-img:shadow-md"
+            className="post-content"
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
         </div>
