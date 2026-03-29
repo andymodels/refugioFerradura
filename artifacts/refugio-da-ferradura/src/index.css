@@ -5,51 +5,51 @@
   --font-sans: 'Plus Jakarta Sans', sans-serif;
   --font-serif: 'Lora', serif;
 
-  /* Premium Editorial Warm Palette */
-  --color-background: hsl(40 33% 98%); /* #FDFBF7 */
-  --color-foreground: hsl(20 10% 15%); /* #292624 */
-  
-  --color-primary: hsl(18 20% 45%); /* #8A7369 - Warm Earth/Terracotta */
-  --color-primary-foreground: hsl(40 33% 98%);
-  
-  --color-secondary: hsl(80 15% 45%); /* #6E7C65 - Sage Green */
-  --color-secondary-foreground: hsl(40 33% 98%);
-  
-  --color-muted: hsl(40 20% 92%); /* #EFECE6 */
-  --color-muted-foreground: hsl(20 5% 45%); /* #7C7673 */
-  
-  --color-accent: hsl(30 30% 85%); /* #E3D1C1 */
-  --color-accent-foreground: hsl(20 10% 15%);
-  
-  --color-destructive: hsl(0 60% 50%);
+  /* Dark Editorial Palette — #0b0f0c base */
+  --color-background: hsl(140 15% 5%);       /* #0b0f0c — very dark green-black */
+  --color-foreground: hsl(40 20% 88%);        /* #e5e1da — off-white/cream */
+
+  --color-primary: hsl(18 28% 58%);           /* #a68a7b — warm terracotta (brighter for dark bg) */
+  --color-primary-foreground: hsl(140 15% 5%);
+
+  --color-secondary: hsl(80 18% 48%);         /* sage green */
+  --color-secondary-foreground: hsl(140 15% 5%);
+
+  --color-muted: hsl(140 10% 11%);            /* #171c19 — dark muted bg */
+  --color-muted-foreground: hsl(140 5% 55%);  /* #848e88 — subtle text */
+
+  --color-accent: hsl(140 10% 13%);           /* #1a1f1c — slightly lighter than bg */
+  --color-accent-foreground: hsl(40 20% 88%);
+
+  --color-destructive: hsl(0 55% 50%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  
-  --color-border: hsl(30 15% 85%); /* #DFD9D3 */
-  --color-input: hsl(30 15% 90%);
-  --color-ring: hsl(18 20% 45%);
-  
-  --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(20 10% 15%);
+
+  --color-border: hsl(140 8% 20%);            /* #2a302c — dark border */
+  --color-input: hsl(140 10% 13%);
+  --color-ring: hsl(18 28% 58%);
+
+  --color-card: hsl(140 12% 8%);              /* #111512 — card bg, slightly lighter than page */
+  --color-card-foreground: hsl(40 20% 88%);
 }
 
 :root {
-  --background: 40 33% 98%;
-  --foreground: 20 10% 15%;
-  --primary: 18 20% 45%;
-  --primary-foreground: 40 33% 98%;
-  --secondary: 80 15% 45%;
-  --secondary-foreground: 40 33% 98%;
-  --muted: 40 20% 92%;
-  --muted-foreground: 20 5% 45%;
-  --accent: 30 30% 85%;
-  --accent-foreground: 20 10% 15%;
-  --destructive: 0 60% 50%;
+  --background: 140 15% 5%;
+  --foreground: 40 20% 88%;
+  --primary: 18 28% 58%;
+  --primary-foreground: 140 15% 5%;
+  --secondary: 80 18% 48%;
+  --secondary-foreground: 140 15% 5%;
+  --muted: 140 10% 11%;
+  --muted-foreground: 140 5% 55%;
+  --accent: 140 10% 13%;
+  --accent-foreground: 40 20% 88%;
+  --destructive: 0 55% 50%;
   --destructive-foreground: 0 0% 100%;
-  --border: 30 15% 85%;
-  --input: 30 15% 90%;
-  --ring: 18 20% 45%;
-  --card: 0 0% 100%;
-  --card-foreground: 20 10% 15%;
+  --border: 140 8% 20%;
+  --input: 140 10% 13%;
+  --ring: 18 28% 58%;
+  --card: 140 12% 8%;
+  --card-foreground: 40 20% 88%;
 }
 
 @layer base {
@@ -59,6 +59,10 @@
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif text-foreground tracking-tight;
+  }
+
+  input, textarea, select {
+    @apply bg-input text-foreground border-border;
   }
 }
 
@@ -100,7 +104,7 @@
   @apply border-border my-8;
 }
 .ProseMirror mark {
-  @apply bg-amber-200/60 rounded-sm px-0.5;
+  @apply bg-amber-700/40 rounded-sm px-0.5;
 }
 .ProseMirror img {
   @apply max-w-full rounded-lg my-4 shadow-sm;

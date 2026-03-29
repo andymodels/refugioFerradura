@@ -40,7 +40,7 @@ export default function TagPage({ tag }: TagPageProps) {
 
   return (
     <Layout>
-      <div className="bg-primary/5 pt-32 pb-16 border-b border-border/50">
+      <div className="pt-32 pb-16 border-b border-border/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="text-primary font-medium tracking-wider uppercase text-xs mb-2 block">
             {meta.subtitle}
