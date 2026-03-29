@@ -25,8 +25,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background selection:bg-primary/20">
-      {/* Fixed transparent header — no scroll-based changes */}
-      <header className="fixed top-0 inset-x-0 z-50 bg-transparent">
+      {/* Fixed header — transparent with dark gradient for readability */}
+      <header
+        className="fixed top-0 inset-x-0 z-50"
+        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)" }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <Link href="/">
             <img
