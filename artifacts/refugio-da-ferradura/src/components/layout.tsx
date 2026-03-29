@@ -4,6 +4,7 @@ import { Menu, X, MapPin, Instagram, Facebook } from "lucide-react";
 import { cn } from "./ui-elements";
 
 const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
+const logoIcon = `${import.meta.env.BASE_URL}images/logo-icon.png`;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -41,7 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <Link href="/" className="group flex items-center gap-3 z-50 relative">
             <img 
-              src={logoImg} 
+              src={logoIcon} 
               alt="Refúgio da Ferradura" 
               className={cn(
                 "h-16 w-16 rounded-full object-cover transition-all duration-300 shrink-0",
