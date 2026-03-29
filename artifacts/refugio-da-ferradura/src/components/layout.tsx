@@ -35,8 +35,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Navigation */}
       <header
         className={cn(
-          "fixed top-0 inset-x-0 z-50 transition-all duration-300",
-          isScrolled ? "bg-background/95 backdrop-blur-md border-b border-border/50 py-3 shadow-sm" : "bg-transparent py-5"
+          "fixed top-0 inset-x-0 z-50 transition-all duration-500",
+          isScrolled
+            ? "bg-black/60 backdrop-blur-md border-b border-white/10 py-2 shadow-lg"
+            : "bg-transparent py-4"
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
@@ -44,7 +46,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <img 
               src={logoIcon} 
               alt="Refúgio da Ferradura" 
-              className="h-[130px] w-auto object-contain transition-all duration-300 shrink-0 drop-shadow-lg"
+              className={cn(
+                "w-auto object-contain transition-all duration-500 shrink-0 drop-shadow-lg",
+                isScrolled ? "h-[80px]" : "h-[130px]"
+              )}
             />
           </Link>
 
@@ -55,9 +60,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={link.name}
                 href={link.href}
                 className={cn(
-                  "text-sm font-medium transition-colors hover:opacity-100",
-                  location === link.href ? "opacity-100" : "opacity-70",
-                  isScrolled ? "text-foreground hover:text-primary" : "text-white hover:text-white"
+                  "text-sm font-semibold tracking-wide transition-all hover:opacity-100 text-white drop-shadow-md",
+                  location === link.href ? "opacity-100 border-b border-white/60 pb-0.5" : "opacity-80"
                 )}
               >
                 {link.name}
@@ -67,7 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           {/* Mobile Menu Toggle */}
           <button
-            className={cn("md:hidden p-2 z-50 relative", isScrolled || mobileMenuOpen ? "text-foreground" : "text-white")}
+            className="md:hidden p-2 z-50 relative text-white drop-shadow-md"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
