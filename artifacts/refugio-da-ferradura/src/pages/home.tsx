@@ -1,11 +1,35 @@
 import React from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Button, Card, cn } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 
+const DEFAULT_HERO = {
+  hero_image_url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop",
+  hero_overlay_opacity: "0.4",
+  hero_style: "gradient",
+};
+
+function getOverlayStyle(style: string, opacity: number): React.CSSProperties {
+  if (style === "gradient") {
+    return {
+      background: `linear-gradient(to top, rgba(0,0,0,${Math.min(opacity + 0.3, 1)}) 0%, rgba(0,0,0,${opacity * 0.5}) 50%, rgba(0,0,0,${opacity}) 100%)`,
+    };
+  }
+  return { background: `rgba(0,0,0,${opacity})` };
+}
+
 export default function Home() {
+  const { data: settingsData } = useQuery({
+    queryKey: ["site-settings"],
+    queryFn: () => fetch("/api/settings").then((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const siteSettings = { ...DEFAULT_HERO, ...(settingsData?.settings ?? {}) };
+  const heroOpacity = parseFloat(siteSettings.hero_overlay_opacity) || 0.4;
+
   const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
   const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
 
@@ -18,11 +42,11 @@ export default function Home() {
       <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center">
         <div className="absolute inset-0 z-0">
           <img
-            src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop"
+            src={siteSettings.hero_image_url}
             alt="Vista aérea da Mata Atlântica e montanhas de Guarapari"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-background via-black/20 to-black/60" />
+          <div className="absolute inset-0" style={getOverlayStyle(siteSettings.hero_style, heroOpacity)} />
         </div>
 
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">

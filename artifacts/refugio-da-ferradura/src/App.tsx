@@ -16,6 +16,7 @@ import AdminDashboard from "./pages/admin/dashboard";
 import AdminPosts from "./pages/admin/posts";
 import AdminPostEditor from "./pages/admin/posts/editor";
 import AdminMedia from "./pages/admin/media";
+import AdminSettings from "./pages/admin/settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +50,9 @@ function Router() {
 
       {/* Admin Media */}
       <Route path="/admin/media" component={AdminMedia} />
+
+      {/* Admin Settings */}
+      <Route path="/admin/settings" component={AdminSettings} />
 
       <Route component={NotFound} />
     </Switch>
