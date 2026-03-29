@@ -30,12 +30,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         className="fixed top-0 inset-x-0 z-50"
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)" }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between" style={{ minHeight: "100px" }}>
           <Link href="/">
             <img
               src={logoIcon}
               alt="Refúgio da Ferradura"
-              className="h-[64px] w-auto object-contain drop-shadow-lg"
+              className="w-auto object-contain drop-shadow-lg"
+              style={{ height: "80px" }}
             />
           </Link>
 
