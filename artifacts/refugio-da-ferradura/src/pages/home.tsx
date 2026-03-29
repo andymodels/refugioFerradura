@@ -30,7 +30,7 @@ export default function Home() {
             Rota da Ferradura · Guarapari – ES
           </span>
           <h1 className="text-5xl md:text-7xl font-serif text-white mb-6 drop-shadow-lg leading-tight">
-            Rota da Ferradura, Guarapari
+            Explore a Rota da Ferradura
           </h1>
           <p className="text-lg md:text-xl text-white/90 mb-10 max-w-2xl mx-auto font-light drop-shadow-md">
             Descubra os melhores lugares, experiências, gastronomia e hospedagens nas montanhas de Guarapari.

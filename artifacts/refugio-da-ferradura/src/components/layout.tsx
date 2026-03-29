@@ -48,7 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               alt="Refúgio da Ferradura" 
               className={cn(
                 "w-auto object-contain transition-all duration-500 shrink-0 drop-shadow-lg",
-                isScrolled ? "h-[80px]" : "h-[130px]"
+                isScrolled ? "h-[64px]" : "h-[72px]"
               )}
             />
           </Link>
