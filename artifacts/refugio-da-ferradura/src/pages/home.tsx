@@ -1,11 +1,24 @@
-import React from "react";
-import { Link } from "wouter";
-import { ArrowRight } from "lucide-react";
+import React, { useState } from "react";
+import { Link, useLocation } from "wouter";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button, Card, cn } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 
+const logoIcon = `${import.meta.env.BASE_URL}images/logo-icon.png`;
+
+const navLinks = [
+  { name: "Início", href: "/" },
+  { name: "Lugares", href: "/lugares" },
+  { name: "Experiências", href: "/experiencias" },
+  { name: "Gastronomia", href: "/gastronomia" },
+  { name: "Hospedagem", href: "/hospedagem" },
+  { name: "Buscar", href: "/buscar" },
+];
+
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [location] = useLocation();
   const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
   const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
 
@@ -13,9 +26,10 @@ export default function Home() {
   const experienciasPosts = experienciasData?.posts || [];
 
   return (
-    <Layout>
-      {/* Hero Section */}
-      <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center overflow-hidden">
+    <Layout hideHeader>
+      {/* Hero Section — nav lives here */}
+      <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center">
+        {/* Background */}
         <div className="absolute inset-0 z-0">
           <img
             src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop"
@@ -25,7 +39,66 @@ export default function Home() {
           <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-background via-black/20 to-black/60" />
         </div>
 
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-20">
+        {/* Logo + Nav — absolute at top of hero */}
+        <div className="absolute top-0 inset-x-0 z-20 px-4 sm:px-6 lg:px-8 py-5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <Link href="/">
+              <img
+                src={logoIcon}
+                alt="Refúgio da Ferradura"
+                className="h-[64px] w-auto object-contain drop-shadow-lg"
+              />
+            </Link>
+
+            {/* Desktop Nav */}
+            <nav className="hidden md:flex items-center gap-8">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={cn(
+                    "text-sm font-semibold tracking-wide transition-all hover:opacity-100 text-white drop-shadow-md",
+                    location === link.href ? "opacity-100 border-b border-white/60 pb-0.5" : "opacity-80"
+                  )}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+
+            {/* Mobile toggle */}
+            <button
+              className="md:hidden p-2 text-white drop-shadow-md"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Nav Overlay */}
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 bg-background z-50 flex flex-col pt-24 px-6">
+            <button className="absolute top-5 right-5 p-2" onClick={() => setMobileMenuOpen(false)}>
+              <X className="w-6 h-6" />
+            </button>
+            <nav className="flex flex-col gap-6 text-2xl font-serif">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn("border-b border-border pb-4 transition-colors", location === link.href ? "text-primary" : "text-foreground")}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        )}
+
+        {/* Hero Content */}
+        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-6 block drop-shadow-md">
             Rota da Ferradura · Guarapari – ES
           </span>

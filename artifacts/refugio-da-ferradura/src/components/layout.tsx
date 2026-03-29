@@ -6,7 +6,7 @@ import { cn } from "./ui-elements";
 const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
 const logoIcon = `${import.meta.env.BASE_URL}images/logo-icon.png`;
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout({ children, hideHeader }: { children: React.ReactNode; hideHeader?: boolean }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location] = useLocation();
@@ -32,72 +32,71 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background selection:bg-primary/20">
-      {/* Navigation */}
-      <header
-        className={cn(
-          "fixed top-0 inset-x-0 z-50 transition-all duration-500",
-          isScrolled
-            ? "bg-black/60 backdrop-blur-md border-b border-white/10 py-2 shadow-lg"
-            : "bg-transparent py-4"
-        )}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <Link href="/" className="group flex items-center gap-3 z-50 relative">
-            <img 
-              src={logoIcon} 
-              alt="Refúgio da Ferradura" 
-              className={cn(
-                "w-auto object-contain transition-all duration-500 shrink-0 drop-shadow-lg",
-                isScrolled ? "h-[110px]" : "h-[200px]"
-              )}
-            />
-          </Link>
-
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                className={cn(
-                  "text-sm font-semibold tracking-wide transition-all hover:opacity-100 text-white drop-shadow-md",
-                  location === link.href ? "opacity-100 border-b border-white/60 pb-0.5" : "opacity-80"
-                )}
-              >
-                {link.name}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden p-2 z-50 relative text-white drop-shadow-md"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-
-        {/* Mobile Nav */}
-        <div
+      {/* Navigation — hidden on pages that embed nav in the hero */}
+      {!hideHeader && (
+        <header
           className={cn(
-            "fixed inset-0 bg-background z-40 flex flex-col pt-24 px-6 transition-transform duration-300 ease-in-out md:hidden",
-            mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+            "fixed top-0 inset-x-0 z-50 transition-all duration-500",
+            isScrolled
+              ? "bg-black/60 backdrop-blur-md border-b border-white/10 py-2 shadow-lg"
+              : "bg-transparent py-4"
           )}
         >
-          <nav className="flex flex-col gap-6 text-2xl font-serif">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                className={cn("border-b border-border pb-4 transition-colors", location === link.href ? "text-primary" : "text-foreground")}
-              >
-                {link.name}
-              </Link>
-            ))}
-          </nav>
-        </div>
-      </header>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            <Link href="/" className="group flex items-center gap-3 z-50 relative">
+              <img
+                src={logoIcon}
+                alt="Refúgio da Ferradura"
+                className={cn(
+                  "w-auto object-contain transition-all duration-500 shrink-0 drop-shadow-lg",
+                  isScrolled ? "h-[64px]" : "h-[80px]"
+                )}
+              />
+            </Link>
+
+            <nav className="hidden md:flex items-center gap-8">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={cn(
+                    "text-sm font-semibold tracking-wide transition-all hover:opacity-100 text-white drop-shadow-md",
+                    location === link.href ? "opacity-100 border-b border-white/60 pb-0.5" : "opacity-80"
+                  )}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+
+            <button
+              className="md:hidden p-2 z-50 relative text-white drop-shadow-md"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+
+          <div
+            className={cn(
+              "fixed inset-0 bg-background z-40 flex flex-col pt-24 px-6 transition-transform duration-300 ease-in-out md:hidden",
+              mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+            )}
+          >
+            <nav className="flex flex-col gap-6 text-2xl font-serif">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={cn("border-b border-border pb-4 transition-colors", location === link.href ? "text-primary" : "text-foreground")}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </header>
+      )}
 
       {/* Main Content */}
       <main className="flex-grow flex flex-col">{children}</main>
