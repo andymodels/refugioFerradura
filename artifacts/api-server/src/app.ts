@@ -2,8 +2,11 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+const PgSession = connectPgSimple(session);
 
 const app: Express = express();
 
@@ -32,6 +35,11 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 app.use(
   session({
+    store: new PgSession({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+      tableName: "session",
+    }),
     secret: process.env.SESSION_SECRET ?? "refugio-ferradura-secret-key-2024",
     resave: false,
     saveUninitialized: false,
