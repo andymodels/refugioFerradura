@@ -18,8 +18,8 @@ export default function Home() {
       <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
-            src={`${import.meta.env.BASE_URL}images/hero-bg.png`} 
-            alt="Rota da Ferradura" 
+            src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop" 
+            alt="Vista aérea da Mata Atlântica e montanhas de Guarapari" 
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black/40 bg-gradient-to-t from-background via-black/20 to-black/60" />

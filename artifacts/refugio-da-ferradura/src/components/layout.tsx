@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, MapPin, Leaf, Instagram, Facebook } from "lucide-react";
+import { Menu, X, MapPin, Instagram, Facebook } from "lucide-react";
 import { cn } from "./ui-elements";
+
+const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -36,10 +38,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <Link href="/" className="group flex items-center gap-2 z-50 relative">
-            <div className={cn("p-1.5 rounded-sm transition-colors", isScrolled ? "bg-primary/10 text-primary" : "bg-white/10 text-white group-hover:bg-white/20")}>
-              <Leaf className="w-5 h-5" />
-            </div>
-            <span className={cn("font-serif font-semibold text-xl tracking-tight transition-colors", isScrolled ? "text-foreground" : "text-white")}>
+            <img 
+              src={logoImg} 
+              alt="Refúgio da Ferradura" 
+              className={cn("h-12 w-12 rounded-full object-cover transition-all duration-300", isScrolled ? "shadow-md" : "brightness-110")}
+            />
+            <span className={cn("font-serif font-semibold text-xl tracking-tight transition-colors", isScrolled ? "text-foreground" : "text-white drop-shadow-md")}>
               Refúgio da Ferradura
             </span>
           </Link>
@@ -99,8 +103,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8">
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Leaf className="w-5 h-5 text-primary" />
+              <div className="flex items-center gap-3">
+                <img src={logoImg} alt="Refúgio da Ferradura" className="h-14 w-14 rounded-full object-cover" />
                 <span className="font-serif font-semibold text-xl text-white">Refúgio da Ferradura</span>
               </div>
               <p className="text-muted-foreground max-w-xs leading-relaxed">
