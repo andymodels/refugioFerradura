@@ -62,24 +62,59 @@
   }
 }
 
-/* Custom Editor Styles */
-.prose-editor {
-  @apply outline-none min-h-[300px];
+/* Tiptap / ProseMirror Editor Styles */
+.ProseMirror {
+  @apply outline-none min-h-[380px] text-foreground;
 }
-.prose-editor p {
+.ProseMirror p {
   @apply mb-4 leading-relaxed;
 }
-.prose-editor h2 {
+.ProseMirror h1 {
+  @apply text-3xl font-serif mt-10 mb-4;
+}
+.ProseMirror h2 {
   @apply text-2xl font-serif mt-8 mb-4;
 }
-.prose-editor h3 {
+.ProseMirror h3 {
   @apply text-xl font-serif mt-6 mb-3;
 }
-.prose-editor ul {
-  @apply list-disc pl-5 mb-4 space-y-2;
+.ProseMirror ul {
+  @apply list-disc pl-6 mb-4 space-y-1;
 }
-.prose-editor a {
-  @apply text-primary underline underline-offset-4 decoration-primary/30 hover:decoration-primary transition-colors;
+.ProseMirror ol {
+  @apply list-decimal pl-6 mb-4 space-y-1;
+}
+.ProseMirror blockquote {
+  @apply border-l-4 border-primary/40 pl-4 italic text-muted-foreground my-6;
+}
+.ProseMirror a {
+  @apply text-primary underline underline-offset-4 decoration-primary/30;
+}
+.ProseMirror code {
+  @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono;
+}
+.ProseMirror pre {
+  @apply bg-muted p-4 rounded-lg overflow-x-auto my-4;
+}
+.ProseMirror hr {
+  @apply border-border my-8;
+}
+.ProseMirror mark {
+  @apply bg-amber-200/60 rounded-sm px-0.5;
+}
+.ProseMirror img {
+  @apply max-w-full rounded-lg my-4 shadow-sm;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply text-muted-foreground/60 pointer-events-none;
+  float: left;
+  height: 0;
+}
+
+/* Legacy contentEditable editor */
+.prose-editor {
+  @apply outline-none min-h-[300px];
 }
 
 /* Hide scrollbar for clean horizontal scrolls */
