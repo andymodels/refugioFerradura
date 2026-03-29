@@ -6,7 +6,8 @@ const router: IRouter = Router();
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
   // Hero
-  hero_image_url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop",
+  hero_image_url: "",
+  hero_image_pool: "[]",
   hero_overlay_opacity: "0.4",
   hero_style: "gradient",
   hero_height_vh: "85",
@@ -15,7 +16,7 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   header_bg_color: "#0b0f0c",
   header_sticky: "true",
   header_height_px: "100",
-  logo_size_px: "80",
+  logo_size_px: "56",
   // Footer
   footer_tagline: "Descubra a magia e tranquilidade da Rota da Ferradura em Guarapari, ES. Natureza, gastronomia e paz.",
   footer_address: "Rota da Ferradura, Buenos Aires\nGuarapari - ES",
