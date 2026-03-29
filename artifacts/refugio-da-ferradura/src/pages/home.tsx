@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -6,11 +6,34 @@ import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 import { useSiteSettings, parseHomeBlocks, getOverlayStyle } from "@/hooks/use-site-settings";
 
+const HERO_POOL = [
+  "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1448375240586-882707db888b?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1504893524553-b855bce32c67?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1516912481808-3406841bd33c?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1540390769625-2fc3f8b1d50c?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1490682143684-14369e18dce8?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=85&w=1920&auto=format&fit=crop",
+];
+
 export default function Home() {
   const s = useSiteSettings();
   const heroOpacity = parseFloat(s.hero_overlay_opacity) || 0.4;
   const heroHeight = parseInt(s.hero_height_vh) || 85;
   const blocks = parseHomeBlocks(s.home_blocks);
+
+  const randomHeroImage = useMemo(
+    () => HERO_POOL[Math.floor(Math.random() * HERO_POOL.length)],
+    []
+  );
+  const heroImage = s.hero_image_url || randomHeroImage;
 
   const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
   const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
@@ -26,7 +49,7 @@ export default function Home() {
       >
         <div className="absolute inset-0 z-0">
           <img
-            src={s.hero_image_url}
+            src={heroImage}
             alt="Vista da Rota da Ferradura"
             className="w-full h-full object-cover"
           />
