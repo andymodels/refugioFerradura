@@ -274,6 +274,8 @@ export default function PostEditor() {
   const generateAiMutation = useGenerateFromUrl();
 
   const [aiUrl, setAiUrl] = useState("");
+  const [aiMode, setAiMode] = useState<"url" | "text">("url");
+  const [aiText, setAiText] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [galleryUrls, setGalleryUrls] = useState<string[]>([]);
   const [videoUrls, setVideoUrls] = useState<string[]>([]);
@@ -378,12 +380,16 @@ export default function PostEditor() {
   };
 
   const handleAIGeneration = async () => {
-    if (!aiUrl) return toast({ title: "Insira uma URL válida", variant: "destructive" });
+    const source = aiMode === "url" ? aiUrl.trim() : aiText.trim();
+    if (!source) {
+      return toast({ title: aiMode === "url" ? "Insira uma URL válida" : "Cole o texto antes de gerar", variant: "destructive" });
+    }
     try {
-      const result = await generateAiMutation.mutateAsync({ data: { url: aiUrl } });
-      setValue("title", result.title);
-      setValue("excerpt", result.excerpt);
-      setValue("content", result.content);
+      const payload = aiMode === "url" ? { url: source } : { url: source };
+      const result = await generateAiMutation.mutateAsync({ data: payload });
+      setValue("title", result.title, { shouldDirty: true });
+      setValue("excerpt", result.excerpt, { shouldDirty: true });
+      setValue("content", result.content, { shouldDirty: true });
       if (result.tags) {
         try { setSelectedTags(JSON.parse(result.tags)); } catch { setSelectedTags(["turismo"]); }
       }
@@ -724,18 +730,48 @@ export default function PostEditor() {
               <h3 className="font-serif font-medium mb-1 flex items-center gap-2 text-primary">
                 <Wand2 className="w-4 h-4" /> Geração por IA
               </h3>
-              <p className="text-xs text-muted-foreground mb-4">Insira o link de um artigo e a IA criará um rascunho completo automaticamente.</p>
+              <p className="text-xs text-muted-foreground mb-3">A IA reescreve o conteúdo e gera um artigo original para o site.</p>
+
+              {/* Mode toggle */}
+              <div className="flex rounded-lg overflow-hidden border border-border mb-3">
+                <button
+                  type="button"
+                  onClick={() => setAiMode("url")}
+                  className={cn("flex-1 py-1.5 text-xs font-medium transition-all", aiMode === "url" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
+                >
+                  Via URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiMode("text")}
+                  className={cn("flex-1 py-1.5 text-xs font-medium transition-all", aiMode === "text" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
+                >
+                  Colar Texto
+                </button>
+              </div>
+
               <div className="space-y-2">
-                <Input
-                  value={aiUrl}
-                  onChange={e => setAiUrl(e.target.value)}
-                  placeholder="https://exemplo.com/artigo"
-                  className="bg-background text-sm"
-                />
+                {aiMode === "url" ? (
+                  <Input
+                    value={aiUrl}
+                    onChange={e => setAiUrl(e.target.value)}
+                    placeholder="https://exemplo.com/artigo"
+                    className="bg-background text-sm"
+                    onKeyDown={e => e.key === "Enter" && handleAIGeneration()}
+                  />
+                ) : (
+                  <textarea
+                    value={aiText}
+                    onChange={e => setAiText(e.target.value)}
+                    placeholder="Cole aqui o texto do artigo que deseja reescrever..."
+                    rows={5}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary resize-none transition-all"
+                  />
+                )}
                 <Button
                   type="button"
                   onClick={handleAIGeneration}
-                  disabled={generateAiMutation.isPending || !aiUrl.trim()}
+                  disabled={generateAiMutation.isPending || (aiMode === "url" ? !aiUrl.trim() : !aiText.trim())}
                   className="w-full gap-2"
                   variant="secondary"
                 >
@@ -745,6 +781,11 @@ export default function PostEditor() {
                     <><Wand2 className="w-4 h-4" /> Gerar com IA</>
                   )}
                 </Button>
+                {aiMode === "url" && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Se a URL não funcionar, use "Colar Texto"
+                  </p>
+                )}
               </div>
             </Card>
           </div>

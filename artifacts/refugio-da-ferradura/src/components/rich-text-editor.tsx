@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -81,6 +81,15 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       onChange(editor.getHTML());
     },
   });
+
+  // Sync external value changes into the editor (e.g. from AI generation)
+  useEffect(() => {
+    if (!editor) return;
+    const current = editor.getHTML();
+    if (value !== current) {
+      editor.commands.setContent(value || "", false);
+    }
+  }, [value, editor]);
 
   const addLink = useCallback(() => {
     if (!editor) return;

@@ -20,31 +20,46 @@ router.post("/ai/generate-from-url", async (req, res): Promise<void> => {
   const { url } = parsed.data;
 
   let articleContent = "";
-  try {
-    const fetchRes = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; RefugioDaFerradura/1.0)",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
 
-    if (fetchRes.ok) {
-      const html = await fetchRes.text();
-      articleContent = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 8000);
+  // If the input looks like a URL, try to fetch it. Otherwise use it directly as text.
+  const isUrl = /^https?:\/\//i.test(url.trim());
+
+  if (isUrl) {
+    try {
+      const fetchRes = await fetch(url.trim(), {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        },
+        signal: AbortSignal.timeout(12000),
+      });
+
+      if (fetchRes.ok) {
+        const html = await fetchRes.text();
+        articleContent = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
+          .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
+          .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 8000);
+      } else {
+        req.log.warn({ url, status: fetchRes.status }, "URL fetch returned non-OK status");
+      }
+    } catch (e) {
+      req.log.warn({ url, error: e }, "Failed to fetch URL content");
     }
-  } catch (e) {
-    req.log.warn({ url, error: e }, "Failed to fetch URL content");
-  }
 
-  if (!articleContent) {
-    articleContent = `Artigo sobre turismo referente à URL: ${url}`;
+    if (!articleContent) {
+      articleContent = `Gere um artigo de turismo sobre a região da Rota da Ferradura em Guarapari, Espírito Santo. A URL de referência é: ${url}`;
+    }
+  } else {
+    // Raw text mode — use directly as article content
+    articleContent = url.trim().slice(0, 8000);
   }
 
   const openai = new OpenAI({
