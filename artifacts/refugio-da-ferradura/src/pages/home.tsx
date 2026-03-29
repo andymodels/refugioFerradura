@@ -1,52 +1,36 @@
 import React from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
-import { Button, Card, cn } from "@/components/ui-elements";
+import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
-
-const DEFAULT_HERO = {
-  hero_image_url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop",
-  hero_overlay_opacity: "0.4",
-  hero_style: "gradient",
-};
-
-function getOverlayStyle(style: string, opacity: number): React.CSSProperties {
-  if (style === "gradient") {
-    return {
-      background: `linear-gradient(to top, rgba(0,0,0,${Math.min(opacity + 0.3, 1)}) 0%, rgba(0,0,0,${opacity * 0.5}) 50%, rgba(0,0,0,${opacity}) 100%)`,
-    };
-  }
-  return { background: `rgba(0,0,0,${opacity})` };
-}
+import { useSiteSettings, parseHomeBlocks, getOverlayStyle } from "@/hooks/use-site-settings";
 
 export default function Home() {
-  const { data: settingsData } = useQuery({
-    queryKey: ["site-settings"],
-    queryFn: () => fetch("/api/settings").then((r) => r.json()),
-    staleTime: 60_000,
-  });
-  const siteSettings = { ...DEFAULT_HERO, ...(settingsData?.settings ?? {}) };
-  const heroOpacity = parseFloat(siteSettings.hero_overlay_opacity) || 0.4;
+  const s = useSiteSettings();
+  const heroOpacity = parseFloat(s.hero_overlay_opacity) || 0.4;
+  const heroHeight = parseInt(s.hero_height_vh) || 85;
+  const blocks = parseHomeBlocks(s.home_blocks);
 
   const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
   const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
-
   const lugaresPosts = lugaresData?.posts || [];
   const experienciasPosts = experienciasData?.posts || [];
 
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative h-[85vh] min-h-[600px] flex items-center justify-center">
+      <section
+        className="relative flex items-center justify-center min-h-[500px]"
+        style={{ height: `${heroHeight}vh` }}
+      >
         <div className="absolute inset-0 z-0">
           <img
-            src={siteSettings.hero_image_url}
-            alt="Vista aérea da Mata Atlântica e montanhas de Guarapari"
+            src={s.hero_image_url}
+            alt="Vista da Rota da Ferradura"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0" style={getOverlayStyle(siteSettings.hero_style, heroOpacity)} />
+          <div className="absolute inset-0" style={getOverlayStyle(s.hero_style, heroOpacity)} />
         </div>
 
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
@@ -83,6 +67,42 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Custom Content Blocks */}
+      {blocks.map((block) => (
+        <section
+          key={block.id}
+          style={{ backgroundColor: block.bgColor }}
+          className="py-16"
+        >
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className={`flex flex-col ${block.image ? "md:flex-row" : ""} items-center gap-10`}>
+              {block.image && (
+                <div className="md:w-2/5 shrink-0">
+                  <img
+                    src={block.image}
+                    alt={block.title}
+                    className="w-full h-64 md:h-80 object-cover rounded-2xl shadow-lg"
+                  />
+                </div>
+              )}
+              <div className={block.image ? "md:w-3/5" : "text-center max-w-3xl mx-auto"}>
+                {block.subtitle && (
+                  <p className="text-primary/80 uppercase tracking-widest text-xs font-semibold mb-3">
+                    {block.subtitle}
+                  </p>
+                )}
+                {block.title && (
+                  <h2 className="text-2xl md:text-3xl font-serif text-white mb-4">{block.title}</h2>
+                )}
+                {block.description && (
+                  <p className="text-white/70 leading-relaxed">{block.description}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      ))}
+
       {/* Lugares em Destaque */}
       {lugaresPosts.length > 0 && (
         <section className="py-20 bg-accent/10">
@@ -102,11 +122,7 @@ export default function Home() {
                   <Card className="overflow-hidden group cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-background">
                     <div className="aspect-[4/3] overflow-hidden">
                       {post.coverImage ? (
-                        <img
-                          src={post.coverImage}
-                          alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                        <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       ) : (
                         <div className="w-full h-full bg-accent/30 flex items-center justify-center">
                           <span className="text-muted-foreground text-sm">Sem imagem</span>
@@ -114,12 +130,8 @@ export default function Home() {
                       )}
                     </div>
                     <div className="p-5">
-                      <h3 className="font-serif text-lg text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">
-                        {post.title}
-                      </h3>
-                      {post.excerpt && (
-                        <p className="text-muted-foreground text-sm line-clamp-2">{post.excerpt}</p>
-                      )}
+                      <h3 className="font-serif text-lg text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">{post.title}</h3>
+                      {post.excerpt && <p className="text-muted-foreground text-sm line-clamp-2">{post.excerpt}</p>}
                     </div>
                   </Card>
                 </Link>
@@ -153,11 +165,7 @@ export default function Home() {
                   <Card className="overflow-hidden group cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-accent/10">
                     <div className="aspect-[4/3] overflow-hidden">
                       {post.coverImage ? (
-                        <img
-                          src={post.coverImage}
-                          alt={post.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
+                        <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       ) : (
                         <div className="w-full h-full bg-accent/30 flex items-center justify-center">
                           <span className="text-muted-foreground text-sm">Sem imagem</span>
@@ -165,12 +173,8 @@ export default function Home() {
                       )}
                     </div>
                     <div className="p-5">
-                      <h3 className="font-serif text-lg text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">
-                        {post.title}
-                      </h3>
-                      {post.excerpt && (
-                        <p className="text-muted-foreground text-sm line-clamp-2">{post.excerpt}</p>
-                      )}
+                      <h3 className="font-serif text-lg text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">{post.title}</h3>
+                      {post.excerpt && <p className="text-muted-foreground text-sm line-clamp-2">{post.excerpt}</p>}
                     </div>
                   </Card>
                 </Link>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Menu, X, MapPin, Instagram, Facebook } from "lucide-react";
 import { cn } from "./ui-elements";
+import { useSiteSettings } from "@/hooks/use-site-settings";
 
 const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
 const logoIcon = `${import.meta.env.BASE_URL}images/logo-icon.png`;
@@ -18,25 +19,44 @@ const navLinks = [
 export function Layout({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location] = useLocation();
+  const s = useSiteSettings();
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location]);
 
+  const headerHeight = parseInt(s.header_height_px) || 100;
+  const logoSize = parseInt(s.logo_size_px) || 80;
+  const isSticky = s.header_sticky !== "false";
+
+  const headerBg = s.header_style === "solid"
+    ? s.header_bg_color
+    : "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)";
+
+  const footerAddress = s.footer_address || "Rota da Ferradura, Buenos Aires\nGuarapari - ES";
+  const footerTagline = s.footer_tagline || "Descubra a magia e tranquilidade da Rota da Ferradura em Guarapari, ES.";
+  const footerCopyright = s.footer_copyright || `© ${new Date().getFullYear()} Refúgio da Ferradura. Todos os direitos reservados.`;
+
   return (
     <div className="min-h-screen flex flex-col bg-background selection:bg-primary/20">
-      {/* Fixed header — transparent with dark gradient for readability */}
+      {/* Header */}
       <header
-        className="fixed top-0 inset-x-0 z-50"
-        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)" }}
+        className={cn("inset-x-0 top-0 z-50", isSticky ? "fixed" : "absolute")}
+        style={{
+          background: headerBg,
+          minHeight: `${headerHeight}px`,
+        }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between" style={{ minHeight: "100px" }}>
+        <div
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between"
+          style={{ minHeight: `${headerHeight}px` }}
+        >
           <Link href="/">
             <img
               src={logoIcon}
               alt="Refúgio da Ferradura"
               className="w-auto object-contain drop-shadow-lg"
-              style={{ height: "80px" }}
+              style={{ height: `${logoSize}px` }}
             />
           </Link>
 
@@ -103,9 +123,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <img src={logoImg} alt="Refúgio da Ferradura" className="h-14 w-14 rounded-full object-cover" />
                 <span className="font-serif font-semibold text-xl text-white">Refúgio da Ferradura</span>
               </div>
-              <p className="text-muted-foreground max-w-xs leading-relaxed">
-                Descubra a magia e tranquilidade da Rota da Ferradura em Guarapari, ES. Natureza, gastronomia e paz.
-              </p>
+              <p className="text-muted-foreground max-w-xs leading-relaxed">{footerTagline}</p>
             </div>
 
             <div>
@@ -125,13 +143,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <ul className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>Rota da Ferradura, Buenos Aires<br />Guarapari - ES</span>
+                  <span>
+                    {footerAddress.split("\n").map((line, i) => (
+                      <span key={i}>{line}{i < footerAddress.split("\n").length - 1 && <br />}</span>
+                    ))}
+                  </span>
                 </li>
                 <li className="flex items-center gap-4 pt-4">
-                  <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-primary hover:text-white transition-colors">
+                  <a
+                    href={s.footer_instagram || "#"}
+                    target={s.footer_instagram ? "_blank" : undefined}
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/5 rounded-full hover:bg-primary hover:text-white transition-colors"
+                  >
                     <Instagram className="w-4 h-4" />
                   </a>
-                  <a href="#" className="p-2 bg-white/5 rounded-full hover:bg-primary hover:text-white transition-colors">
+                  <a
+                    href={s.footer_facebook || "#"}
+                    target={s.footer_facebook ? "_blank" : undefined}
+                    rel="noopener noreferrer"
+                    className="p-2 bg-white/5 rounded-full hover:bg-primary hover:text-white transition-colors"
+                  >
                     <Facebook className="w-4 h-4" />
                   </a>
                 </li>
@@ -140,7 +172,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
-            <p>© {new Date().getFullYear()} Refúgio da Ferradura. Todos os direitos reservados.</p>
+            <p>{footerCopyright}</p>
             <p>Feito com amor pela natureza.</p>
           </div>
         </div>
