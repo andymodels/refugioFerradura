@@ -44,12 +44,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <img 
               src={logoIcon} 
               alt="Refúgio da Ferradura" 
-              className={cn(
-                "h-[50px] w-[50px] rounded-full object-cover transition-all duration-300 shrink-0",
-                isScrolled
-                  ? "shadow-md ring-2 ring-border/30"
-                  : "brightness-110 drop-shadow-xl ring-2 ring-white/20"
-              )}
+              className="h-[50px] w-auto object-contain transition-all duration-300 shrink-0 drop-shadow-md"
             />
           </Link>
 
