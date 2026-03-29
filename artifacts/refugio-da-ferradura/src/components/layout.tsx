@@ -4,8 +4,7 @@ import { Menu, X, MapPin, Instagram, Facebook } from "lucide-react";
 import { cn } from "./ui-elements";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 
-const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
-const logoIcon = `${import.meta.env.BASE_URL}images/logo-icon.png`;
+const logoHorizon = `${import.meta.env.BASE_URL}images/logo-horizon.png`;
 
 const navLinks = [
   { name: "Início", href: "/" },
@@ -26,7 +25,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [location]);
 
   const headerHeight = parseInt(s.header_height_px) || 100;
-  const logoSize = parseInt(s.logo_size_px) || 80;
+  const logoSize = parseInt(s.logo_size_px) || 56;
   const isSticky = s.header_sticky !== "false";
 
   const headerBg = s.header_style === "solid"
@@ -53,7 +52,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         >
           <Link href="/">
             <img
-              src={logoIcon}
+              src={logoHorizon}
               alt="Refúgio da Ferradura"
               className="w-auto object-contain drop-shadow-lg"
               style={{ height: `${logoSize}px` }}
@@ -119,10 +118,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8">
             <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <img src={logoImg} alt="Refúgio da Ferradura" className="h-14 w-14 rounded-full object-cover" />
-                <span className="font-serif font-semibold text-xl text-white">Refúgio da Ferradura</span>
-              </div>
+              <img
+                src={logoHorizon}
+                alt="Refúgio da Ferradura"
+                className="h-12 w-auto object-contain"
+                style={{ filter: "brightness(0) saturate(100%)" }}
+              />
               <p className="text-muted-foreground max-w-xs leading-relaxed">{footerTagline}</p>
             </div>
 
