@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 
 // Public Pages
 import Home from "./pages/home";
+import Blog from "./pages/blog";
 import TagPage from "./pages/tag-page";
 import BlogPost from "./pages/blog-post";
 import Search from "./pages/search";
@@ -32,6 +33,7 @@ function Router() {
     <Switch>
       {/* Public Routes */}
       <Route path="/" component={Home} />
+      <Route path="/blog" component={Blog} />
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/lugares">{() => <TagPage tag="lugares" />}</Route>
       <Route path="/experiencias">{() => <TagPage tag="experiencias" />}</Route>
