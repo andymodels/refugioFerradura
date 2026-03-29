@@ -4,6 +4,8 @@ import { LayoutDashboard, FileText, Map as MapIcon, Image as ImageIcon, LogOut, 
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "./ui-elements";
 
+const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
+
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout, isLoading } = useAuth();
@@ -28,10 +30,17 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex bg-muted/20">
       {/* Sidebar */}
       <aside className="w-64 bg-card border-r border-border flex flex-col fixed inset-y-0 z-10">
-        <div className="p-6 border-b border-border">
-          <Link href="/" className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
-            <ArrowLeft className="w-4 h-4" />
-            <span className="font-serif font-semibold text-lg tracking-tight">Ver Site</span>
+        <div className="p-5 border-b border-border">
+          <div className="flex items-center gap-3 mb-4">
+            <img src={logoImg} alt="Refúgio da Ferradura" className="h-11 w-11 rounded-full object-cover shadow-sm" />
+            <div>
+              <p className="font-serif font-semibold text-sm text-foreground leading-tight">Refúgio da Ferradura</p>
+              <p className="text-xs text-muted-foreground">Painel Admin</p>
+            </div>
+          </div>
+          <Link href="/" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Voltar ao site
           </Link>
         </div>
         
