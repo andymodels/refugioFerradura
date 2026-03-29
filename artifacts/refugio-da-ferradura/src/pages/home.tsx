@@ -124,7 +124,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {lugaresPosts.map((post: any) => (
-                <Link key={post.id} href={`/post/${post.slug}`}>
+                <Link key={post.id} href={`/blog/${post.slug}`}>
                   <Card className="overflow-hidden group cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-background">
                     <div className="aspect-[4/3] overflow-hidden">
                       {post.coverImage ? (
@@ -167,7 +167,7 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {experienciasPosts.map((post: any) => (
-                <Link key={post.id} href={`/post/${post.slug}`}>
+                <Link key={post.id} href={`/blog/${post.slug}`}>
                   <Card className="overflow-hidden group cursor-pointer hover:shadow-xl transition-all duration-300 border-0 bg-accent/10">
                     <div className="aspect-[4/3] overflow-hidden">
                       {post.coverImage ? (
