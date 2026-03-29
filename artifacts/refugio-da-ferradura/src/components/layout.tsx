@@ -51,6 +51,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   : "brightness-110 drop-shadow-xl ring-2 ring-white/20"
               )}
             />
+            <span className={cn("font-serif font-semibold text-xl tracking-tight transition-colors leading-tight", isScrolled ? "text-foreground" : "text-white drop-shadow-lg")}>
+              Refúgio da Ferradura
+            </span>
           </Link>
 
           {/* Desktop Nav */}
