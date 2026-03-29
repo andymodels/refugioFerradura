@@ -1,9 +1,27 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 
+export const DEFAULT_HERO_POOL = [
+  "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1448375240586-882707db888b?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1501854140801-50d01698950b?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1504893524553-b855bce32c67?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1516912481808-3406841bd33c?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1540390769625-2fc3f8b1d50c?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1490682143684-14369e18dce8?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=85&w=1920&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=85&w=1920&auto=format&fit=crop",
+];
+
 export interface SiteSettings {
   // Hero
   hero_image_url: string;
+  hero_image_pool: string;
   hero_overlay_opacity: string;
   hero_style: string;
   hero_height_vh: string;
@@ -26,7 +44,8 @@ export interface SiteSettings {
 }
 
 export const SETTINGS_DEFAULTS: SiteSettings = {
-  hero_image_url: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=85&auto=format&fit=crop",
+  hero_image_url: "",
+  hero_image_pool: JSON.stringify(DEFAULT_HERO_POOL),
   hero_overlay_opacity: "0.4",
   hero_style: "gradient",
   hero_height_vh: "85",
@@ -34,7 +53,7 @@ export const SETTINGS_DEFAULTS: SiteSettings = {
   header_bg_color: "#0b0f0c",
   header_sticky: "true",
   header_height_px: "100",
-  logo_size_px: "80",
+  logo_size_px: "56",
   footer_tagline: "Descubra a magia e tranquilidade da Rota da Ferradura em Guarapari, ES. Natureza, gastronomia e paz.",
   footer_address: "Rota da Ferradura, Buenos Aires\nGuarapari - ES",
   footer_copyright: "",
@@ -51,6 +70,15 @@ export function useSiteSettings(): SiteSettings {
     staleTime: 30_000,
   });
   return { ...SETTINGS_DEFAULTS, ...(data?.settings ?? {}) };
+}
+
+export function parseHeroPool(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_HERO_POOL;
+  } catch {
+    return DEFAULT_HERO_POOL;
+  }
 }
 
 export interface HomeBlock {

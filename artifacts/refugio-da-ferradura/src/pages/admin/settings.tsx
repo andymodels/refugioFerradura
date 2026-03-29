@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import {
   Settings, Image as ImageIcon, Save, Eye, Layout, AlignLeft,
-  Plus, Trash2, ChevronUp, ChevronDown, Monitor, Layers
+  Plus, Trash2, ChevronUp, ChevronDown, Monitor, Layers, GripVertical, X
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { SiteSettings, SETTINGS_DEFAULTS, HomeBlock, parseHomeBlocks, getOverlayStyle } from "@/hooks/use-site-settings";
+import { SiteSettings, SETTINGS_DEFAULTS, HomeBlock, parseHomeBlocks, parseHeroPool, getOverlayStyle } from "@/hooks/use-site-settings";
 
 type Tab = "hero" | "header" | "footer" | "blocks";
 
@@ -127,6 +127,9 @@ export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState<Tab>("hero");
   const [settings, setSettings] = useState<SiteSettings>(SETTINGS_DEFAULTS);
   const [blocks, setBlocks] = useState<HomeBlock[]>([]);
+  const [heroPool, setHeroPool] = useState<string[]>([]);
+  const [newHeroUrl, setNewHeroUrl] = useState("");
+  const [previewPoolIdx, setPreviewPoolIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -137,6 +140,7 @@ export default function AdminSettings() {
         const s = { ...SETTINGS_DEFAULTS, ...data.settings };
         setSettings(s);
         setBlocks(parseHomeBlocks(s.home_blocks));
+        setHeroPool(parseHeroPool(s.hero_image_pool));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -149,7 +153,11 @@ export default function AdminSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = { ...settings, home_blocks: JSON.stringify(blocks) };
+      const payload = {
+        ...settings,
+        home_blocks: JSON.stringify(blocks),
+        hero_image_pool: JSON.stringify(heroPool),
+      };
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -225,14 +233,94 @@ export default function AdminSettings() {
       {activeTab === "hero" && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           <div className="space-y-5">
+
+            {/* Gallery Manager */}
             <Card className="p-5 space-y-4">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-primary" />
-                <h2 className="font-serif text-base font-semibold">Imagem de Fundo</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-primary" />
+                  <h2 className="font-serif text-base font-semibold">Fotos do Hero</h2>
+                </div>
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  {heroPool.length} foto{heroPool.length !== 1 ? "s" : ""}
+                </span>
               </div>
-              <Field label="URL da Imagem" hint="Recomendado: mínimo 1920px de largura">
-                <TextInput value={settings.hero_image_url} onChange={set("hero_image_url")} placeholder="https://..." />
-              </Field>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Uma foto aleatória é exibida a cada visita. Adicione, remova ou reordene as fotos.
+              </p>
+
+              {/* Photo grid */}
+              <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                {heroPool.map((url, idx) => (
+                  <div
+                    key={idx}
+                    className={`relative group rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                      previewPoolIdx === idx ? "border-primary shadow-md" : "border-border hover:border-primary/50"
+                    }`}
+                    style={{ aspectRatio: "16/9" }}
+                    onClick={() => setPreviewPoolIdx(idx)}
+                  >
+                    <img
+                      src={url}
+                      alt={`Foto ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all" />
+                    <span className="absolute bottom-1 left-1.5 text-xs text-white font-medium drop-shadow opacity-0 group-hover:opacity-100 transition-opacity">
+                      #{idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const next = heroPool.filter((_, i) => i !== idx);
+                        setHeroPool(next);
+                        setPreviewPoolIdx(Math.min(previewPoolIdx, next.length - 1));
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    {previewPoolIdx === idx && (
+                      <span className="absolute top-1 left-1 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                        <Eye className="w-3 h-3 text-white" />
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add new URL */}
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="url"
+                  value={newHeroUrl}
+                  onChange={(e) => setNewHeroUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newHeroUrl.trim()) {
+                      setHeroPool((p) => [...p, newHeroUrl.trim()]);
+                      setNewHeroUrl("");
+                    }
+                  }}
+                  placeholder="https://... (cole a URL da foto)"
+                  className="flex-1 px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <button
+                  type="button"
+                  disabled={!newHeroUrl.trim()}
+                  onClick={() => {
+                    if (!newHeroUrl.trim()) return;
+                    setHeroPool((p) => [...p, newHeroUrl.trim()]);
+                    setNewHeroUrl("");
+                  }}
+                  className="px-3 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" /> Adicionar
+                </button>
+              </div>
             </Card>
 
             <Card className="p-5 space-y-4">
@@ -269,16 +357,38 @@ export default function AdminSettings() {
 
           {/* Hero Preview */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-primary" />
-              <h2 className="font-serif text-base font-semibold">Pré-visualização</h2>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-primary" />
+                <h2 className="font-serif text-base font-semibold">Pré-visualização</h2>
+              </div>
+              {heroPool.length > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPoolIdx((i) => (i - 1 + heroPool.length) % heroPool.length)}
+                    className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    ‹
+                  </button>
+                  <span className="text-xs text-muted-foreground px-1">{previewPoolIdx + 1}/{heroPool.length}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPoolIdx((i) => (i + 1) % heroPool.length)}
+                    className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
             </div>
             <div
               className="relative rounded-xl overflow-hidden shadow-2xl border border-border"
               style={{ height: "280px" }}
             >
               <img
-                src={settings.hero_image_url}
+                key={heroPool[previewPoolIdx]}
+                src={heroPool[previewPoolIdx] || ""}
                 alt="Hero preview"
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -300,7 +410,7 @@ export default function AdminSettings() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              Pré-visualização aproximada do hero com as configurações atuais.
+              Clique em uma foto da galeria ou use ‹ › para navegar entre elas.
             </p>
           </div>
         </div>
