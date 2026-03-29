@@ -1,0 +1,59 @@
+Crie um site completo chamado “Refúgio da Ferradura”, focado em turismo na Rota da Ferradura em Guarapari, Espírito Santo, Brasil.
+
+O site deve ter aparência premium, estilo editorial de turismo, com design moderno, limpo, sofisticado e visual de alto padrão, inspirado em sites como Airbnb, National Geographic e portais de viagem.
+
+STACK OBRIGATÓRIA
+Frontend em React com layout responsivo e visual refinado
+Backend em Node.js com Express
+Banco de dados simples (SQLite ou PostgreSQL)
+Sistema de autenticação para área administrativa
+
+ESTRUTURA DO SITE
+Página inicial com destaque para a Rota da Ferradura, imagens grandes e chamadas visuais
+Seção de blog com matérias de turismo
+Página de locais com categorias (cachoeiras, trilhas, gastronomia, hospedagem)
+Página individual para cada local com fotos, descrição e informações
+Sistema de busca e filtro
+
+PAINEL ADMIN (PRIORIDADE MÁXIMA)
+Criar um painel administrativo com edição visual real (WYSIWYG), não apenas texto bruto
+Preciso ver exatamente como o conteúdo vai aparecer no site enquanto edito
+Editor com suporte a texto, imagens e vídeos
+Upload de imagens direto do computador
+Inserção de vídeos via link (YouTube e outros embeds)
+Listagem de posts com opção de editar, excluir e criar novos
+
+IA INTEGRADA (ESSENCIAL)
+Criar funcionalidade no admin onde eu possa colar um link de notícia ou artigo
+O sistema deve ler o conteúdo do link
+Gerar automaticamente uma nova matéria reescrita com linguagem original
+Permitir editar antes de publicar
+Campo para adicionar imagens e vídeos ao conteúdo gerado
+
+LAYOUT E DESIGN
+Tipografia elegante e moderna
+Uso de imagens grandes e bem posicionadas
+Espaçamento bem resolvido (não quero layout apertado)
+Cores naturais inspiradas em turismo e natureza (verde, bege, tons terrosos)
+Animações suaves
+Design consistente em todas as páginas
+
+FUNCIONALIDADES IMPORTANTES
+Sistema de upload de mídia
+Suporte a embed de vídeo e imagens externas
+SEO básico (títulos, descrições, URLs amigáveis)
+Carregamento rápido
+
+OBJETIVO
+Quero um site profissional, com aparência comercial real, não um template simples
+O sistema deve permitir que eu administre tudo sem precisar mexer em código
+
+⸻
+
+AJUSTE ESTRATÉGICO (rápido)
+
+Se quiser melhorar ainda mais o resultado, depois que ele gerar:
+
+Peça isso na sequência dentro do Replit:
+
+“refine o design para nível premium, melhorando tipografia, espaçamento, hierarquia visual e aparência editorial”

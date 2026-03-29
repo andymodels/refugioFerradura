@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-serif: 'Lora', serif;
+
+  /* Premium Editorial Warm Palette */
+  --color-background: hsl(40 33% 98%); /* #FDFBF7 */
+  --color-foreground: hsl(20 10% 15%); /* #292624 */
+  
+  --color-primary: hsl(18 20% 45%); /* #8A7369 - Warm Earth/Terracotta */
+  --color-primary-foreground: hsl(40 33% 98%);
+  
+  --color-secondary: hsl(80 15% 45%); /* #6E7C65 - Sage Green */
+  --color-secondary-foreground: hsl(40 33% 98%);
+  
+  --color-muted: hsl(40 20% 92%); /* #EFECE6 */
+  --color-muted-foreground: hsl(20 5% 45%); /* #7C7673 */
+  
+  --color-accent: hsl(30 30% 85%); /* #E3D1C1 */
+  --color-accent-foreground: hsl(20 10% 15%);
+  
+  --color-destructive: hsl(0 60% 50%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  
+  --color-border: hsl(30 15% 85%); /* #DFD9D3 */
+  --color-input: hsl(30 15% 90%);
+  --color-ring: hsl(18 20% 45%);
+  
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(20 10% 15%);
+}
+
+:root {
+  --background: 40 33% 98%;
+  --foreground: 20 10% 15%;
+  --primary: 18 20% 45%;
+  --primary-foreground: 40 33% 98%;
+  --secondary: 80 15% 45%;
+  --secondary-foreground: 40 33% 98%;
+  --muted: 40 20% 92%;
+  --muted-foreground: 20 5% 45%;
+  --accent: 30 30% 85%;
+  --accent-foreground: 20 10% 15%;
+  --destructive: 0 60% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 30 15% 85%;
+  --input: 30 15% 90%;
+  --ring: 18 20% 45%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 10% 15%;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground antialiased font-sans selection:bg-primary/20;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif text-foreground tracking-tight;
+  }
+}
+
+/* Custom Editor Styles */
+.prose-editor {
+  @apply outline-none min-h-[300px];
+}
+.prose-editor p {
+  @apply mb-4 leading-relaxed;
+}
+.prose-editor h2 {
+  @apply text-2xl font-serif mt-8 mb-4;
+}
+.prose-editor h3 {
+  @apply text-xl font-serif mt-6 mb-3;
+}
+.prose-editor ul {
+  @apply list-disc pl-5 mb-4 space-y-2;
+}
+.prose-editor a {
+  @apply text-primary underline underline-offset-4 decoration-primary/30 hover:decoration-primary transition-colors;
+}
+
+/* Hide scrollbar for clean horizontal scrolls */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

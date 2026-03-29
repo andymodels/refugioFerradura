@@ -1,0 +1,24 @@
+packages:
+  "framer-motion": "For page transitions and smooth UI animations"
+  "date-fns": "For formatting dates in blog posts"
+  "react-hook-form": "For form state management"
+  "@hookform/resolvers": "For Zod integration with react-hook-form"
+  "clsx": "For class merging in UI components"
+  "tailwind-merge": "For tailwind class merging in UI components"
+  "lucide-react": "For beautiful icons throughout the UI"
+
+images:
+  - path: "artifacts/refugio-da-ferradura/public/images/hero-bg.png"
+    description: "Breathtaking aerial view of a winding dirt road through lush green mountains and waterfalls in Guarapari Brazil, warm sunset lighting, highly detailed, photorealistic, 16:9 aspect ratio"
+    aspect_ratio: "16:9"
+  - path: "artifacts/refugio-da-ferradura/public/images/logo-mark.png"
+    description: "Minimalist elegant logo mark for a nature retreat called Refúgio da Ferradura, featuring a subtle horseshoe shape merged with a leaf, warm earth tones, clean white background, 1:1 aspect ratio"
+    aspect_ratio: "1:1"
+  - path: "artifacts/refugio-da-ferradura/public/images/texture-bg.png"
+    description: "Subtle warm paper texture background, off-white and light beige, high resolution, editorial style"
+    aspect_ratio: "16:9"
+
+notes:
+  - Using pre-generated React Query hooks from @workspace/api-client-react
+  - Implementing custom highly-styled UI components to achieve premium editorial look
+  - API base URL inferred from Vite env and handled by generated client

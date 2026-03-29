@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Refúgio da Ferradura"
+version = "1.0.0"
+id = "artifacts/refugio-da-ferradura"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22489
+
+[services.development]
+run = "pnpm --filter @workspace/refugio-da-ferradura run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/refugio-da-ferradura", "run", "build" ]
+publicDir = "artifacts/refugio-da-ferradura/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22489"
+BASE_PATH = "/"
