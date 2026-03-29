@@ -27,13 +27,13 @@ export default function Home() {
 
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto mt-20">
           <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-6 block drop-shadow-md">
-            Guarapari - Espírito Santo
+            Rota da Ferradura · Guarapari – ES
           </span>
           <h1 className="text-5xl md:text-7xl font-serif text-white mb-6 drop-shadow-lg leading-tight">
-            Explore a Rota da Ferradura
+            Rota da Ferradura, Guarapari
           </h1>
           <p className="text-lg md:text-xl text-white/90 mb-10 max-w-2xl mx-auto font-light drop-shadow-md">
-            Um guia completo com os melhores lugares, experiências, gastronomia e hospedagens nas montanhas de Guarapari.
+            Descubra os melhores lugares, experiências, gastronomia e hospedagens nas montanhas de Guarapari.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/lugares">
@@ -41,7 +41,7 @@ export default function Home() {
             </Link>
             <Link href="/experiencias">
               <Button variant="outline" size="lg" className="w-full sm:w-auto text-base text-white border-white hover:bg-white hover:text-foreground">
-                Ver Experiências
+                Ver o que Fazer
               </Button>
             </Link>
           </div>
