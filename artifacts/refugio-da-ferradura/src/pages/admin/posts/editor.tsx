@@ -59,6 +59,7 @@ export default function PostEditor() {
   };
 
   const onSubmit = async (data: any) => { if (!data.content) return alert("Conteúdo obrigatório");
+    console.log("CONTENT DEBUG:", data.content);
     const payload = {
   title: data.title,
   subtitle: data.subtitle || "",
