@@ -44,7 +44,8 @@ router.post("/generate-from-url", async (req, res) => {
     }
 
     if (!articleContent) {
-      articleContent = `Gere um artigo turístico com base neste link: ${url}`;
+      articleContent = `Gere um artigo turístico profissional com base neste link: ${url}`;
+    }
     }
 
     const prompt = `
