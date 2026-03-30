@@ -59,6 +59,10 @@ Responda APENAS em JSON válido no formato:
 }
 
 Regras:
+- Use títulos em CAIXA ALTA
+- Use palavras-chave em MAIÚSCULO para destaque
+- Separe seções com linha em branco
+
 - Use texto simples com parágrafos separados por linha em branco
 - Estruture o texto em seções
 
