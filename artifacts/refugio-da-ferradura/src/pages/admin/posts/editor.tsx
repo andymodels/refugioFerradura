@@ -63,7 +63,7 @@ export default function PostEditor() {
     try {
       const res = await fetch("/api/posts/admin/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ data: payload })
       });
       if (res.ok) { toast({ title: "Criado!" }); setLocation("/admin/posts"); }
       else { toast({ title: "Erro ao salvar", variant: "destructive" }); }
