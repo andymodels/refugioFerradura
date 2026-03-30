@@ -16,18 +16,13 @@ async function extractArticleContent(url: string): Promise<string> {
     const reader = new Readability(dom.window.document);
     const article = reader.parse();
     return article?.textContent?.replace(/\s+/g, " ").trim().slice(0, 8000) || "";
-  } catch (e) { return ""; }
+  } catch (e) { return url; }
 }
 
 router.post("/generate-from-url", async (req, res) => {
-  // Aqui ele vai usar a chave do Gemini que você vai colocar no Render/Replit
   const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-  
-  const content = req.body.url.startsWith("http") 
-    ? await extractArticleContent(req.body.url) 
-    : req.body.url;
+  const content = req.body.url.startsWith("http") ? await extractArticleContent(req.body.url) : req.body.url;
 
-  // Conexão direta com o Gemini via modo compatível
   const genAI = new OpenAI({
     apiKey: apiKey,
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -37,12 +32,11 @@ router.post("/generate-from-url", async (req, res) => {
   Com base no conteúdo abaixo, crie um artigo sofisticado.
   RESPONDA APENAS EM JSON:
   {
-    "title": "Título impactante (máx 70 chars)",
-    "subtitle": "Frase poética e curta (sem HTML)",
-    "excerpt": "Resumo de 2 frases para a Home",
-    "content": "Conteúdo completo em HTML com <h2> e <p>",
-    "metaDescription": "Descrição SEO para o Google",
-    "tags": ["turismo", "natureza"]
+    "title": "Título impactante",
+    "subtitle": "Frase poética curta",
+    "excerpt": "Resumo para a Home",
+    "content": "Conteúdo completo em HTML",
+    "metaDescription": "Descrição SEO"
   }
   CONTEÚDO: ${content}`;
 
