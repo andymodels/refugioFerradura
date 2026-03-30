@@ -43,7 +43,7 @@ async function extractArticleContent(url: string): Promise<string> {
 
 const VALID_TAGS = ["lugares", "experiencias", "gastronomia", "hospedagem", "natureza", "turismo", "cultura", "aventura"];
 
-router.post("/ai/generate-from-url", async (req, res): Promise<void> => {
+router.post("/generate-from-url", async (req, res): Promise<void> => {
   const session = req.session as any;
   if (!session?.adminId) {
     res.status(401).json({ error: "Não autenticado" });
