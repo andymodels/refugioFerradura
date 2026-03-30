@@ -61,7 +61,7 @@ export default function PostEditor() {
   const onSubmit = async (data: any) => {
     const payload = { ...data, authorId: 1, slug: data.slug || "post-" + Date.now() };
     try {
-      const res = await fetch("/api/posts", {
+      const res = await fetch("/api/posts/admin/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
