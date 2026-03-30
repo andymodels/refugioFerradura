@@ -74,7 +74,7 @@ export default function PostEditor() {
     try {
       const res = await fetch("/api/posts/admin/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: payload })
+        body: JSON.stringify(payload)
       });
       if (res.ok) { toast({ title: "Criado!" }); setLocation("/admin/posts"); }
       else { const errorText = await res.text(); alert(errorText); }
