@@ -59,7 +59,7 @@ Responda APENAS em JSON válido no formato:
 }
 
 Regras:
-- Use HTML com <h2> e <p>
+- Use texto simples com parágrafos separados por linha em branco
 - Estruture o texto em seções
 
 - Não use markdown
@@ -90,9 +90,9 @@ ${articleContent}
     return res.json({
       title: parsed.title,
       subtitle: parsed.subtitle,
-      content: parsed.content,
+      content: parsed.subtitle + "\n\n" + parsed.content,
       excerpt: parsed.content.substring(0, 200),
-      seo: parsed.seo,
+      description: parsed.seo,
     });
   } catch (error) {
     return res.status(500).json({ error: "Erro interno" });
