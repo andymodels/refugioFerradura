@@ -71,7 +71,7 @@ Regras:
 - Não explique nada
 - Apenas JSON puro
 
-Formate o conteúdo em HTML usando <h2>, <p> e <strong>.
+Formate o conteúdo em HTML usando ,  e .
 
 Conteúdo base:
 ${articleContent}
@@ -82,13 +82,14 @@ ${articleContent}
       messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
     });
-
-    let parsed;
-
-    try {
-      parsed = JSON.parse(response.choices[0].message.content);
-    } catch (e) {
-      return res.status(500).json({ error: "Erro ao interpretar resposta da IA" });
+      return res.json({
+        title: parsed.title,
+        subtitle: parsed.subtitle,
+        content: parsed.content,
+        excerpt: parsed.subtitle,
+        description: parsed.seo,
+        slug: parsed.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+      });
     }
 
     return res.json({
