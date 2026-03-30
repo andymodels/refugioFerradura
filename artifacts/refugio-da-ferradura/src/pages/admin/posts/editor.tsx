@@ -271,7 +271,14 @@ export default function PostEditor() {
   const { data: post, isLoading: isLoadingPost } = useGetPostAdmin(postId, { query: { enabled: isEditing } });
   const createMutation = useCreatePost();
   const updateMutation = useUpdatePost();
-  const generateAiMutation = useGenerateFromUrl();
+  const generateAiMutation = { mutateAsync: async (payload) => {
+  const res = await fetch("/api/ai/generate-from-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload.data)
+  });
+  return res.json();
+}};
 
   const [aiUrl, setAiUrl] = useState("");
   const [aiMode, setAiMode] = useState<"url" | "text">("url");
