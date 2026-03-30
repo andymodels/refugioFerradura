@@ -38,17 +38,24 @@ router.post("/ai/generate-from-url", async (req, res): Promise<void> => {
     try {
       const fetchRes = await fetch(url.trim(), {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+          "User-Agent": "Mozilla/5.0",
           "Accept": "text/html",
-          "Accept-Language": "pt-BR,pt;q=0.9"
+          "Accept-Language": "pt-BR"
         }
-      });
-        signal: AbortSignal.timeout(12000),
       });
 
       if (fetchRes.ok) {
         const html = await fetchRes.text();
-        articleContent = html
+        articleContent = html.replace(/<[^>]+>/g, " ");
+      }
+    } catch (e) {
+      req.log.warn({ url, error: e }, "Failed to fetch URL");
+    }
+
+    if (!articleContent) {
+      articleContent = `Gere um artigo de turismo sobre a Rota da Ferradura com base neste link: ${url}`;
+    }
+  }
           .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
           .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
           .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
