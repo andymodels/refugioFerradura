@@ -11,6 +11,20 @@ out-tsc
 # dependencies
 node_modules
 
+# environment variables — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# build artifacts / sourcemaps
+*.map
+
+# media uploads (local, ephemeral)
+uploads/
+
+# attached assets (Replit session files, not needed in repo)
+attached_assets/
+
 # IDEs and editors
 /.idea
 .project
@@ -19,8 +33,6 @@ node_modules
 *.launch
 .settings/
 *.sublime-workspace
-
-# IDE - VSCode
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
@@ -41,9 +53,7 @@ testem.log
 .DS_Store
 Thumbs.db
 
-.cursor/rules/nx-rules.mdc
-.github/instructions/nx.instructions.md
-
-# Replit
+# Replit-internal
 .cache/
 .local/
+.agents/
