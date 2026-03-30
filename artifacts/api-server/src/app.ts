@@ -1,8 +1,6 @@
-app.set("trust proxy", 1);
 import express, { type Express } from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -12,6 +10,8 @@ import { logger } from "./lib/logger";
 const PgSession = connectPgSimple(session);
 
 const app: Express = express();
+
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({
@@ -54,7 +54,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: process.env.NODE_ENV === "production" ? "lax" : false,
       maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -70,7 +70,7 @@ if (process.env.NODE_ENV === "production") {
     "artifacts/refugio-da-ferradura/dist/public",
   );
   app.use(express.static(staticDir));
-  app.use((req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(staticDir, "index.html"));
   });
 }
