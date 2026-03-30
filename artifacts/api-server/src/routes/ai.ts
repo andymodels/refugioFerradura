@@ -22,7 +22,10 @@ router.post("/generate-from-url", async (req, res) => {
 
         if (fetchRes.ok) {
           const html = await fetchRes.text();
-          articleContent = html.replace(/<[^>]+>/g, " ");
+            const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+            if (bodyMatch) {
+              articleContent = bodyMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+            }
         }
       } catch (e) {
         console.log("Erro ao buscar URL");
@@ -34,7 +37,6 @@ router.post("/generate-from-url", async (req, res) => {
     }
 
     return res.json({
-      title: "Artigo gerado",
       content: articleContent,
       excerpt: articleContent.substring(0, 200),
       content: articleContent,
