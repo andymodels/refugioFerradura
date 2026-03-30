@@ -59,7 +59,18 @@ export default function PostEditor() {
   };
 
   const onSubmit = async (data: any) => { if (!data.content) return alert("Conteúdo obrigatório");
-    const payload = { ...data, tags: JSON.stringify(data.tags || []), authorId: 1, slug: data.slug || "post-" + Date.now() };
+    const payload = {
+  title: data.title,
+  subtitle: data.subtitle || "",
+  content: data.content,
+  excerpt: data.excerpt || data.content.substring(0, 160),
+  metaDescription: data.metaDescription || data.content.substring(0, 150),
+  slug: data.slug || "post-" + Date.now(),
+  status: data.status || "draft",
+  coverImage: data.coverImage || "",
+  tags: JSON.stringify(data.tags || []),
+  authorId: 1
+};
     try {
       const res = await fetch("/api/posts/admin/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
