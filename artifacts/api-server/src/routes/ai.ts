@@ -21,7 +21,7 @@ async function extractArticleContent(url: string): Promise<string> {
 
 router.post("/generate-from-url", async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Chave GEMINI_API_KEY não configurada" });
+  if (!apiKey) return res.status(500).json({ error: "Chave não configurada" });
 
   const content = req.body.url.startsWith("http") ? await extractArticleContent(req.body.url) : req.body.url;
 
@@ -30,8 +30,9 @@ router.post("/generate-from-url", async (req, res) => {
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
   });
 
-  const prompt = `Aja como um redator de turismo de luxo. Crie uma matéria completa baseada nisto: ${content}. 
-  Responda APENAS em JSON com: title, subtitle, excerpt, content, metaDescription.`;
+  const prompt = `Aja como um redator de turismo de luxo para o site "Refúgio da Ferradura". 
+  Crie um artigo baseado nisto: ${content}. 
+  Responda APENAS em JSON com os campos: title, subtitle, excerpt, content, metaDescription.`;
 
   try {
     const ai = await genAI.chat.completions.create({
@@ -41,8 +42,7 @@ router.post("/generate-from-url", async (req, res) => {
     });
     res.json(JSON.parse(ai.choices[0].message.content || "{}"));
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Falha na comunicação com Gemini" });
+    res.status(500).json({ error: "Falha na API" });
   }
 });
 
