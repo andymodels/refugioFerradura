@@ -15,40 +15,45 @@ async function extractArticleContent(url: string): Promise<string> {
     const dom = new JSDOM(html, { url });
     const reader = new Readability(dom.window.document);
     const article = reader.parse();
-    return article?.textContent?.replace(/\s+/g, " ").trim().slice(0, 6000) || "";
+    return article?.textContent?.replace(/\s+/g, " ").trim().slice(0, 8000) || "";
   } catch (e) { return ""; }
 }
 
 router.post("/generate-from-url", async (req, res) => {
-  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "API Key faltando" });
+  // Aqui ele vai usar a chave do Gemini que você vai colocar no Render/Replit
+  const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+  
+  const content = req.body.url.startsWith("http") 
+    ? await extractArticleContent(req.body.url) 
+    : req.body.url;
 
-  const { url } = req.body;
-  let content = url;
-  if (url.startsWith("http")) content = await extractArticleContent(url);
+  // Conexão direta com o Gemini via modo compatível
+  const genAI = new OpenAI({
+    apiKey: apiKey,
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  });
 
-  const openai = new OpenAI({ apiKey });
-  const prompt = `Crie um artigo de turismo premium sobre a Rota da Ferradura (Guarapari/ES). 
-  Responda APENAS JSON:
+  const prompt = `Você é um redator de turismo de luxo para o site "Refúgio da Ferradura".
+  Com base no conteúdo abaixo, crie um artigo sofisticado.
+  RESPONDA APENAS EM JSON:
   {
-    "title": "Título",
-    "subtitle": "Frase poética",
-    "excerpt": "Resumo curto",
-    "content": "HTML com <h2> e <p>",
-    "metaDescription": "Descrição SEO",
-    "tags": "[\"turismo\", \"natureza\"]"
+    "title": "Título impactante (máx 70 chars)",
+    "subtitle": "Frase poética e curta (sem HTML)",
+    "excerpt": "Resumo de 2 frases para a Home",
+    "content": "Conteúdo completo em HTML com <h2> e <p>",
+    "metaDescription": "Descrição SEO para o Google",
+    "tags": ["turismo", "natureza"]
   }
-  Ref: ${content}`;
+  CONTEÚDO: ${content}`;
 
   try {
-    const ai = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const ai = await genAI.chat.completions.create({
+      model: "gemini-1.5-flash",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
     });
-    const data = JSON.parse(ai.choices[0].message.content || "{}");
-    res.json(data);
-  } catch (e) { res.status(500).json({ error: "Erro na IA" }); }
+    res.json(JSON.parse(ai.choices[0].message.content || "{}"));
+  } catch (e) { res.status(500).json({ error: "Erro no Gemini" }); }
 });
 
 export default router;
