@@ -64,6 +64,8 @@ Regras:
 - Não explique nada
 - Apenas JSON puro
 
+Formate o conteúdo em HTML usando <h2>, <p> e <strong>.
+
 Conteúdo base:
 ${articleContent}
 `;
