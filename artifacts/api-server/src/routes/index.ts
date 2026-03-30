@@ -12,7 +12,7 @@ router.use(healthRouter);
 router.use(authRouter);
 router.use(postsRouter);
 router.use(mediaRouter);
-router.use(aiRouter);
+router.use("/ai", aiRouter);
 router.use(settingsRouter);
 
 router.use((_req, res) => {
