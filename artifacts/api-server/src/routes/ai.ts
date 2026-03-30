@@ -65,7 +65,7 @@ ${articleContent}
       messages: [{ role: "user", content: prompt }],
     });
 
-    const result = "TESTE IA FUNCIONANDO";
+    const result = response.choices[0].message.content;
 
     return res.json({
       title: "Gerado pela IA",
