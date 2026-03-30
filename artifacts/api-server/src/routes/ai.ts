@@ -59,6 +59,9 @@ Responda APENAS em JSON válido no formato:
 }
 
 Regras:
+- Use HTML com <h2> e <p>
+- Estruture o texto em seções
+
 - Não use markdown
 - Não use **asteriscos**
 - Não explique nada
