@@ -28,7 +28,7 @@ export default function PostEditor() {
     defaultValues: { 
       title: "", subtitle: "", content: "", excerpt: "", 
       metaDescription: "", slug: "", status: "draft", 
-      tags: [] as string[], coverImage: "https://images.unsplash.com/photo-1501785888041-af3ef285b470" 
+      tags: [] as string[], coverImage: "https://images.refugiodaferradura.com.br/default-cover.jpg"
     }
   });
 
