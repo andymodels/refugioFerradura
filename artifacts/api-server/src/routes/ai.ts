@@ -15,7 +15,7 @@ router.post("/generate-from-url", async (req, res) => {
         const fetchRes = await fetch(url.trim(), {
           headers: {
             "User-Agent": "Mozilla/5.0",
-            "Accept": "text/html",
+            Accept: "text/html",
             "Accept-Language": "pt-BR",
           },
         });
