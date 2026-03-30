@@ -44,7 +44,7 @@ router.post("/generate-from-url", async (req, res) => {
     }
 
     if (!articleContent) {
-      return res.status(400).json({ error: "Não foi possível extrair conteúdo" });
+      articleContent = `Gere um artigo turístico com base neste link: ${url}`;
     }
 
     const prompt = `
