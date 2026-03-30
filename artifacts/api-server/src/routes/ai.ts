@@ -8,7 +8,7 @@ router.post("/generate-from-url", async (req, res) => {
 
     let articleContent = "";
 
-    const isUrl = /^https?:\/\/\//i.test(url.trim());
+    const isUrl = /^https?:\/\//i.test(url.trim());
 
     if (isUrl) {
       try {
