@@ -77,7 +77,7 @@ export default function PostEditor() {
         body: JSON.stringify({ data: payload })
       });
       if (res.ok) { toast({ title: "Criado!" }); setLocation("/admin/posts"); }
-      else { toast({ title: "Erro ao salvar", variant: "destructive" }); }
+      else { const errorText = await res.text(); alert(errorText); }
     } catch (e) { toast({ title: "Erro de rede" }); }
   };
 
