@@ -4,50 +4,28 @@ import { AdminLayout } from "@/components/admin-layout";
 import { Input, Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, ArrowLeft, MapPin, Star, Utensils, Home, TreePine, Camera, Tent, Palette } from "lucide-react";
+import { Wand2, ArrowLeft, Eye } from "lucide-react";
 import { Link, useLocation } from "wouter";
-
-const PREDEFINED_TAGS = [
-  { id: "lugares", label: "Lugares", icon: MapPin },
-  { id: "experiencias", label: "Experiências", icon: Star },
-  { id: "gastronomia", label: "Gastronomia", icon: Utensils },
-  { id: "hospedagem", label: "Hospedagem", icon: Home },
-  { id: "natureza", label: "Natureza", icon: TreePine },
-  { id: "turismo", label: "Turismo", icon: Camera },
-  { id: "cultura", label: "Cultura", icon: Palette },
-  { id: "aventura", label: "Aventura", icon: Tent },
-];
 
 export default function PostEditor() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiInput, setAiInput] = useState("");
-  const [activeTab, setActiveTab] = useState<"url" | "text">("url");
   
   const { register, handleSubmit, setValue, control, watch } = useForm({
     defaultValues: { 
       title: "", subtitle: "", content: "", excerpt: "", 
       metaDescription: "", slug: "", status: "draft", 
-      tags: [] as string[], coverImage: "https://images.unsplash.com/photo-1501785888041-af3ef285b470" 
+      tags: ["turismo", "natureza"], coverImage: "" 
     }
   });
 
-  const selectedTags = watch("tags") || [];
-
-  const toggleTag = (tagId: string) => {
-    const current = [...selectedTags];
-    const index = current.indexOf(tagId);
-    if (index > -1) {
-      current.splice(index, 1);
-    } else {
-      current.push(tagId);
-    }
-    setValue("tags", current);
-  };
+  const currentStatus = watch("status");
+  const currentTags = watch("tags");
 
   const handleAIGeneration = async () => {
-    if (!aiInput.trim()) return toast({ title: "Preencha o campo de IA" });
+    if (!aiInput.trim()) return toast({ title: "Digite algo para a IA" });
     setIsGenerating(true);
     try {
       const res = await fetch("/api/ai/generate-from-url", {
@@ -59,16 +37,11 @@ export default function PostEditor() {
       setValue("title", data.title || "");
       setValue("subtitle", data.subtitle || "");
       setValue("content", data.content || "");
-      setValue("excerpt", data.excerpt || "");
       setValue("metaDescription", data.metaDescription || "");
-      if (data.tags) setValue("tags", data.tags);
-      
-      const generatedSlug = (data.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 50);
-      setValue("slug", generatedSlug);
-      
+      setValue("slug", (data.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 50));
       toast({ title: "Conteúdo gerado!" });
     } catch (e) {
-      toast({ title: "Erro ao gerar", variant: "destructive" });
+      toast({ title: "Erro na geração" });
     } finally { setIsGenerating(false); }
   };
 
@@ -84,68 +57,77 @@ export default function PostEditor() {
         setLocation("/admin/posts");
       }
     } catch (e) {
-      toast({ title: "Erro ao salvar", variant: "destructive" });
+      toast({ title: "Erro ao salvar" });
     }
   };
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/posts"><ArrowLeft className="w-5 h-5 cursor-pointer" /></Link>
-          <h1 className="text-2xl font-bold font-serif text-primary">Nova Publicação</h1>
+      <div className="p-6 space-y-6 bg-[#0a0a0a] min-h-screen text-white">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Link href="/admin/posts"><ArrowLeft className="w-5 h-5 cursor-pointer opacity-50 hover:opacity-100" /></Link>
+            <div>
+              <h1 className="text-2xl font-semibold">Nova Publicação</h1>
+              <p className="text-xs text-white/40">Tags: {currentTags.join(", ")}</p>
+            </div>
+          </div>
+          <Button variant="outline" className="bg-white/5 border-white/10 gap-2">
+            <Eye className="w-4 h-4" /> Pré-visualizar
+          </Button>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2 p-6 space-y-4 bg-[#1a1a1a] border-white/5">
-            <Label className="text-white/60 uppercase text-xs tracking-widest">Título *</Label>
-            <Input {...register("title")} className="bg-black/20 border-white/10" required />
-            <Label className="text-white/60 uppercase text-xs tracking-widest">Conteúdo *</Label>
-            <Controller name="content" control={control} render={({ field }) => <RichTextEditor value={field.value} onChange={field.onChange} />} />
-            <Label className="text-white/60 uppercase text-xs tracking-widest">Resumo</Label>
-            <Textarea {...register("excerpt")} rows={2} className="bg-black/20 border-white/10" />
-          </Card>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <div>
+              <Label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Título *</Label>
+              <input {...register("title")} className="w-full bg-transparent border-b border-white/10 py-2 text-3xl font-serif focus:border-primary outline-none" placeholder="Título da matéria" />
+            </div>
+
+            <div>
+              <Label className="text-[10px] uppercase tracking-widest text-white/40 mb-2 block">Subtítulo</Label>
+              <input {...register("subtitle")} className="w-full bg-transparent border-b border-white/10 py-2 text-lg italic text-white/60 outline-none" placeholder="Uma frase complementar e poética..." />
+            </div>
+
+            <div>
+              <Label className="text-[10px] uppercase tracking-widest text-white/40 mb-4 block">Conteúdo *</Label>
+              <Controller name="content" control={control} render={({ field }) => <RichTextEditor value={field.value} onChange={field.onChange} />} />
+            </div>
+          </div>
+
           <div className="space-y-6">
-            <Card className="p-6 space-y-4 bg-[#1a1a1a] border-white/5">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-bold uppercase tracking-tighter text-white/40">Tags</span>
+            <Card className="p-6 bg-[#1a1a1a] border-white/5 space-y-6">
+              <h3 className="text-sm font-medium">Publicação</h3>
+              
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase text-white/40">Status</Label>
+                <div className="flex bg-black/40 p-1 rounded-md">
+                  <button type="button" onClick={() => setValue("status", "draft")} className={`flex-1 py-2 text-xs rounded transition-all ${currentStatus === "draft" ? "bg-orange-500 text-white" : "text-white/40"}`}>● Rascunho</button>
+                  <button type="button" onClick={() => setValue("status", "published")} className={`flex-1 py-2 text-xs rounded transition-all ${currentStatus === "published" ? "bg-green-600 text-white" : "text-white/40"}`}>✓ Publicado</button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {PREDEFINED_TAGS.map((tag) => {
-                  const Icon = tag.icon;
-                  const isSelected = selectedTags.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all ${
-                        isSelected ? "bg-primary/20 text-primary border-primary/50" : "bg-white/5 text-white/60 border-transparent hover:bg-white/10"
-                      } border`}
-                    >
-                      <Icon className="w-3 h-3" />
-                      {tag.label}
-                    </button>
-                  );
-                })}
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase text-white/40">Slug da URL</Label>
+                <div className="flex items-center gap-2 bg-black/40 px-3 py-2 rounded text-[11px] border border-white/5">
+                  <span className="opacity-30">/blog/</span>
+                  <input {...register("slug")} className="bg-transparent outline-none w-full" />
+                </div>
               </div>
-              <Button type="submit" className="w-full mt-4 bg-[#c4a484] hover:bg-[#b39373] text-black font-bold">Criar Publicação</Button>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase text-white/40">Descrição SEO</Label>
+                <Textarea {...register("metaDescription")} className="bg-black/40 border-white/10 text-xs" rows={3} placeholder="Para aparecer no Google..." />
+              </div>
+
+              <Button type="submit" className="w-full bg-[#b3937a] hover:bg-[#a28269] text-black font-bold py-6">Criar Publicação</Button>
             </Card>
 
-            <Card className="p-6 bg-primary/5 border-primary/20">
-              <Label className="flex items-center gap-2 text-primary mb-4 font-serif italic"><Wand2 className="w-4 h-4" /> Geração por IA</Label>
-              <div className="flex gap-2 mb-4 bg-black/40 p-1 rounded-lg">
-                <button type="button" onClick={() => setActiveTab("url")} className={`flex-1 py-1 text-[10px] rounded ${activeTab === "url" ? "bg-primary/20 text-primary" : "text-white/40"}`}>Via URL</button>
-                <button type="button" onClick={() => setActiveTab("text")} className={`flex-1 py-1 text-[10px] rounded ${activeTab === "text" ? "bg-primary/20 text-primary" : "text-white/40"}`}>Colar Texto</button>
-              </div>
-              <Textarea 
-                value={aiInput} 
-                onChange={e => setAiInput(e.target.value)} 
-                placeholder={activeTab === "url" ? "Cole a URL aqui..." : "Descreva o contexto..."} 
-                className="mb-4 bg-black/40 border-white/5" 
-                rows={4} 
-              />
-              <Button type="button" onClick={handleAIGeneration} disabled={isGenerating} className="w-full" variant="secondary">
-                {isGenerating ? "Gerando..." : "Gerar com IA"}
+            <Card className="p-6 bg-[#c4a484]/5 border-[#c4a484]/20 space-y-4">
+              <Label className="flex items-center gap-2 text-[#c4a484] text-xs uppercase tracking-tighter"><Wand2 className="w-4 h-4" /> Geração por IA</Label>
+              <Textarea value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="Cole o link ou contexto..." className="bg-black/40 border-white/5 text-xs" rows={4} />
+              <Button type="button" onClick={handleAIGeneration} disabled={isGenerating} className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/10 text-xs uppercase">
+                {isGenerating ? "Processando..." : "Gerar com IA"}
               </Button>
             </Card>
           </div>
