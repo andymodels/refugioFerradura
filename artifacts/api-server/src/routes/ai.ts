@@ -22,7 +22,7 @@ router.post("/generate-from-url", async (req, res) => {
 
         if (fetchRes.ok) {
           const html = await fetchRes.text();
-            const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+            articleContent = html.slice(0, 5000);
             if (bodyMatch) {
               articleContent = bodyMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
             }
