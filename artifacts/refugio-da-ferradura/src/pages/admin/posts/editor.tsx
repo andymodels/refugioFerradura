@@ -31,7 +31,7 @@ export default function PostEditor() {
       const res = await fetch("/api/ai/generate-from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: aiInput })
+        body: JSON.stringify({ data: { url: aiInput }})
       });
       const data = await res.json();
       setValue("title", data.title || "");
@@ -50,7 +50,7 @@ export default function PostEditor() {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, authorId: 1 })
+        body: JSON.stringify({ data: { ...data, authorId: 1 }})
       });
       if (res.ok) {
         toast({ title: "Publicação criada!" });
