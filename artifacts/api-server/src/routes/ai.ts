@@ -34,6 +34,9 @@ router.post("/generate-from-url", async (req, res) => {
     }
 
     return res.json({
+      title: "Artigo gerado",
+      content: articleContent,
+      excerpt: articleContent.substring(0, 200),
       content: articleContent,
     });
   } catch (error) {
