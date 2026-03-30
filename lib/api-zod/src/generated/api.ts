@@ -248,7 +248,9 @@ export const GenerateFromUrlBody = zod.object({
 
 export const GenerateFromUrlResponse = zod.object({
   title: zod.string(),
+  subtitle: zod.string(),
   excerpt: zod.string(),
   content: zod.string(),
   tags: zod.string(),
+  metaDescription: zod.string(),
 });

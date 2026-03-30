@@ -8,7 +8,9 @@
 
 export interface GeneratedArticle {
   title: string;
+  subtitle: string;
   excerpt: string;
   content: string;
   tags: string;
+  metaDescription: string;
 }

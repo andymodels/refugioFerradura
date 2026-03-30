@@ -490,14 +490,20 @@ components:
       properties:
         title:
           type: string
+        subtitle:
+          type: string
         excerpt:
           type: string
         content:
           type: string
         tags:
           type: string
+        metaDescription:
+          type: string
       required:
         - title
+        - subtitle
         - excerpt
         - content
         - tags
+        - metaDescription

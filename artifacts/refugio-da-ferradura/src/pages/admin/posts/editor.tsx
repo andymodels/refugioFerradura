@@ -385,11 +385,19 @@ export default function PostEditor() {
       return toast({ title: aiMode === "url" ? "Insira uma URL válida" : "Cole o texto antes de gerar", variant: "destructive" });
     }
     try {
-      const payload = aiMode === "url" ? { url: source } : { url: source };
-      const result = await generateAiMutation.mutateAsync({ data: payload });
+      const result = await generateAiMutation.mutateAsync({ data: { url: source } });
       setValue("title", result.title, { shouldDirty: true });
+      setValue("subtitle", result.subtitle, { shouldDirty: true });
       setValue("excerpt", result.excerpt, { shouldDirty: true });
       setValue("content", result.content, { shouldDirty: true });
+      setValue("metaDescription", result.metaDescription, { shouldDirty: true });
+      const generatedSlug = result.title
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)+/g, "")
+        .slice(0, 60);
+      setValue("slug", generatedSlug, { shouldDirty: true });
       if (result.tags) {
         try { setSelectedTags(JSON.parse(result.tags)); } catch { setSelectedTags(["turismo"]); }
       }
