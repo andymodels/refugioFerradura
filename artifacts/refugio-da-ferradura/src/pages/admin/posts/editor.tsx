@@ -58,8 +58,8 @@ export default function PostEditor() {
     finally { setIsGenerating(false); }
   };
 
-  const onSubmit = async (data: any) => {
-    const payload = { ...data, authorId: 1, slug: data.slug || "post-" + Date.now() };
+  const onSubmit = async (data: any) => { if (!data.content) return alert("Conteúdo obrigatório");
+    const payload = { ...data, tags: JSON.stringify(data.tags || []), authorId: 1, slug: data.slug || "post-" + Date.now() };
     try {
       const res = await fetch("/api/posts/admin/create", {
         method: "POST", headers: { "Content-Type": "application/json" },
