@@ -47,16 +47,24 @@ router.post("/generate-from-url", async (req, res) => {
       articleContent = `Gere um artigo turístico profissional com base neste link: ${url}`;
     }
 
+
     const prompt = `
-Reescreva o conteúdo abaixo como um artigo turístico profissional.
+Responda APENAS em JSON válido no formato:
 
-Crie:
-- Título chamativo
-- Subtítulo
-- Texto organizado em parágrafos
-- Descrição SEO com até 160 caracteres
+{
+  "title": "...",
+  "subtitle": "...",
+  "content": "...",
+  "seo": "..."
+}
 
-Conteúdo:
+Regras:
+- Não use markdown
+- Não use **asteriscos**
+- Não explique nada
+- Apenas JSON puro
+
+Conteúdo base:
 ${articleContent}
 `;
 
@@ -65,12 +73,20 @@ ${articleContent}
       messages: [{ role: "user", content: prompt }],
     });
 
-    const result = response.choices[0].message.content;
+    let parsed;
+
+    try {
+      parsed = JSON.parse(response.choices[0].message.content);
+    } catch (e) {
+      return res.status(500).json({ error: "Erro ao interpretar resposta da IA" });
+    }
 
     return res.json({
-      title: "Gerado pela IA",
-      content: result,
-      excerpt: result.substring(0, 200),
+      title: parsed.title,
+      subtitle: parsed.subtitle,
+      content: parsed.content,
+      excerpt: parsed.content.substring(0, 200),
+      seo: parsed.seo,
     });
   } catch (error) {
     return res.status(500).json({ error: "Erro interno" });
