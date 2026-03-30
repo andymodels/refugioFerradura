@@ -1,36 +1,21 @@
 import { Router, type IRouter } from "express";
 import OpenAI from "openai";
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
 
 const router: IRouter = Router();
 
-async function extractArticleContent(url: string): Promise<string> {
-  if (!url.startsWith("http")) return url;
-  try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
-      signal: AbortSignal.timeout(10000),
-    });
-    const html = await response.text();
-    const dom = new JSDOM(html, { url });
-    const reader = new Readability(dom.window.document);
-    const article = reader.parse();
-    return article?.textContent?.replace(/\s+/g, " ").trim().slice(0, 8000) || url;
-  } catch (e) { return url; }
-}
-
 router.post("/generate-from-url", async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-  const content = await extractArticleContent(req.body.url);
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    return res.status(500).json({ error: "Chave não encontrada no Render" });
+  }
 
   const genAI = new OpenAI({
     apiKey: apiKey,
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
   });
 
-  const prompt = `Aja como um redator de turismo de luxo. Com base nisto: ${content}, crie uma matéria sofisticada para o site Refúgio da Ferradura. 
-  Responda APENAS em JSON: { "title": "...", "subtitle": "...", "excerpt": "...", "content": "...", "metaDescription": "..." }`;
+  const prompt = `Aja como um redator. Escreva sobre: ${req.body.url}. Responda em JSON: {"title": "...", "subtitle": "...", "excerpt": "...", "content": "...", "metaDescription": "..."}`;
 
   try {
     const ai = await genAI.chat.completions.create({
@@ -39,7 +24,9 @@ router.post("/generate-from-url", async (req, res) => {
       response_format: { type: "json_object" }
     });
     res.json(JSON.parse(ai.choices[0].message.content || "{}"));
-  } catch (e) { res.status(500).json({ error: "Erro na IA" }); }
+  } catch (e) {
+    res.status(500).json({ error: "Erro na API do Gemini" });
+  }
 });
 
 export default router;
