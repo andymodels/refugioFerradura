@@ -8,41 +8,53 @@ import { useSiteSettings, parseHomeBlocks, parseHeroPool, getOverlayStyle } from
 
 export default function Home() {
   const s = useSiteSettings();
+  const heroOpacity = parseFloat(s.hero_overlay_opacity) || 0.4;
+  const heroHeight = parseInt(s.hero_height_vh) || 85;
+  const blocks = parseHomeBlocks(s.home_blocks);
+  const heroPool = parseHeroPool(s.hero_image_pool);
+
+  const heroImage = useMemo(
+    () => heroPool[Math.floor(Math.random() * heroPool.length)],
+    [s.hero_image_pool]
+  );
+
   const { data: recentData } = useListPosts({ limit: 3 } as any);
   const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
   const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
+  
   const recentPosts = recentData?.posts || [];
   const lugaresPosts = lugaresData?.posts || [];
   const experienciasPosts = experienciasData?.posts || [];
-  const heroPool = parseHeroPool(s.home_hero_image_pool || s.hero_image_pool);
-  const heroImage = useMemo(() => heroPool[Math.floor(Math.random() * heroPool.length)], [heroPool]);
 
   return (
     <Layout>
-      <section className="relative flex items-center justify-center min-h-[500px]" style={{ height: "80vh" }}>
+      <section className="relative flex items-center justify-center min-h-[500px]" style={{ height: `${heroHeight}vh` }}>
         <div className="absolute inset-0 z-0">
-          <img src={heroImage} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-black/40" />
+          <img src={heroImage} alt="Vista" className="w-full h-full object-cover" />
+          <div className="absolute inset-0" style={getOverlayStyle(s.hero_style, heroOpacity)} />
         </div>
-        <div className="relative z-10 text-center text-white px-4">
-          <h1 className="text-5xl font-serif mb-4">Explore a Rota da Ferradura</h1>
-          <p className="text-xl opacity-90">O melhor das montanhas de Guarapari</p>
+        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+          <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-6 block">Rota da Ferradura · Guarapari</span>
+          <h1 className="text-5xl md:text-7xl font-serif text-white mb-6">Explore a Rota</h1>
+          <div className="flex justify-center gap-4">
+            <Link href="/lugares"><Button size="lg">Explorar</Button></Link>
+          </div>
         </div>
       </section>
 
       {recentPosts.length > 0 && (
         <section className="py-16 bg-background">
           <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center gap-2 mb-8 text-primary">
-              <Sparkles className="w-5 h-5" />
+            <div className="flex items-center gap-2 mb-8">
+              <Sparkles className="w-5 h-5 text-primary" />
               <h2 className="text-2xl font-serif font-bold">Novidades na Rota</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {recentPosts.map((post: any) => (
                 <Link key={post.id} href={`/blog/${post.slug}`}>
-                  <Card className="overflow-hidden hover:shadow-xl transition-all cursor-pointer border-0 shadow-sm">
+                  <Card className="overflow-hidden hover:shadow-lg transition-all cursor-pointer">
                     <img src={post.coverImage} className="aspect-video object-cover w-full" />
-                    <div className="p-5">
+                    <div className="p-4">
                       <h3 className="font-serif font-bold text-lg mb-2">{post.title}</h3>
                       <p className="text-sm text-muted-foreground line-clamp-2">{post.excerpt}</p>
                     </div>
@@ -53,6 +65,22 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <section className="py-20 bg-accent/5">
+        <div className="max-w-7xl mx-auto px-4">
+           <h2 className="text-3xl font-serif mb-10">Lugares</h2>
+           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {lugaresPosts.map((post: any) => (
+                <Link key={post.id} href={`/blog/${post.slug}`}>
+                  <div className="cursor-pointer">
+                    <img src={post.coverImage} className="rounded-xl aspect-[4/3] object-cover mb-4" />
+                    <h3 className="font-serif text-lg">{post.title}</h3>
+                  </div>
+                </Link>
+              ))}
+           </div>
+        </div>
+      </section>
     </Layout>
   );
 }

@@ -4,52 +4,41 @@ import { AdminLayout } from "@/components/admin-layout";
 import { Input, Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
-import { Wand2, Loader2, ArrowLeft } from "lucide-react";
+import { Wand2, ArrowLeft } from "lucide-react";
 import { Link, useLocation } from "wouter";
 
 export default function PostEditor() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [aiUrl, setAiUrl] = useState("");
+  const [aiInput, setAiInput] = useState("");
+  
   const { register, handleSubmit, setValue, control } = useForm({
     defaultValues: { title: "", subtitle: "", content: "", excerpt: "", metaDescription: "", slug: "", status: "draft" }
   });
 
   const handleAIGeneration = async () => {
-    if (!aiUrl.trim()) return toast({ title: "Cole um link primeiro" });
+    if (!aiInput.trim()) return toast({ title: "Digite um link ou contexto" });
     setIsGenerating(true);
     try {
       const res = await fetch("/api/ai/generate-from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: aiUrl })
+        body: JSON.stringify({ url: aiInput })
       });
-      
-      if (!res.ok) throw new Error("Erro na resposta do servidor");
-      
       const data = await res.json();
-      
-      // Preenchimento com proteção (se não vier nada, fica vazio mas não trava)
-      const title = data.title || "";
-      setValue("title", title);
+      setValue("title", data.title || "");
       setValue("subtitle", data.subtitle || "");
       setValue("content", data.content || "");
       setValue("excerpt", data.excerpt || "");
       setValue("metaDescription", data.metaDescription || "");
-      
-      // Geração de Slug segura
-      const safeSlug = title
-        ? title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "").slice(0, 50)
-        : "nova-materia-" + Math.floor(Math.random() * 1000);
-      
-      setValue("slug", safeSlug);
-      
-      toast({ title: "Matéria gerada com sucesso!" });
+      setValue("slug", (data.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 50));
+      toast({ title: "Conteúdo gerado com sucesso!" });
     } catch (e) {
-      console.error(e);
-      toast({ title: "Erro na geração", description: "Verifique sua chave de API ou o link enviado.", variant: "destructive" });
-    } finally { setIsGenerating(false); }
+      toast({ title: "Erro ao gerar", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const onSubmit = async (data: any) => {
@@ -63,7 +52,9 @@ export default function PostEditor() {
         toast({ title: "Publicação criada!" });
         setLocation("/admin/posts");
       }
-    } catch (e) { toast({ title: "Erro ao salvar", variant: "destructive" }); }
+    } catch (e) {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
+    }
   };
 
   return (
@@ -91,17 +82,15 @@ export default function PostEditor() {
                 <option value="draft">Rascunho</option>
                 <option value="published">Publicado</option>
               </select>
-              <Label>Slug (Link)</Label>
-              <Input {...register("slug")} className="text-xs" />
               <Label>Descrição SEO</Label>
               <Textarea {...register("metaDescription")} rows={3} className="text-xs" />
               <Button type="submit" className="w-full">Criar Publicação</Button>
             </Card>
-            <Card className="p-6 bg-accent/10 border-accent">
-              <Label className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Geração com Gemini</Label>
-              <Input value={aiUrl} onChange={e => setAiUrl(e.target.value)} placeholder="Link do artigo..." className="my-2" />
+            <Card className="p-6 bg-primary/5 border-primary/20">
+              <Label className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Gerar com IA</Label>
+              <Textarea value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="Cole um link ou descreva o contexto da matéria..." className="my-2" rows={4} />
               <Button type="button" onClick={handleAIGeneration} disabled={isGenerating} className="w-full" variant="secondary">
-                {isGenerating ? "⏳ Escrevendo matéria..." : "🪄 Gerar com Gemini"}
+                {isGenerating ? "Gerando..." : "Gerar Matéria"}
               </Button>
             </Card>
           </div>
