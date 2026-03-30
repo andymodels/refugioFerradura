@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { AdminLayout } from "@/components/admin-layout";
 import { Input, Button, Label, Card, Textarea } from "@/components/ui-elements";
@@ -25,16 +25,30 @@ export default function PostEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: aiUrl })
       });
+      
+      if (!res.ok) throw new Error("Erro na resposta do servidor");
+      
       const data = await res.json();
-      setValue("title", data.title || "");
+      
+      // Preenchimento com proteção (se não vier nada, fica vazio mas não trava)
+      const title = data.title || "";
+      setValue("title", title);
       setValue("subtitle", data.subtitle || "");
       setValue("content", data.content || "");
       setValue("excerpt", data.excerpt || "");
       setValue("metaDescription", data.metaDescription || "");
-      setValue("slug", (data.title || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 50));
+      
+      // Geração de Slug segura
+      const safeSlug = title
+        ? title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "").slice(0, 50)
+        : "nova-materia-" + Math.floor(Math.random() * 1000);
+      
+      setValue("slug", safeSlug);
+      
       toast({ title: "Matéria gerada com sucesso!" });
     } catch (e) {
-      toast({ title: "Erro ao gerar", variant: "destructive" });
+      console.error(e);
+      toast({ title: "Erro na geração", description: "Verifique sua chave de API ou o link enviado.", variant: "destructive" });
     } finally { setIsGenerating(false); }
   };
 
@@ -77,6 +91,8 @@ export default function PostEditor() {
                 <option value="draft">Rascunho</option>
                 <option value="published">Publicado</option>
               </select>
+              <Label>Slug (Link)</Label>
+              <Input {...register("slug")} className="text-xs" />
               <Label>Descrição SEO</Label>
               <Textarea {...register("metaDescription")} rows={3} className="text-xs" />
               <Button type="submit" className="w-full">Criar Publicação</Button>
@@ -85,7 +101,7 @@ export default function PostEditor() {
               <Label className="flex items-center gap-2"><Wand2 className="w-4 h-4" /> Geração com Gemini</Label>
               <Input value={aiUrl} onChange={e => setAiUrl(e.target.value)} placeholder="Link do artigo..." className="my-2" />
               <Button type="button" onClick={handleAIGeneration} disabled={isGenerating} className="w-full" variant="secondary">
-                {isGenerating ? "⏳ Escrevendo matéria..." : "🪄 Gerar com IA"}
+                {isGenerating ? "⏳ Escrevendo matéria..." : "🪄 Gerar com Gemini"}
               </Button>
             </Card>
           </div>
