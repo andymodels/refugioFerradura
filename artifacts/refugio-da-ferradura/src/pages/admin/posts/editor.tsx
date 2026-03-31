@@ -2,11 +2,11 @@ import { useParams } from "wouter";
 import React, { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { AdminLayout } from "@/components/admin-layout";
-import { Input, Button, Label, Card, Textarea } from "@/components/ui-elements";
+import { Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
-import { Link, useLocation } from "wouter";
-import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent } from "lucide-react";
+import { useLocation } from "wouter";
+import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon } from "lucide-react";
 
 const PREDEFINED_TAGS = [
   { id: "lugares", label: "Lugares", icon: MapPin },
@@ -19,11 +19,26 @@ const PREDEFINED_TAGS = [
   { id: "aventura", label: "Aventura", icon: Tent },
 ];
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80);
+}
+
 export default function AdminPostEditor() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const params = useParams();
-  const postId = params?.id;
+  const postId = (params as any)?.id as string | undefined;
+
+  const [aiUrl, setAiUrl] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const { register, handleSubmit, setValue, control, watch, reset } = useForm({
     defaultValues: {
@@ -33,27 +48,32 @@ export default function AdminPostEditor() {
       excerpt: "",
       metaDescription: "",
       slug: "",
-      status: "draft",
-      tags: [],
-      coverImage: ""
-    }
+      status: "draft" as "draft" | "published",
+      tags: [] as string[],
+      coverImage: "",
+    },
   });
 
   const currentStatus = watch("status");
-  const selectedTags = watch("tags") || [];
+  const selectedTags = (watch("tags") as string[]) || [];
 
   const toggleTag = (id: string) => {
     const next = selectedTags.includes(id)
-      ? selectedTags.filter(t => t !== id)
+      ? selectedTags.filter((t) => t !== id)
       : [...selectedTags, id];
     setValue("tags", next);
   };
 
+  // Load post for edit mode
   useEffect(() => {
     if (!postId) return;
     fetch(`/api/posts/admin/${postId}`, { credentials: "include" })
-      .then(res => res.json())
-      .then(post => {
+      .then((res) => res.json())
+      .then((post) => {
+        if (post.error) {
+          toast({ title: "Erro ao carregar post", variant: "destructive" });
+          return;
+        }
         reset({
           title: post.title || "",
           subtitle: post.subtitle || "",
@@ -63,68 +83,226 @@ export default function AdminPostEditor() {
           slug: post.slug || "",
           status: post.status || "draft",
           tags: post.tags ? JSON.parse(post.tags) : [],
-          coverImage: post.coverImage || ""
+          coverImage: post.coverImage || "",
         });
+      })
+      .catch(() => {
+        toast({ title: "Erro ao carregar post", variant: "destructive" });
       });
   }, [postId, reset]);
 
+  // AI generation from URL or text
+  const handleAIGeneration = async () => {
+    if (!aiUrl.trim()) {
+      toast({ title: "Informe uma URL ou texto para gerar o artigo", variant: "destructive" });
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai/generate-from-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ url: aiUrl.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erro ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.title) setValue("title", data.title);
+      if (data.subtitle) setValue("subtitle", data.subtitle);
+      if (data.content) setValue("content", data.content);
+      if (data.excerpt) setValue("excerpt", data.excerpt);
+      if (data.metaDescription) setValue("metaDescription", data.metaDescription);
+      if (data.title && !watch("slug")) {
+        setValue("slug", slugify(data.title).slice(0, 60));
+      }
+      if (data.tags && Array.isArray(data.tags)) {
+        const valid = data.tags.filter((t: string) =>
+          PREDEFINED_TAGS.some((p) => p.id === t)
+        );
+        if (valid.length) setValue("tags", valid);
+      }
+      toast({ title: "Artigo gerado com sucesso!" });
+    } catch (e: any) {
+      toast({ title: e.message || "Erro ao gerar artigo", variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const onSubmit = async (data: any) => {
-    let rawContent = data.content || "";
+    setSaving(true);
+    try {
+      // Strip plain text for auto-filling SEO fields
+      const plainText = (data.content || "").replace(/<[^>]*>/gm, "").replace(/\s+/g, " ").trim();
 
-    // REMOVE H1 DO INÍCIO (CAUSA DO BUG VISUAL)
-    rawContent = rawContent.replace(/^<h1[^>]*>.*?<\/h1>/i, "");
+      const payload = {
+        title: data.title,
+        subtitle: data.subtitle || "",
+        content: data.content || "",
+        excerpt: data.excerpt || plainText.substring(0, 160),
+        metaDescription: data.metaDescription || plainText.substring(0, 150),
+        slug: data.slug || slugify(data.title || "post") + "-" + Date.now(),
+        status: data.status || "draft",
+        coverImage: data.coverImage || "",
+        tags: JSON.stringify(data.tags || []),
+      };
 
-    // REMOVE HTML PARA GERAR TEXTO LIMPO
-    const plainText = rawContent.replace(/<[^>]*>?/gm, "");
+      const url = postId
+        ? `/api/posts/admin/${postId}`
+        : "/api/posts/admin/create";
+      const method = postId ? "PATCH" : "POST";
 
-    const payload = {
-      ...data,
-      content: rawContent,
-      excerpt: data.excerpt || plainText.substring(0, 160),
-      metaDescription: data.metaDescription || plainText.substring(0, 150),
-      tags: JSON.stringify(data.tags || [])
-    };
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
 
-    await fetch("/api/posts/admin/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Erro ${res.status}`);
+      }
 
-    toast({ title: "Salvo" });
-    setLocation("/admin/posts");
+      toast({ title: postId ? "Post atualizado!" : "Post criado!" });
+      setLocation("/admin/posts");
+    } catch (e: any) {
+      toast({ title: e.message || "Erro ao salvar", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <AdminLayout>
       <div className="p-6 space-y-6 bg-[#0a0a0a] min-h-screen text-white">
 
+        {/* AI Generation Panel */}
+        <div className="bg-[#111] border border-white/10 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-orange-400 text-xs font-bold uppercase tracking-widest">
+            <Sparkles className="w-3.5 h-3.5" />
+            Gerar com IA
+          </div>
+          <p className="text-white/40 text-[11px]">
+            Cole uma URL de artigo ou descreva o tema. A IA vai preencher todos os campos automaticamente.
+          </p>
+          <div className="flex gap-2">
+            <div className="flex-1 flex items-center gap-2 bg-black/50 border border-white/10 rounded-lg px-3 py-2">
+              <LinkIcon className="w-3.5 h-3.5 text-white/30 shrink-0" />
+              <input
+                type="text"
+                value={aiUrl}
+                onChange={(e) => setAiUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAIGeneration()}
+                placeholder="https://... ou descreva o tema do artigo"
+                className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/20"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleAIGeneration}
+              disabled={aiLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
+            >
+              {aiLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              {aiLoading ? "Gerando..." : "Gerar"}
+            </button>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          <div className="lg:col-span-2 space-y-8">
-            <input {...register("title")} placeholder="Título" />
-            <input {...register("subtitle")} placeholder="Subtítulo" />
+          {/* Main content column */}
+          <div className="lg:col-span-2 space-y-5">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Título</label>
+              <input
+                {...register("title", { required: true })}
+                placeholder="Título do artigo"
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-xl font-serif text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
+              />
+            </div>
 
-            <Controller
-              name="content"
-              control={control}
-              render={({ field }) => (
-                <RichTextEditor value={field.value} onChange={field.onChange} />
-              )}
-            />
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Subtítulo</label>
+              <input
+                {...register("subtitle")}
+                placeholder="Subtítulo ou chamada do artigo"
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Conteúdo</label>
+              <Controller
+                name="content"
+                control={control}
+                render={({ field }) => (
+                  <RichTextEditor
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Resumo (excerpt)</label>
+              <Textarea
+                {...register("excerpt")}
+                rows={3}
+                placeholder="Resumo exibido nas listagens de posts"
+                className="bg-black/40 border border-white/10 text-sm placeholder:text-white/20"
+              />
+            </div>
           </div>
 
+          {/* Sidebar */}
           <div>
-            <Card className="p-6 bg-[#1a1a1a] border-white/5 space-y-6">
+            <Card className="p-6 bg-[#1a1a1a] border-white/5 space-y-6 sticky top-6">
+
+              {/* Status */}
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase text-white/30">Status</Label>
+                <div className="flex bg-black p-1 rounded-md">
+                  <button
+                    type="button"
+                    onClick={() => setValue("status", "draft")}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded transition-colors ${currentStatus === "draft" ? "bg-orange-600 text-white" : "text-white/20 hover:text-white/40"}`}
+                  >
+                    RASCUNHO
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setValue("status", "published")}
+                    className={`flex-1 py-2 text-[10px] font-bold rounded transition-colors ${currentStatus === "published" ? "bg-green-700 text-white" : "text-white/20 hover:text-white/40"}`}
+                  >
+                    PUBLICADO
+                  </button>
+                </div>
+              </div>
+
+              {/* Tags */}
               <div className="space-y-3">
                 <Label className="text-[10px] uppercase text-white/30">Tags</Label>
                 <div className="flex flex-wrap gap-2">
-                  {PREDEFINED_TAGS.map(t => (
+                  {PREDEFINED_TAGS.map((t) => (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => toggleTag(t.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] border transition-all ${selectedTags.includes(t.id) ? "bg-orange-500/20 border-orange-500 text-orange-500" : "bg-white/5 border-transparent text-white/40"}`}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] border transition-all ${
+                        selectedTags.includes(t.id)
+                          ? "bg-orange-500/20 border-orange-500 text-orange-400"
+                          : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
+                      }`}
                     >
                       <t.icon className="w-3 h-3" />
                       {t.label}
@@ -133,35 +311,63 @@ export default function AdminPostEditor() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <Label className="text-[10px] uppercase text-white/30">Status</Label>
-                <div className="flex bg-black p-1 rounded-md">
-                  <button type="button" onClick={() => setValue("status", "draft")} className={`flex-1 py-2 text-[10px] font-bold rounded ${currentStatus === "draft" ? "bg-orange-600 text-white" : "text-white/20"}`}>RASCUNHO</button>
-                  <button type="button" onClick={() => setValue("status", "published")} className={`flex-1 py-2 text-[10px] font-bold rounded ${currentStatus === "published" ? "bg-green-700 text-white" : "text-white/20"}`}>PUBLICADO</button>
-                </div>
-              </div>
-
+              {/* Slug */}
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase text-white/30">Slug URL</Label>
                 <div className="flex items-center gap-1 bg-black p-2 rounded text-[10px] border border-white/5">
-                  <span className="opacity-20">/blog/</span>
-                  <input {...register("slug")} className="bg-transparent outline-none w-full" />
+                  <span className="opacity-20 shrink-0">/blog/</span>
+                  <input
+                    {...register("slug")}
+                    className="bg-transparent outline-none w-full text-white/70"
+                  />
                 </div>
               </div>
 
+              {/* SEO */}
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase text-white/30">Descrição SEO</Label>
-                <Textarea {...register("metaDescription")} className="bg-black text-xs" rows={3} />
+                <Textarea
+                  {...register("metaDescription")}
+                  className="bg-black border-white/5 text-xs placeholder:text-white/20"
+                  rows={3}
+                  placeholder="Até 160 caracteres para buscadores"
+                />
               </div>
 
+              {/* Cover image */}
               <div className="space-y-2">
-                <Label className="text-[10px] uppercase text-white/30">Imagem de capa</Label>
-                <input {...register("coverImage")} className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-xs" />
+                <Label className="text-[10px] uppercase text-white/30">Imagem de capa (URL)</Label>
+                <input
+                  {...register("coverImage")}
+                  placeholder="https://..."
+                  className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
+                />
               </div>
 
-              <Button type="submit">Salvar</Button>
-            </Card>
+              {/* Save */}
+              <Button
+                type="submit"
+                disabled={saving}
+                className="w-full"
+              >
+                {saving ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Salvando...
+                  </span>
+                ) : postId ? "Atualizar Post" : "Criar Post"}
+              </Button>
 
+              {postId && (
+                <button
+                  type="button"
+                  onClick={() => setLocation("/admin/posts")}
+                  className="w-full py-2 text-[10px] text-white/30 hover:text-white/50 transition-colors"
+                >
+                  Cancelar edição
+                </button>
+              )}
+            </Card>
           </div>
         </form>
       </div>

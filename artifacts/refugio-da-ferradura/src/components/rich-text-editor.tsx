@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -53,6 +53,13 @@ function Divider() {
 }
 
 export function RichTextEditor({ value, onChange, className }: RichTextEditorProps) {
+  // Tracks the last HTML value that came FROM the editor (via onUpdate).
+  // When value prop changes to something different from this ref, it means
+  // the change is external (e.g. AI generation or edit-mode load) → setContent.
+  // When value prop changes to the same as this ref, it means it's just
+  // the Controller reflecting the editor's own keystroke → skip setContent.
+  const editorOutputRef = useRef<string>(value);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -78,17 +85,20 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       },
     },
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      const html = editor.getHTML();
+      editorOutputRef.current = html; // keep ref in sync with editor output
+      onChange(html);
     },
   });
 
-  // Sync external value changes into the editor (e.g. from AI generation)
+  // Sync EXTERNAL value changes into the editor (e.g. AI generation, edit-mode load).
+  // DOES NOT fire when the value change originated from the editor itself (keystrokes),
+  // because editorOutputRef.current will already equal value in that case.
   useEffect(() => {
     if (!editor) return;
-    const current = editor.getHTML();
-    if (value !== current) {
-      editor.commands.setContent(value || "", false);
-    }
+    if (value === editorOutputRef.current) return; // came from editor → skip
+    editorOutputRef.current = value;
+    editor.commands.setContent(value || "", false);
   }, [value, editor]);
 
   const addLink = useCallback(() => {
@@ -113,7 +123,6 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
 
   return (
     <div className={cn("border border-border rounded-lg bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring/30 focus-within:border-primary transition-all", className)}>
-      {/* Bubble Menu (appears on text selection) */}
       <BubbleMenu
         editor={editor}
         className="flex items-center gap-0.5 bg-background border border-border shadow-lg rounded-lg p-1"
@@ -126,20 +135,14 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={addLink} active={editor.isActive('link')} icon={<LinkIcon className="w-3.5 h-3.5" />} title="Link" />
       </BubbleMenu>
 
-      {/* Main Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/40 p-2 sticky top-0 z-10">
-        {/* History */}
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} icon={<Undo className="w-4 h-4" />} title="Desfazer" />
         <ToolbarButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} icon={<Redo className="w-4 h-4" />} title="Refazer" />
         <Divider />
-
-        {/* Headings */}
         <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={<Heading1 className="w-4 h-4" />} title="Título 1" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={<Heading2 className="w-4 h-4" />} title="Título 2" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} icon={<Heading3 className="w-4 h-4" />} title="Título 3" />
         <Divider />
-
-        {/* Text formatting */}
         <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={<Bold className="w-4 h-4" />} title="Negrito" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} icon={<Italic className="w-4 h-4" />} title="Itálico" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} icon={<UnderlineIcon className="w-4 h-4" />} title="Sublinhado" />
@@ -147,23 +150,17 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')} icon={<Highlighter className="w-4 h-4" />} title="Destacar" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} icon={<Code className="w-4 h-4" />} title="Código" />
         <Divider />
-
-        {/* Lists */}
         <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} icon={<List className="w-4 h-4" />} title="Lista" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={<ListOrdered className="w-4 h-4" />} title="Lista Numerada" />
         <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} icon={<Quote className="w-4 h-4" />} title="Citação" />
         <Divider />
-
-        {/* Media */}
         <ToolbarButton onClick={addLink} active={editor.isActive('link')} icon={<LinkIcon className="w-4 h-4" />} title="Link" />
         <ToolbarButton onClick={addImage} icon={<ImageIcon className="w-4 h-4" />} title="Imagem" />
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} icon={<Minus className="w-4 h-4" />} title="Linha Horizontal" />
       </div>
 
-      {/* Editor */}
       <EditorContent editor={editor} />
 
-      {/* Status Bar */}
       <div className="flex items-center justify-between px-4 py-1.5 border-t border-border bg-muted/20 text-xs text-muted-foreground">
         <span>{editor.getText().length} caracteres</span>
         <span className="flex items-center gap-1">
