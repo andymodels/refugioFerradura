@@ -128,7 +128,7 @@ export default function PostEditor() {
               <Label className="text-[10px] uppercase text-white/30">Subtítulo</Label>
               <input {...register("subtitle")} className="w-full bg-transparent py-2 text-lg italic text-white/50 outline-none" placeholder="Uma frase complementar e poética..." />
             </div>
-            <Controller name="content" control={control} defaultValue="" render={({ field }) => <RichTextEditor value={field.value || ""} onChange={(val) => field.onChange(val)} />} />
+            <Controller name="content" control={control} defaultValue="" render={({ field }) => <RichTextEditor key={field.value} value={field.value || ""} onChange={(val) => field.onChange(val)} />} />
           </div>
 
           <div className="space-y-6 text-left">
