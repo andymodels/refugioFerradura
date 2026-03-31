@@ -2,7 +2,6 @@ import React, { useCallback, useState, useEffect } from "react";
 import { UploadCloud, Image as ImageIcon, Check, Copy, Loader2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button } from "@/components/ui-elements";
-import { useUploadMedia } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDropzone } from "react-dropzone";
 
@@ -13,7 +12,6 @@ interface MediaItem {
 
 export default function AdminMedia() {
   const { toast } = useToast();
-  const uploadMutation = useUploadMedia();
   const [allImages, setAllImages] = useState<MediaItem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
@@ -35,22 +33,35 @@ export default function AdminMedia() {
     loadImages();
   }, []);
 
+  const [uploading, setUploading] = useState(false);
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
-    const file = acceptedFiles[0];
+    setUploading(true);
     try {
-      const res = await uploadMutation.mutateAsync({ data: { file } });
-      toast({ title: "Upload realizado com sucesso!" });
-      setAllImages(prev => [{ url: res.url, filename: res.filename }, ...prev]);
+      const formData = new FormData();
+      acceptedFiles.forEach((file) => formData.append("file", file));
+      const res = await fetch("/api/media/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro no upload");
+      const uploaded: { url: string; filename: string }[] = data.images || [{ url: data.url, filename: data.filename }];
+      toast({ title: `${uploaded.length} imagem(ns) enviada(s) com sucesso!` });
+      setAllImages(prev => [...uploaded, ...prev]);
     } catch (e: any) {
       toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
     }
-  }, [uploadMutation, toast]);
+  }, [toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "image/*": [] },
-    multiple: false,
+    multiple: true,
   });
 
   const copyToClipboard = (url: string) => {
@@ -86,10 +97,10 @@ export default function AdminMedia() {
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center mb-4">
                 <UploadCloud className="w-6 h-6" />
               </div>
-              <p className="font-medium mb-1">Clique ou arraste uma imagem</p>
-              <p className="text-xs text-muted-foreground">JPG, PNG, WEBP (Max 20MB)</p>
+              <p className="font-medium mb-1">Clique ou arraste as imagens</p>
+              <p className="text-xs text-muted-foreground">JPG, PNG, WEBP — várias de uma vez (Max 20MB cada)</p>
 
-              {uploadMutation.isPending && (
+              {uploading && (
                 <div className="mt-4 flex items-center justify-center gap-2 text-sm text-primary font-medium">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Enviando para Cloudinary...

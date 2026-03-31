@@ -63,16 +63,21 @@ router.get("/media/list", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/media/upload", upload.single("file"), async (req, res): Promise<void> => {
-  if (!req.file) {
+router.post("/media/upload", upload.array("file", 20), async (req, res): Promise<void> => {
+  const files = req.files as Express.Multer.File[];
+  if (!files || files.length === 0) {
     res.status(400).json({ error: "Nenhum arquivo enviado" });
     return;
   }
 
   try {
-    const url = await uploadToCloudinary(req.file.buffer, "refugio-da-ferradura");
-    const filename = url.split("/").pop() || req.file.originalname;
-    res.json(UploadMediaResponse.parse({ url, filename }));
+    const results = await Promise.all(
+      files.map(async (file) => {
+        const url = await uploadToCloudinary(file.buffer, "refugio-da-ferradura");
+        return { url, filename: url.split("/").pop() || file.originalname };
+      })
+    );
+    res.json({ images: results, ...results[0] });
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao enviar para Cloudinary: " + e.message });
   }
