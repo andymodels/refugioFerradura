@@ -1,12 +1,14 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useEditor, EditorContent, ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
+import type { NodeViewProps } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
+import { Image as TiptapImage } from '@tiptap/extension-image';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
+import { mergeAttributes } from '@tiptap/core';
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
@@ -14,11 +16,108 @@ import {
 } from 'lucide-react';
 import { cn } from './ui-elements';
 
-interface RichTextEditorProps {
-  value: string;
-  onChange: (value: string) => void;
-  className?: string;
+// ─── Resizable Image NodeView ─────────────────────────────────────────────────
+
+function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const startRef = useRef<{ x: number; w: number } | null>(null);
+
+  const onMouseDownHandle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = imgRef.current?.offsetWidth ?? (node.attrs.width as number) ?? 400;
+    startRef.current = { x: startX, w: startW };
+
+    const onMove = (me: MouseEvent) => {
+      if (!startRef.current) return;
+      const delta = me.clientX - startRef.current.x;
+      const newW = Math.max(80, Math.round(startRef.current.w + delta));
+      updateAttributes({ width: newW });
+    };
+
+    const onUp = () => {
+      startRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [node.attrs.width, updateAttributes]);
+
+  const widthVal = node.attrs.width;
+  const style: React.CSSProperties = widthVal
+    ? { width: widthVal, maxWidth: '100%', display: 'block' }
+    : { maxWidth: '100%', display: 'block' };
+
+  return (
+    <NodeViewWrapper
+      className="relative my-4 inline-block"
+      style={{ display: 'block' }}
+      data-drag-handle
+    >
+      <div className={cn('relative inline-block', selected && 'outline outline-2 outline-blue-500 rounded-lg')}>
+        <img
+          ref={imgRef}
+          src={node.attrs.src}
+          alt={node.attrs.alt ?? ''}
+          title={node.attrs.title ?? undefined}
+          style={style}
+          className="rounded-lg"
+          draggable={false}
+        />
+
+        {/* Right-edge resize handle */}
+        {selected && (
+          <div
+            onMouseDown={onMouseDownHandle}
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 flex items-center justify-center cursor-ew-resize"
+            style={{ width: 16, height: 40 }}
+          >
+            <div className="w-2 h-8 bg-white border border-blue-500 rounded shadow-md" />
+          </div>
+        )}
+
+        {/* Width badge */}
+        {selected && widthVal && (
+          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none">
+            {widthVal}px
+          </div>
+        )}
+      </div>
+    </NodeViewWrapper>
+  );
 }
+
+// Custom Image extension with resizable node view
+const ResizableImage = TiptapImage.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el) => {
+          const w = el.getAttribute('width') || el.style.width;
+          return w ? parseInt(w) : null;
+        },
+        renderHTML: (attrs) =>
+          attrs.width ? { width: attrs.width, style: `width:${attrs.width}px;max-width:100%` } : {},
+      },
+    };
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(ResizableImageView);
+  },
+}).configure({
+  HTMLAttributes: { class: 'rounded-lg' },
+  inline: false,
+});
+
+// ─── Toolbar helpers ──────────────────────────────────────────────────────────
 
 function ToolbarButton({
   onClick, active, disabled, icon, title
@@ -52,12 +151,15 @@ function Divider() {
   return <div className="w-px h-5 bg-border mx-0.5 self-center shrink-0" />;
 }
 
+// ─── RichTextEditor ───────────────────────────────────────────────────────────
+
+interface RichTextEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+}
+
 export function RichTextEditor({ value, onChange, className }: RichTextEditorProps) {
-  // Tracks the last HTML value that came FROM the editor (via onUpdate).
-  // When value prop changes to something different from this ref, it means
-  // the change is external (e.g. AI generation or edit-mode load) → setContent.
-  // When value prop changes to the same as this ref, it means it's just
-  // the Controller reflecting the editor's own keystroke → skip setContent.
   const editorOutputRef = useRef<string>(value);
 
   const editor = useEditor({
@@ -72,9 +174,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         openOnClick: false,
         HTMLAttributes: { class: 'text-primary underline' },
       }),
-      Image.configure({
-        HTMLAttributes: { class: 'max-w-full rounded-lg my-4' },
-      }),
+      ResizableImage,
       Underline,
       Highlight.configure({ multicolor: false }),
     ],
@@ -86,17 +186,14 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      editorOutputRef.current = html; // keep ref in sync with editor output
+      editorOutputRef.current = html;
       onChange(html);
     },
   });
 
-  // Sync EXTERNAL value changes into the editor (e.g. AI generation, edit-mode load).
-  // DOES NOT fire when the value change originated from the editor itself (keystrokes),
-  // because editorOutputRef.current will already equal value in that case.
   useEffect(() => {
     if (!editor) return;
-    if (value === editorOutputRef.current) return; // came from editor → skip
+    if (value === editorOutputRef.current) return;
     editorOutputRef.current = value;
     editor.commands.setContent(value || "", false);
   }, [value, editor]);
@@ -116,7 +213,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
   const addImage = useCallback(() => {
     if (!editor) return;
     const url = window.prompt('URL da imagem:');
-    if (url) editor.chain().focus().setImage({ src: url }).run();
+    if (url) editor.chain().focus().setImage({ src: url } as any).run();
   }, [editor]);
 
   if (!editor) return null;

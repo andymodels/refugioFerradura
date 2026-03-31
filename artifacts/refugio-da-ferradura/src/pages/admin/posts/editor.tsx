@@ -31,6 +31,12 @@ function slugify(text: string): string {
     .slice(0, 80);
 }
 
+const DRAFT_PREFIX = "refugio-editor-draft-";
+
+function draftKey(id: string | undefined) {
+  return DRAFT_PREFIX + (id || "new");
+}
+
 export default function AdminPostEditor() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -42,6 +48,7 @@ export default function AdminPostEditor() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const { register, handleSubmit, setValue, control, watch, reset } = useForm({
     defaultValues: {
@@ -67,9 +74,41 @@ export default function AdminPostEditor() {
     setValue("tags", next);
   };
 
-  // Load post for edit mode
+  // ── Draft persistence: auto-save to localStorage on every change ──────────
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formValues = watch();
+
   useEffect(() => {
-    if (!postId) return;
+    // Don't persist while still loading (empty title + content)
+    if (!formValues.title && !formValues.content) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey(postId), JSON.stringify(formValues));
+      } catch {}
+    }, 600);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [JSON.stringify(formValues), postId]);
+
+  // ── Load post for edit mode, then check for a local draft ─────────────────
+  useEffect(() => {
+    if (!postId) {
+      // New post — try to restore draft immediately
+      try {
+        const raw = localStorage.getItem(draftKey(undefined));
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft.title || draft.content) {
+            reset(draft);
+            setDraftRestored(true);
+          }
+        }
+      } catch {}
+      return;
+    }
+
     fetch(`/api/posts/admin/${postId}`, { credentials: "include" })
       .then((res) => res.json())
       .then((post) => {
@@ -77,7 +116,7 @@ export default function AdminPostEditor() {
           toast({ title: "Erro ao carregar post", variant: "destructive" });
           return;
         }
-        reset({
+        const serverData = {
           title: post.title || "",
           subtitle: post.subtitle || "",
           content: post.content || "",
@@ -87,12 +126,54 @@ export default function AdminPostEditor() {
           status: post.status || "draft",
           tags: post.tags ? JSON.parse(post.tags) : [],
           coverImage: post.coverImage || "",
-        });
+        };
+        // Check if there's a local draft with more recent edits
+        try {
+          const raw = localStorage.getItem(draftKey(postId));
+          if (raw) {
+            const draft = JSON.parse(raw);
+            // If draft has meaningful content different from server, restore it
+            if ((draft.title || draft.content) &&
+                (draft.title !== serverData.title || draft.content !== serverData.content)) {
+              reset(draft);
+              setDraftRestored(true);
+              return;
+            }
+          }
+        } catch {}
+        reset(serverData);
       })
       .catch(() => {
         toast({ title: "Erro ao carregar post", variant: "destructive" });
       });
   }, [postId, reset]);
+
+  const discardDraft = () => {
+    try { localStorage.removeItem(draftKey(postId)); } catch {}
+    setDraftRestored(false);
+    // Reload from server
+    if (postId) {
+      fetch(`/api/posts/admin/${postId}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((post) => {
+          if (!post.error) {
+            reset({
+              title: post.title || "",
+              subtitle: post.subtitle || "",
+              content: post.content || "",
+              excerpt: post.excerpt || "",
+              metaDescription: post.metaDescription || "",
+              slug: post.slug || "",
+              status: post.status || "draft",
+              tags: post.tags ? JSON.parse(post.tags) : [],
+              coverImage: post.coverImage || "",
+            });
+          }
+        });
+    } else {
+      reset({ title: "", subtitle: "", content: "", excerpt: "", metaDescription: "", slug: "", status: "draft", tags: [], coverImage: "" });
+    }
+  };
 
   // AI generation from URL or text
   const handleAIGeneration = async () => {
@@ -177,6 +258,8 @@ export default function AdminPostEditor() {
         throw new Error(err.error || `Erro ${res.status}`);
       }
 
+      // Clear local draft on successful save
+      try { localStorage.removeItem(draftKey(postId)); } catch {}
       toast({ title: postId ? "Post atualizado!" : "Post criado!" });
       setLocation("/admin/posts");
     } catch (e: any) {
@@ -189,6 +272,22 @@ export default function AdminPostEditor() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-6 bg-[#0a0a0a] min-h-screen text-white">
+
+        {/* Draft restored banner */}
+        {draftRestored && (
+          <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-300">
+            <span>
+              <span className="font-semibold">Rascunho recuperado</span> — suas edições anteriores foram restauradas automaticamente.
+            </span>
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="ml-4 text-amber-400 hover:text-amber-200 underline text-xs whitespace-nowrap transition-colors"
+            >
+              Descartar e recarregar
+            </button>
+          </div>
+        )}
 
         {/* AI Generation Panel */}
         <div className="bg-[#111] border border-white/10 rounded-xl p-4 space-y-3">
