@@ -38,6 +38,7 @@ export default function AdminPostEditor() {
   const postId = (params as any)?.id as string | undefined;
 
   const [aiUrl, setAiUrl] = useState("");
+  const [aiInstructions, setAiInstructions] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -106,7 +107,7 @@ export default function AdminPostEditor() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ url: aiUrl.trim() }),
+        body: JSON.stringify({ url: aiUrl.trim(), instructions: aiInstructions.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -223,6 +224,19 @@ export default function AdminPostEditor() {
               )}
               {aiLoading ? "Gerando..." : "Gerar"}
             </button>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-white/25 font-bold tracking-widest">
+              Instruções adicionais <span className="normal-case font-normal text-white/20">(opcional)</span>
+            </label>
+            <textarea
+              value={aiInstructions}
+              onChange={(e) => setAiInstructions(e.target.value)}
+              rows={2}
+              placeholder="Ex: foque nos restaurantes mencionados, use tom mais descontraído, destaque a vista para o mar..."
+              className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none resize-none focus:border-white/20 transition-colors"
+            />
           </div>
 
           {aiError && (

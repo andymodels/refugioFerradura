@@ -128,7 +128,7 @@ REGRAS ABSOLUTAS — nunca as quebre:
 6. Sempre em Português do Brasil, tom editorial sofisticado e acolhedor.
 7. VERIFICAÇÃO DE RELEVÂNCIA OBRIGATÓRIA: o conteúdo deve tratar de turismo, natureza, gastronomia, cultura, eventos ou serviços relacionados à Rota da Ferradura, Buenos Aires, Guarapari, região serrana do ES ou ao Espírito Santo em geral. Se for completamente alheio a essa região, retorne APENAS o JSON de erro — nunca invente conteúdo genérico.`;
 
-const USER_PROMPT_TEXT = (sourceText: string) => `Analise o texto-fonte abaixo e siga este fluxo obrigatório:
+const USER_PROMPT_TEXT = (sourceText: string, instructions?: string) => `Analise o conteúdo-fonte abaixo e siga este fluxo obrigatório:
 
 PASSO 1 — VERIFICAÇÃO DE RELEVÂNCIA:
 O conteúdo fala sobre turismo, natureza, gastronomia, cultura, eventos ou serviços da Rota da Ferradura, Buenos Aires, Guarapari, ou do Espírito Santo?
@@ -138,7 +138,7 @@ O conteúdo fala sobre turismo, natureza, gastronomia, cultura, eventos ou servi
 
 PASSO 2 — GERAÇÃO DO ARTIGO:
 Reescreva como artigo editorial para o site Refúgio da Ferradura, baseando-se EXCLUSIVAMENTE nos fatos do conteúdo-fonte.
-NÃO adicione informações, atrações, preços ou detalhes que não estejam no conteúdo original.
+NÃO adicione informações, atrações, preços ou detalhes que não estejam no conteúdo original.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima, dentro dos limites do conteúdo-fonte):\n${instructions}` : ""}
 
 RESPONDA APENAS EM JSON válido:
 {
@@ -153,7 +153,7 @@ RESPONDA APENAS EM JSON válido:
 CONTEÚDO-FONTE:
 ${sourceText}`;
 
-const USER_PROMPT_IMAGE = (imageUrl: string) => `Analise a imagem abaixo e siga este fluxo obrigatório:
+const USER_PROMPT_IMAGE = (imageUrl: string, instructions?: string) => `Analise a imagem abaixo e siga este fluxo obrigatório:
 
 PASSO 1 — VERIFICAÇÃO DE RELEVÂNCIA:
 A imagem mostra paisagens, lugares, gastronomia, eventos ou serviços da Rota da Ferradura, Buenos Aires, Guarapari, ou do Espírito Santo?
@@ -163,7 +163,7 @@ A imagem mostra paisagens, lugares, gastronomia, eventos ou serviços da Rota da
 
 PASSO 2 — GERAÇÃO DO ARTIGO:
 Descreva o que você vê na imagem com detalhes — elementos visuais, cores, ambiente, sensações transmitidas — e use isso para criar um artigo editorial rico e envolvente para o site Refúgio da Ferradura.
-NÃO invente locais ou nomes específicos que não sejam claramente identificáveis na imagem.
+NÃO invente locais ou nomes específicos que não sejam claramente identificáveis na imagem.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima):\n${instructions}` : ""}
 
 RESPONDA APENAS EM JSON válido:
 {
@@ -178,6 +178,7 @@ RESPONDA APENAS EM JSON válido:
 router.post("/generate-from-url", async (req, res) => {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const input: string = (req.body.url || "").trim();
+  const extraInstructions: string = (req.body.instructions || "").trim();
   const isUrl = input.startsWith("http");
 
   let sourceText = input;
@@ -211,7 +212,7 @@ router.post("/generate-from-url", async (req, res) => {
           {
             role: "user",
             content: [
-              { type: "text", text: USER_PROMPT_IMAGE(input) },
+              { type: "text", text: USER_PROMPT_IMAGE(input, extraInstructions || undefined) },
               { type: "image_url", image_url: { url: input, detail: "high" } },
             ],
           },
@@ -225,7 +226,7 @@ router.post("/generate-from-url", async (req, res) => {
         model: "gpt-4o",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: USER_PROMPT_TEXT(sourceText) },
+          { role: "user", content: USER_PROMPT_TEXT(sourceText, extraInstructions || undefined) },
         ],
         response_format: { type: "json_object" },
         temperature: 0.3,
