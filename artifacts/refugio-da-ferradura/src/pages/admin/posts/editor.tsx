@@ -63,7 +63,7 @@ export default function PostEditor() {
     const payload = {
   title: data.title,
   subtitle: data.subtitle || "",
-  content: data.content,
+  content: document.querySelector(".ProseMirror")?.innerHTML || "",
   excerpt: data.excerpt || data.content.substring(0, 160),
   metaDescription: data.metaDescription || data.content.substring(0, 150),
   slug: data.slug || "post-" + Date.now(),
