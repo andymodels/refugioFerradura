@@ -29,7 +29,6 @@ export default function Blog() {
           </p>
         </div>
 
-        {/* Tag Filters */}
         <div className="flex items-center justify-center gap-2 mt-8 flex-wrap px-4">
           {TAGS.map(tag => (
             <button
@@ -84,19 +83,27 @@ export default function Blog() {
                       ))}
                     </div>
                   </div>
+
                   <div className="flex-1 flex flex-col">
                     <time className="text-xs text-muted-foreground mb-3 font-medium tracking-wide uppercase">
                       {format(new Date(post.createdAt), "dd 'de' MMMM, yyyy", { locale: ptBR })}
                     </time>
+
                     <h3 className="text-2xl font-serif font-medium mb-2 group-hover:text-primary transition-colors leading-snug">
                       {post.title}
                     </h3>
+
                     {post.subtitle && (
                       <p className="text-sm text-primary/70 italic mb-2">{post.subtitle}</p>
                     )}
-                    <p className="text-muted-foreground text-sm line-clamp-3 mb-4 flex-1">
-                      {post.excerpt || post.content.replace(/<[^>]*>?/gm, '').substring(0, 120) + '...'}
-                    </p>
+
+                    <div
+                      className="text-muted-foreground text-sm line-clamp-3 mb-4 flex-1"
+                      dangerouslySetInnerHTML={{
+                        __html: (post.excerpt || post.content).substring(0, 200)
+                      }}
+                    />
+
                     <div className="text-primary text-sm font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
                       Ler mais <span className="text-lg leading-none">&rarr;</span>
                     </div>
