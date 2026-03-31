@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
@@ -18,13 +18,8 @@ export default function Home() {
     [s.hero_image_pool]
   );
 
-  const { data: recentData } = useListPosts({ limit: 3 } as any);
-  const { data: lugaresData } = useListPosts({ tag: "lugares", limit: 3 } as any);
-  const { data: experienciasData } = useListPosts({ tag: "experiencias", limit: 3 } as any);
-  
+  const { data: recentData } = useListPosts({ limit: 6 } as any);
   const recentPosts = recentData?.posts || [];
-  const lugaresPosts = lugaresData?.posts || [];
-  const experienciasPosts = experienciasData?.posts || [];
 
   return (
     <Layout>
@@ -66,21 +61,6 @@ export default function Home() {
         </section>
       )}
 
-      <section className="py-20 bg-accent/5">
-        <div className="max-w-7xl mx-auto px-4">
-           <h2 className="text-3xl font-serif mb-10">Lugares</h2>
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {lugaresPosts.map((post: any) => (
-                <Link key={post.id} href={`/blog/${post.slug}`}>
-                  <div className="cursor-pointer">
-                    <img src={post.coverImage} className="rounded-xl aspect-[4/3] object-cover mb-4" />
-                    <h3 className="font-serif text-lg">{post.title}</h3>
-                  </div>
-                </Link>
-              ))}
-           </div>
-        </div>
-      </section>
     </Layout>
   );
 }
