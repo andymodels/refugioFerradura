@@ -113,6 +113,11 @@ export default function AdminPostEditor() {
         setAiError(data.error || `Erro ${res.status}`);
         return;
       }
+      // IA retornou aviso de conteúdo fora do escopo da região
+      if (data.error === "fora_de_escopo") {
+        setAiError(data.message || "Conteúdo fora do escopo da Rota da Ferradura.");
+        return;
+      }
       if (data.title) setValue("title", data.title);
       if (data.subtitle) setValue("subtitle", data.subtitle);
       if (data.content) setValue("content", data.content);
