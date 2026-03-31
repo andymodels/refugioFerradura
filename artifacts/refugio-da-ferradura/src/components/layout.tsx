@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X, MapPin, Instagram, Facebook } from "lucide-react";
+import { Menu, X, MapPin, Instagram, Facebook, CalendarDays } from "lucide-react";
 import { cn } from "./ui-elements";
 import { useSiteSettings } from "@/hooks/use-site-settings";
 
@@ -12,7 +12,7 @@ const navLinks = [
   { name: "Experiências", href: "/experiencias" },
   { name: "Gastronomia", href: "/gastronomia" },
   { name: "Hospedagem", href: "/hospedagem" },
-  { name: "Eventos", href: "/eventos" },
+  { name: "Eventos", href: "/eventos", highlight: true },
   { name: "Buscar", href: "/buscar" },
 ];
 
@@ -63,18 +63,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                className={cn(
-                  "text-sm font-semibold tracking-wide text-white drop-shadow-md transition-opacity hover:opacity-100",
-                  location === link.href
-                    ? "opacity-100 border-b border-white/70 pb-0.5"
-                    : "opacity-80"
-                )}
-              >
-                {link.name}
-              </Link>
+              link.highlight ? (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className="flex items-center gap-1.5 text-sm font-bold tracking-wide text-orange-400 drop-shadow-md hover:text-orange-300 transition-colors bg-orange-500/10 border border-orange-500/30 rounded-full px-3 py-1"
+                >
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  {link.name}
+                </Link>
+              ) : (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={cn(
+                    "text-sm font-semibold tracking-wide text-white drop-shadow-md transition-opacity hover:opacity-100",
+                    location === link.href
+                      ? "opacity-100 border-b border-white/70 pb-0.5"
+                      : "opacity-80"
+                  )}
+                >
+                  {link.name}
+                </Link>
+              )
             ))}
           </nav>
 
@@ -96,16 +107,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
         >
           <nav className="flex flex-col gap-6 text-2xl font-serif">
             {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                className={cn(
-                  "border-b border-border pb-4 transition-colors",
-                  location === link.href ? "text-primary" : "text-foreground"
-                )}
-              >
-                {link.name}
-              </Link>
+              link.highlight ? (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className="flex items-center gap-2 border-b border-orange-500/30 pb-4 text-orange-400 font-bold transition-colors"
+                >
+                  <CalendarDays className="w-5 h-5" />
+                  {link.name}
+                </Link>
+              ) : (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className={cn(
+                    "border-b border-border pb-4 transition-colors",
+                    location === link.href ? "text-primary" : "text-foreground"
+                  )}
+                >
+                  {link.name}
+                </Link>
+              )
             ))}
           </nav>
         </div>
