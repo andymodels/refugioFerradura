@@ -39,6 +39,7 @@ function Router() {
       <Route path="/experiencias">{() => <TagPage tag="experiencias" />}</Route>
       <Route path="/gastronomia">{() => <TagPage tag="gastronomia" />}</Route>
       <Route path="/hospedagem">{() => <TagPage tag="hospedagem" />}</Route>
+      <Route path="/eventos">{() => <TagPage tag="eventos" />}</Route>
       <Route path="/buscar" component={Search} />
 
       {/* Admin Routes */}

@@ -12,6 +12,7 @@ const navLinks = [
   { name: "Experiências", href: "/experiencias" },
   { name: "Gastronomia", href: "/gastronomia" },
   { name: "Hospedagem", href: "/hospedagem" },
+  { name: "Eventos", href: "/eventos" },
   { name: "Buscar", href: "/buscar" },
 ];
 
@@ -135,6 +136,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <li><Link href="/experiencias" className="hover:text-primary transition-colors">Experiências</Link></li>
                 <li><Link href="/gastronomia" className="hover:text-primary transition-colors">Gastronomia</Link></li>
                 <li><Link href="/hospedagem" className="hover:text-primary transition-colors">Hospedagem</Link></li>
+                <li><Link href="/eventos" className="hover:text-primary transition-colors">Eventos</Link></li>
                 <li><Link href="/admin/login" className="hover:text-primary transition-colors">Área Restrita</Link></li>
               </ul>
             </div>
