@@ -152,6 +152,17 @@ export default function PostEditor() {
 
               <div className="space-y-2">
                 <Label className="text-[10px] uppercase text-white/30">Slug URL</Label>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase text-white/30">Descrição SEO</Label>
+                <Textarea {...register("metaDescription")} className="bg-black text-xs" rows={3} placeholder="Texto para Google..." />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] uppercase text-white/30">Imagem de capa</Label>
+                <input {...register("coverImage")} placeholder="https://..." className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-xs" />
+              </div>
+
                 <div className="flex items-center gap-1 bg-black p-2 rounded text-[10px] border border-white/5"><span className="opacity-20">/blog/</span><input {...register("slug")} className="bg-transparent outline-none w-full" /></div>
               </div>
 
