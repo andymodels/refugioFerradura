@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, postsTable } from "@workspace/db";
-import { eq, ilike, or, and, sql } from "drizzle-orm";
+import { eq, ilike, or, and, sql, desc } from "drizzle-orm";
 import {
   ListPostsQueryParams,
   ListPostsResponse,
@@ -45,7 +45,7 @@ router.get("/posts", async (req, res): Promise<void> => {
     .select()
     .from(postsTable)
     .where(and(...conditions))
-    .orderBy(postsTable.createdAt);
+    .orderBy(desc(postsTable.createdAt));
 
   const posts = limit ? await (q as any).limit(limit) : await q;
 
@@ -59,7 +59,7 @@ router.get("/posts/admin", async (req, res): Promise<void> => {
     return;
   }
 
-  const posts = await db.select().from(postsTable).orderBy(postsTable.createdAt);
+  const posts = await db.select().from(postsTable).orderBy(desc(postsTable.createdAt));
   res.json(ListPostsAdminResponse.parse({ posts, total: posts.length }));
 });
 
