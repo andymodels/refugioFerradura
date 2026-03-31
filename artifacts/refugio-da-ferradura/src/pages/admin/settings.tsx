@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Settings, Image as ImageIcon, Save, Eye, Layout, AlignLeft,
-  Plus, Trash2, ChevronUp, ChevronDown, Monitor, Layers, GripVertical, X
+  Plus, Trash2, ChevronUp, ChevronDown, Monitor, Layers, GripVertical, X, ExternalLink
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button } from "@/components/ui-elements";
@@ -305,7 +305,7 @@ export default function AdminSettings() {
                       setNewHeroUrl("");
                     }
                   }}
-                  placeholder="https://... (cole a URL da foto)"
+                  placeholder="Cole a URL da foto aqui"
                   className="flex-1 px-3 py-2 rounded-md border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
                 <button
@@ -321,6 +321,17 @@ export default function AdminSettings() {
                   <Plus className="w-4 h-4" /> Adicionar
                 </button>
               </div>
+
+              {/* Link to media in new tab */}
+              <a
+                href="/admin/media"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-primary hover:underline w-fit"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Abrir Biblioteca de Mídia em nova aba para copiar URLs
+              </a>
             </Card>
 
             <Card className="p-5 space-y-4">
