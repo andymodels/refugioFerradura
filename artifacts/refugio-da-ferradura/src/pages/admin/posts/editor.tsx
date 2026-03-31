@@ -69,9 +69,19 @@ export default function AdminPostEditor() {
   }, [postId, reset]);
 
   const onSubmit = async (data: any) => {
+    let rawContent = data.content || "";
+
+    // REMOVE H1 DO INÍCIO (CAUSA DO BUG VISUAL)
+    rawContent = rawContent.replace(/^<h1[^>]*>.*?<\/h1>/i, "");
+
+    // REMOVE HTML PARA GERAR TEXTO LIMPO
+    const plainText = rawContent.replace(/<[^>]*>?/gm, "");
+
     const payload = {
       ...data,
-      content: data.content || "",
+      content: rawContent,
+      excerpt: data.excerpt || plainText.substring(0, 160),
+      metaDescription: data.metaDescription || plainText.substring(0, 150),
       tags: JSON.stringify(data.tags || [])
     };
 
@@ -105,7 +115,6 @@ export default function AdminPostEditor() {
           </div>
 
           <div>
-            {/* SEU BLOCO ORIGINAL */}
             <Card className="p-6 bg-[#1a1a1a] border-white/5 space-y-6">
               <div className="space-y-3">
                 <Label className="text-[10px] uppercase text-white/30">Tags</Label>
