@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useParams } from "wouter";
+import React, { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { AdminLayout } from "@/components/admin-layout";
 import { Input, Button, Label, Card, Textarea } from "@/components/ui-elements";
@@ -21,10 +22,31 @@ const PREDEFINED_TAGS = [
 export default function PostEditor() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const params = useParams();
+  const postId = params?.id;
+
+  useEffect(() => {
+    if (!postId) return;
+    fetch(`/api/posts/admin/${postId}`, { credentials: "include" })
+      .then(res => res.json())
+      .then(post => {
+        reset({
+          title: post.title || "",
+          subtitle: post.subtitle || "",
+          content: post.content || "",
+          excerpt: post.excerpt || "",
+          metaDescription: post.metaDescription || "",
+          slug: post.slug || "",
+          status: post.status || "draft",
+          tags: post.tags ? JSON.parse(post.tags) : []
+        });
+      });
+  }, [postId]);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiInput, setAiInput] = useState("");
   
-  const { register, handleSubmit, setValue, control, watch } = useForm({
+  const { register, handleSubmit, setValue, control, watch, reset } = useForm({
     defaultValues: { 
       title: "", subtitle: "", content: "", excerpt: "", 
       metaDescription: "", slug: "", status: "draft", 
