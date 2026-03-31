@@ -70,7 +70,7 @@ router.post("/posts/admin/create", async (req, res): Promise<void> => {
     return;
   }
 
-  const parsed = CreatePostBody.safeParse(req.body);
+  const parsed = CreatePostBody.safeParse({ ...req.body, content: (req.body.content || "").trim() === "<p></p>" ? "" : req.body.content });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
