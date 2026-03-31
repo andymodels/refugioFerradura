@@ -39,6 +39,7 @@ export default function AdminPostEditor() {
 
   const [aiUrl, setAiUrl] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const { register, handleSubmit, setValue, control, watch, reset } = useForm({
@@ -99,6 +100,7 @@ export default function AdminPostEditor() {
       return;
     }
     setAiLoading(true);
+    setAiError(null);
     try {
       const res = await fetch("/api/ai/generate-from-url", {
         method: "POST",
@@ -106,11 +108,11 @@ export default function AdminPostEditor() {
         credentials: "include",
         body: JSON.stringify({ url: aiUrl.trim() }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Erro ${res.status}`);
-      }
       const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error || `Erro ${res.status}`);
+        return;
+      }
       if (data.title) setValue("title", data.title);
       if (data.subtitle) setValue("subtitle", data.subtitle);
       if (data.content) setValue("content", data.content);
@@ -126,8 +128,9 @@ export default function AdminPostEditor() {
         if (valid.length) setValue("tags", valid);
       }
       toast({ title: "Artigo gerado com sucesso!" });
+      setAiUrl("");
     } catch (e: any) {
-      toast({ title: e.message || "Erro ao gerar artigo", variant: "destructive" });
+      setAiError("Erro de conexão ao tentar gerar o artigo. Tente novamente.");
     } finally {
       setAiLoading(false);
     }
@@ -188,7 +191,7 @@ export default function AdminPostEditor() {
             Gerar com IA
           </div>
           <p className="text-white/40 text-[11px]">
-            Cole uma URL de artigo ou descreva o tema. A IA vai preencher todos os campos automaticamente.
+            Cole uma URL de artigo <span className="text-white/60">ou o próprio texto copiado</span> — a IA reescreve com fidelidade ao conteúdo original.
           </p>
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 bg-black/50 border border-white/10 rounded-lg px-3 py-2">
@@ -196,9 +199,9 @@ export default function AdminPostEditor() {
               <input
                 type="text"
                 value={aiUrl}
-                onChange={(e) => setAiUrl(e.target.value)}
+                onChange={(e) => { setAiUrl(e.target.value); setAiError(null); }}
                 onKeyDown={(e) => e.key === "Enter" && handleAIGeneration()}
-                placeholder="https://... ou descreva o tema do artigo"
+                placeholder="https://... ou cole o texto do artigo diretamente"
                 className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/20"
               />
             </div>
@@ -216,6 +219,13 @@ export default function AdminPostEditor() {
               {aiLoading ? "Gerando..." : "Gerar"}
             </button>
           </div>
+
+          {aiError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-300 leading-relaxed">
+              <span className="font-semibold block mb-1">⚠ Não foi possível ler o link</span>
+              {aiError}
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
