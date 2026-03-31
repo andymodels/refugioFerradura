@@ -11,6 +11,9 @@ export default function BlogPost() {
   if (isLoading) return <Layout><div className="p-10">Carregando...</div></Layout>;
   if (!post) return <Layout><div className="p-10">Post não encontrado</div></Layout>;
 
+  // 🔥 REMOVE H1 QUE VEIO DO EDITOR
+  const cleanedContent = (post.content || "").replace(/^<h1[^>]*>.*?<\/h1>/i, "");
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto px-4 py-20">
@@ -35,7 +38,7 @@ export default function BlogPost() {
         <div
           className="post-content text-lg leading-relaxed"
           dangerouslySetInnerHTML={{
-            __html: post.content || ""
+            __html: cleanedContent
           }}
         />
 
