@@ -227,8 +227,10 @@ export default function AdminPostEditor() {
 
           {aiError && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-300 leading-relaxed">
-              <span className="font-semibold block mb-1">⚠ Não foi possível ler o link</span>
-              {aiError}
+              <span className="font-semibold block mb-2">⚠ Não foi possível ler o link</span>
+              {aiError.split("\n\n").map((paragraph, i) => (
+                <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
+              ))}
             </div>
           )}
         </div>

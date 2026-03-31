@@ -33,6 +33,31 @@ function extractOGMeta(html: string, url: string): string {
   }
 }
 
+// Frases que indicam página de desafio/bloqueio — não são conteúdo real
+const BLOCK_PHRASES = [
+  "enable javascript and cookies",
+  "just a moment",
+  "performing security verification",
+  "please enable javascript",
+  "checking your browser",
+  "ddos protection by",
+  "cloudflare",
+  "access denied",
+  "403 forbidden",
+  "robot or human",
+  "captcha",
+  "are you a robot",
+  "verify you are human",
+  "security check",
+];
+
+function isBlockedContent(text: string): boolean {
+  const lower = text.toLowerCase();
+  const matches = BLOCK_PHRASES.filter((phrase) => lower.includes(phrase));
+  // Se 2 ou mais frases de bloqueio aparecerem, considera bloqueado
+  return matches.length >= 2;
+}
+
 async function extractArticleContent(
   url: string
 ): Promise<{ text: string; blocked: boolean; isImage: boolean }> {
@@ -54,9 +79,15 @@ async function extractArticleContent(
         signal: AbortSignal.timeout(12000),
       });
 
-      if (!response.ok) continue;
-
       const html = await response.text();
+
+      // HTTP não-ok mas temos HTML — pode ser página de desafio
+      if (!response.ok) {
+        if (isBlockedContent(html)) {
+          return { text: "", blocked: true, isImage: false };
+        }
+        continue;
+      }
 
       // Tenta Readability primeiro
       const dom = new JSDOM(html, { url });
@@ -64,13 +95,18 @@ async function extractArticleContent(
       const article = reader.parse();
       const text = article?.textContent?.replace(/\s+/g, " ").trim() || "";
 
+      // Verifica se o texto extraído é uma página de bloqueio disfarçada
+      if (isBlockedContent(text)) {
+        return { text: "", blocked: true, isImage: false };
+      }
+
       if (text.length > 200) {
         return { text: text.slice(0, 12000), blocked: false, isImage: false };
       }
 
       // Fallback: Open Graph / Twitter meta tags (posts sociais, páginas de foto)
       const ogText = extractOGMeta(html, url);
-      if (ogText.length > 50) {
+      if (ogText.length > 50 && !isBlockedContent(ogText)) {
         return { text: ogText.slice(0, 4000), blocked: false, isImage: false };
       }
     } catch {
@@ -155,7 +191,7 @@ router.post("/generate-from-url", async (req, res) => {
     if (!isImage && sourceText.length < 50) {
       res.status(422).json({
         error: result.blocked
-          ? "O site bloqueou a leitura automática. Abra o artigo no navegador, selecione todo o texto (Ctrl+A), copie e cole diretamente no campo de geração."
+          ? "Este site usa proteção contra leitura automática (como Cloudflare). Não é possível ler o conteúdo pelo servidor.\n\nO que fazer: abra o artigo normalmente no seu navegador, selecione todo o texto com Ctrl+A, copie com Ctrl+C e cole diretamente no campo de geração."
           : "Não foi possível extrair conteúdo suficiente do link. Tente colar o texto do artigo diretamente no campo.",
         blocked: result.blocked,
       });
