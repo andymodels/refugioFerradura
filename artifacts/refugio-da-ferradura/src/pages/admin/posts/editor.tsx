@@ -219,6 +219,16 @@ export default function AdminPostEditor() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
+          {/* Cover image — full width, right below AI panel */}
+          <div className="lg:col-span-3 space-y-1">
+            <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Imagem de capa (URL)</label>
+            <input
+              {...register("coverImage")}
+              placeholder="https://... cole aqui o link da imagem de capa"
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
+            />
+          </div>
+
           {/* Main content column */}
           <div className="lg:col-span-2 space-y-5">
             <div className="space-y-1">
@@ -331,16 +341,6 @@ export default function AdminPostEditor() {
                   className="bg-black border-white/5 text-xs placeholder:text-white/20"
                   rows={3}
                   placeholder="Até 160 caracteres para buscadores"
-                />
-              </div>
-
-              {/* Cover image */}
-              <div className="space-y-2">
-                <Label className="text-[10px] uppercase text-white/30">Imagem de capa (URL)</Label>
-                <input
-                  {...register("coverImage")}
-                  placeholder="https://..."
-                  className="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
                 />
               </div>
 
