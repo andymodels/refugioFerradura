@@ -196,7 +196,7 @@ export default function AdminPostEditor() {
             Gerar com IA
           </div>
           <p className="text-white/40 text-[11px]">
-            Cole uma URL de artigo <span className="text-white/60">ou o próprio texto copiado</span> — a IA reescreve com fidelidade ao conteúdo original.
+            Cole uma URL de artigo, <span className="text-white/60">um link direto de foto (.jpg/.png)</span> ou o próprio texto copiado — a IA gera o artigo com fidelidade ao conteúdo original.
           </p>
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 bg-black/50 border border-white/10 rounded-lg px-3 py-2">
@@ -206,7 +206,7 @@ export default function AdminPostEditor() {
                 value={aiUrl}
                 onChange={(e) => { setAiUrl(e.target.value); setAiError(null); }}
                 onKeyDown={(e) => e.key === "Enter" && handleAIGeneration()}
-                placeholder="https://... ou cole o texto do artigo diretamente"
+                placeholder="https://artigo.com, https://foto.jpg ou cole o texto aqui"
                 className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/20"
               />
             </div>
