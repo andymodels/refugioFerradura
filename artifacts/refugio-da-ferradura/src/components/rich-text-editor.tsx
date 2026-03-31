@@ -8,11 +8,12 @@ import Link from '@tiptap/extension-link';
 import { Image as TiptapImage } from '@tiptap/extension-image';
 import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
+import Youtube from '@tiptap/extension-youtube';
 import { mergeAttributes } from '@tiptap/core';
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
-  Undo, Redo, Minus, Code, Highlighter, AlignLeft
+  Undo, Redo, Minus, Code, Highlighter, AlignLeft, Youtube as YoutubeIcon
 } from 'lucide-react';
 import { cn } from './ui-elements';
 
@@ -177,6 +178,12 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       ResizableImage,
       Underline,
       Highlight.configure({ multicolor: false }),
+      Youtube.configure({
+        width: 640,
+        height: 360,
+        HTMLAttributes: { class: 'w-full rounded-lg my-4' },
+        nocookie: true,
+      }),
     ],
     content: value,
     editorProps: {
@@ -216,6 +223,13 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     if (url) editor.chain().focus().setImage({ src: url } as any).run();
   }, [editor]);
 
+  const addYoutube = useCallback(() => {
+    if (!editor) return;
+    const url = window.prompt('Cole o link do vídeo do YouTube:');
+    if (!url) return;
+    editor.chain().focus().setYoutubeVideo({ src: url }).run();
+  }, [editor]);
+
   if (!editor) return null;
 
   return (
@@ -253,6 +267,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <Divider />
         <ToolbarButton onClick={addLink} active={editor.isActive('link')} icon={<LinkIcon className="w-4 h-4" />} title="Link" />
         <ToolbarButton onClick={addImage} icon={<ImageIcon className="w-4 h-4" />} title="Imagem" />
+        <ToolbarButton onClick={addYoutube} icon={<YoutubeIcon className="w-4 h-4" />} title="Vídeo YouTube" />
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} icon={<Minus className="w-4 h-4" />} title="Linha Horizontal" />
       </div>
 

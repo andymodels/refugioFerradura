@@ -194,3 +194,25 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── YouTube embed — responsive 16:9 in editor and post content ── */
+.ProseMirror [data-youtube-video],
+.post-content [data-youtube-video] {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 */
+  height: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  margin: 1.5rem 0;
+  background: #000;
+}
+.ProseMirror [data-youtube-video] iframe,
+.post-content [data-youtube-video] iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0.75rem;
+}
