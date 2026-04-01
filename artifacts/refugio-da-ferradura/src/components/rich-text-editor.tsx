@@ -102,6 +102,65 @@ const ResizableImage = TiptapImage.extend({
   inline: false,
 });
 
+// ─── Direct Video Embed Node ─────────────────────────────────────────────────
+
+function VideoEmbedView({ node, selected }: NodeViewProps) {
+  const { src } = node.attrs;
+  return (
+    <NodeViewWrapper data-drag-handle className="my-4">
+      <div className={cn('relative rounded-xl overflow-hidden bg-black', selected && 'outline outline-2 outline-blue-500 rounded-xl')}>
+        <video
+          src={src}
+          controls
+          playsInline
+          className="w-full rounded-xl"
+          style={{ maxHeight: 480 }}
+        />
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+const VideoEmbed = Node.create({
+  name: 'videoEmbed',
+  group: 'block',
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      src: { default: '' },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'video[data-video-embed]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'video',
+      mergeAttributes(
+        { 'data-video-embed': '', controls: '', playsinline: '', class: 'video-embed' },
+        { src: HTMLAttributes.src }
+      ),
+    ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(VideoEmbedView);
+  },
+});
+
+// Helper: detect direct video file URLs vs YouTube
+function isDirectVideoUrl(url: string): boolean {
+  return (
+    /\.(mp4|webm|mov|avi|m4v|ogv)(\?.*)?$/i.test(url) ||
+    url.includes('res.cloudinary.com') ||
+    url.includes('/video/upload/')
+  );
+}
+
 // ─── Two-Column Image Grid Node ───────────────────────────────────────────────
 
 function ImageGridView({ node, updateAttributes, selected }: NodeViewProps) {
@@ -333,6 +392,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       Placeholder.configure({ placeholder: 'Comece a escrever sua história aqui...' }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-primary underline' } }),
       ResizableImage,
+      VideoEmbed,
       ImageGrid,
       Underline,
       Highlight.configure({ multicolor: false }),
@@ -380,11 +440,18 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     if (url) editor.chain().focus().setImage({ src: url } as any).run();
   }, [editor]);
 
-  const addYoutube = useCallback(() => {
+  const addVideo = useCallback(() => {
     if (!editor) return;
-    const url = window.prompt('Cole o link do vídeo do YouTube:');
+    const url = window.prompt('Cole o link do vídeo (YouTube, Cloudinary ou MP4 direto):');
     if (!url) return;
-    editor.chain().focus().setYoutubeVideo({ src: url }).run();
+    if (isDirectVideoUrl(url)) {
+      (editor.chain().focus() as any).insertContent({
+        type: 'videoEmbed',
+        attrs: { src: url },
+      }).run();
+    } else {
+      editor.chain().focus().setYoutubeVideo({ src: url }).run();
+    }
   }, [editor]);
 
   const addImageGrid = useCallback(() => {
@@ -451,7 +518,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={addLink} active={editor.isActive('link')} icon={<LinkIcon className="w-4 h-4" />} title="Link" />
         <ToolbarButton onClick={addImage} icon={<ImageIcon className="w-4 h-4" />} title="Imagem" />
         <ToolbarButton onClick={addImageGrid} icon={<LayoutGrid className="w-4 h-4" />} title="Grade 2 imagens lado a lado" />
-        <ToolbarButton onClick={addYoutube} icon={<YoutubeIcon className="w-4 h-4" />} title="Vídeo YouTube" />
+        <ToolbarButton onClick={addVideo} icon={<YoutubeIcon className="w-4 h-4" />} title="Inserir vídeo (YouTube ou link direto)" />
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} icon={<Minus className="w-4 h-4" />} title="Linha Horizontal" />
       </div>
 
