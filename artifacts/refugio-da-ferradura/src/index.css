@@ -218,26 +218,36 @@
   border-radius: 0.75rem;
 }
 
-/* ── Direct video embed (Cloudinary / MP4) ── */
-.post-content video[data-video-embed],
-.post-content .video-embed {
+/* ── Direct video / Instagram embed — wrapper supports custom widths ── */
+.post-content .video-embed-wrap {
+  display: block;
+  max-width: 100%;
+  margin: 1rem 0;
+}
+.post-content .video-embed-wrap video,
+.post-content .video-embed-wrap .video-embed {
+  width: 100%;
+  max-height: 480px;
+  border-radius: 0.75rem;
+  display: block;
+  background: #000;
+}
+.post-content .video-embed-wrap iframe,
+.post-content .video-embed-wrap .video-embed-instagram {
+  width: 100%;
+  min-height: 540px;
+  border-radius: 0.75rem;
+  display: block;
+  border: none;
+}
+/* Fallback for old embeds without wrapper */
+.post-content video[data-video-embed] {
   width: 100%;
   max-height: 480px;
   border-radius: 0.75rem;
   display: block;
   margin: 1rem 0;
   background: #000;
-}
-
-/* ── Instagram embed ── */
-.post-content iframe[data-video-embed],
-.post-content .video-embed-instagram {
-  width: 100%;
-  min-height: 540px;
-  border-radius: 0.75rem;
-  display: block;
-  margin: 1rem 0;
-  border: none;
 }
 
 /* ── Two-column image grid — editor and post content ── */

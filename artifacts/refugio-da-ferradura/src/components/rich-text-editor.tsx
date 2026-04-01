@@ -124,35 +124,83 @@ function isDirectVideoUrl(url: string): boolean {
   );
 }
 
-function VideoEmbedView({ node, selected }: NodeViewProps) {
-  const { src, embedType } = node.attrs as { src: string; embedType: string };
+function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
+  const { src, embedType, width } = node.attrs as { src: string; embedType: string; width: number | null };
   const isInsta = embedType === 'instagram';
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const startRef = useRef<{ x: number; w: number } | null>(null);
+
+  const onMouseDownHandle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = wrapperRef.current?.offsetWidth ?? (width ?? 640);
+    startRef.current = { x: startX, w: startW };
+
+    const onMove = (me: MouseEvent) => {
+      if (!startRef.current) return;
+      const delta = me.clientX - startRef.current.x;
+      const newW = Math.max(200, Math.round(startRef.current.w + delta));
+      updateAttributes({ width: newW });
+    };
+    const onUp = () => {
+      startRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [width, updateAttributes]);
+
+  const containerStyle: React.CSSProperties = width
+    ? { width, maxWidth: '100%' }
+    : { width: '100%' };
 
   return (
     <NodeViewWrapper data-drag-handle className="my-4">
-      <div className={cn(
-        'relative rounded-xl overflow-hidden',
-        isInsta ? 'bg-white' : 'bg-black',
-        selected && 'outline outline-2 outline-blue-500 rounded-xl'
-      )}>
-        {isInsta ? (
-          <iframe
-            src={src}
-            className="w-full rounded-xl border-0"
-            style={{ minHeight: 540, maxHeight: 700 }}
-            allowTransparency
-            scrolling="no"
-            frameBorder="0"
-            title="Instagram embed"
-          />
-        ) : (
-          <video
-            src={src}
-            controls
-            playsInline
-            className="w-full rounded-xl"
-            style={{ maxHeight: 480 }}
-          />
+      <div ref={wrapperRef} style={containerStyle} className="relative">
+        <div className={cn(
+          'relative rounded-xl overflow-hidden',
+          isInsta ? 'bg-white' : 'bg-black',
+          selected && 'outline outline-2 outline-blue-500 rounded-xl'
+        )}>
+          {isInsta ? (
+            <iframe
+              src={src}
+              className="w-full rounded-xl border-0"
+              style={{ minHeight: 540, maxHeight: 700 }}
+              allowTransparency
+              scrolling="no"
+              frameBorder="0"
+              title="Instagram embed"
+            />
+          ) : (
+            <video
+              src={src}
+              controls
+              playsInline
+              className="w-full rounded-xl"
+              style={{ maxHeight: 480 }}
+            />
+          )}
+        </div>
+
+        {/* Resize handle — right edge */}
+        {selected && (
+          <>
+            <div
+              onMouseDown={onMouseDownHandle}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 flex items-center justify-center cursor-ew-resize"
+              style={{ width: 16, height: 48 }}
+            >
+              <div className="w-2 h-10 bg-white border border-blue-500 rounded shadow-md" />
+            </div>
+            {width && (
+              <div className="absolute bottom-2 right-4 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none z-10">
+                {width}px
+              </div>
+            )}
+          </>
         )}
       </div>
     </NodeViewWrapper>
@@ -177,6 +225,15 @@ const VideoEmbed = Node.create({
         renderHTML: (attrs) => ({ 'data-embed-type': attrs.embedType || 'video' }),
         parseHTML: (el) => (el as HTMLElement).getAttribute('data-embed-type') || 'video',
       },
+      width: {
+        default: null,
+        renderHTML: (attrs) =>
+          attrs.width ? { 'data-width': String(attrs.width) } : {},
+        parseHTML: (el) => {
+          const w = (el as HTMLElement).getAttribute('data-width');
+          return w ? parseInt(w) : null;
+        },
+      },
     };
   },
 
@@ -190,29 +247,40 @@ const VideoEmbed = Node.create({
   renderHTML({ HTMLAttributes }) {
     const embedType = (HTMLAttributes as Record<string, string>)['data-embed-type'] || 'video';
     const src = (HTMLAttributes as Record<string, string>).src || '';
+    const w = (HTMLAttributes as Record<string, string>)['data-width'];
+    const wrapStyle = w ? `width:${w}px;max-width:100%` : 'width:100%';
+
     if (embedType === 'instagram') {
       return [
-        'iframe',
-        mergeAttributes(HTMLAttributes, {
-          'data-video-embed': '',
-          class: 'video-embed-instagram',
-          frameborder: '0',
-          scrolling: 'no',
-          allowtransparency: 'true',
-          style: 'width:100%;min-height:540px;border-radius:12px',
-          src,
-        }),
+        'div',
+        mergeAttributes({ style: wrapStyle, class: 'video-embed-wrap' }),
+        [
+          'iframe',
+          mergeAttributes(HTMLAttributes, {
+            'data-video-embed': '',
+            class: 'video-embed-instagram',
+            frameborder: '0',
+            scrolling: 'no',
+            allowtransparency: 'true',
+            style: 'width:100%;min-height:540px;border-radius:12px',
+            src,
+          }),
+        ],
       ];
     }
     return [
-      'video',
-      mergeAttributes(HTMLAttributes, {
-        'data-video-embed': '',
-        controls: '',
-        playsinline: '',
-        class: 'video-embed',
-        src,
-      }),
+      'div',
+      mergeAttributes({ style: wrapStyle, class: 'video-embed-wrap' }),
+      [
+        'video',
+        mergeAttributes(HTMLAttributes, {
+          'data-video-embed': '',
+          controls: '',
+          playsinline: '',
+          class: 'video-embed',
+          src,
+        }),
+      ],
     ];
   },
 
