@@ -17,7 +17,8 @@ import {
   Bold, Italic, UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
   Undo, Redo, Minus, Code, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Youtube as YoutubeIcon, LayoutGrid, Palette, X,
+  Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal,
+  ChevronLeft, ChevronRight, Plus, Trash2,
 } from 'lucide-react';
 import { cn } from './ui-elements';
 
@@ -168,8 +169,9 @@ function isDirectVideoUrl(url: string): boolean {
 }
 
 // ─── Two-Column Image Grid Node ───────────────────────────────────────────────
-// Uses a single JSON data attribute so serialisation is unambiguous across
-// editor.getHTML() → DB → setContent() round-trips.
+// IMPORTANT: renderHTML is defined INSIDE each addAttributes() entry so that
+// Tiptap correctly transforms attrs → HTML attributes in the output.
+// HTMLAttributes in the node's renderHTML will then contain 'data-images' (not 'images').
 
 interface GridData { src1: string; src2: string; alt1: string; alt2: string }
 const EMPTY_GRID: GridData = { src1: '', src2: '', alt1: '', alt2: '' };
@@ -180,7 +182,7 @@ function parseGridData(raw: string | null | undefined): GridData {
 }
 
 function ImageGridView({ node, updateAttributes, selected }: NodeViewProps) {
-  const data = parseGridData(node.attrs.images);
+  const data = parseGridData(node.attrs.images as string);
 
   const promptUrl = (slot: 1 | 2) => {
     const current = slot === 1 ? data.src1 : data.src2;
@@ -235,31 +237,225 @@ const ImageGrid = Node.create({
 
   addAttributes() {
     return {
-      // Single JSON string — survives getHTML() → setContent() round-trips cleanly
-      images: { default: JSON.stringify(EMPTY_GRID) },
+      images: {
+        default: JSON.stringify(EMPTY_GRID),
+        // renderHTML here converts internal attr → HTML attribute in getHTML() output
+        renderHTML: (attrs) => ({
+          'data-images': attrs.images || JSON.stringify(EMPTY_GRID),
+        }),
+        // parseHTML here converts HTML attribute → internal attr value
+        parseHTML: (el) =>
+          (el as HTMLElement).getAttribute('data-images') || JSON.stringify(EMPTY_GRID),
+      },
     };
   },
 
   parseHTML() {
-    return [{
-      tag: 'div[data-image-grid]',
-      getAttrs: (el) => ({ images: (el as HTMLElement).getAttribute('data-images') || JSON.stringify(EMPTY_GRID) }),
-    }];
+    return [{ tag: 'div[data-image-grid]' }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    const raw = HTMLAttributes.images || JSON.stringify(EMPTY_GRID);
+    // HTMLAttributes now contains { 'data-images': '...' } from the attr renderHTML above
+    const raw = (HTMLAttributes as Record<string, string>)['data-images'] || JSON.stringify(EMPTY_GRID);
     const { src1, src2, alt1, alt2 } = parseGridData(raw);
+    const children: any[] = [];
+    if (src1) children.push(['img', { src: src1, alt: alt1 || '', class: 'image-grid-img' }]);
+    if (src2) children.push(['img', { src: src2, alt: alt2 || '', class: 'image-grid-img' }]);
     return [
       'div',
-      { 'data-image-grid': '', 'data-images': raw, class: 'image-grid-2col' },
-      ['img', { src: src1, alt: alt1, class: 'image-grid-img' }],
-      ['img', { src: src2, alt: alt2, class: 'image-grid-img' }],
+      mergeAttributes(HTMLAttributes, { 'data-image-grid': '', class: 'image-grid-2col' }),
+      ...children,
     ];
   },
 
   addNodeView() {
     return ReactNodeViewRenderer(ImageGridView);
+  },
+});
+
+// ─── Image Carousel Node ──────────────────────────────────────────────────────
+// Stores an array of image URLs as JSON in data-carousel attribute.
+
+function parseCarouselImages(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch { return []; }
+}
+
+function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
+  const [index, setIndex] = useState(0);
+  const images = parseCarouselImages(node.attrs.images as string);
+
+  const addImage = () => {
+    const url = window.prompt('URL da imagem para o carrossel:');
+    if (!url) return;
+    const next = [...images, url];
+    updateAttributes({ images: JSON.stringify(next) });
+    setIndex(next.length - 1);
+  };
+
+  const removeCurrentImage = () => {
+    if (images.length === 0) return;
+    const next = images.filter((_, i) => i !== index);
+    updateAttributes({ images: JSON.stringify(next) });
+    setIndex(Math.max(0, index - 1));
+  };
+
+  const replaceCurrentImage = () => {
+    if (images.length === 0) return;
+    const current = images[index] || '';
+    const url = window.prompt('Nova URL da imagem:', current);
+    if (url === null) return;
+    const next = images.map((img, i) => (i === index ? url : img));
+    updateAttributes({ images: JSON.stringify(next) });
+  };
+
+  const prev = () => setIndex((i) => (i - 1 + Math.max(1, images.length)) % Math.max(1, images.length));
+  const next = () => setIndex((i) => (i + 1) % Math.max(1, images.length));
+
+  return (
+    <NodeViewWrapper data-drag-handle className="my-4">
+      <div className={cn('rounded-xl overflow-hidden bg-muted border border-border', selected && 'outline outline-2 outline-blue-500')}>
+        {/* Carousel display */}
+        <div className="relative aspect-[16/9] bg-muted/50 overflow-hidden">
+          {images.length > 0 ? (
+            <img
+              src={images[index]}
+              alt={`Slide ${index + 1}`}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+              <GalleryHorizontal className="w-10 h-10 opacity-30" />
+              <p className="text-sm">Carrossel vazio — clique em + para adicionar fotos</p>
+            </div>
+          )}
+
+          {/* Nav arrows */}
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+
+          {/* Counter */}
+          {images.length > 0 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  className={cn(
+                    'w-2 h-2 rounded-full transition-all',
+                    i === index ? 'bg-white scale-110' : 'bg-white/50 hover:bg-white/80'
+                  )}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Controls bar */}
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-background/80">
+          <span className="text-xs text-muted-foreground flex-1">
+            Carrossel · {images.length} foto{images.length !== 1 ? 's' : ''}
+          </span>
+          {images.length > 0 && (
+            <button
+              type="button"
+              onClick={replaceCurrentImage}
+              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors"
+            >
+              Trocar foto atual
+            </button>
+          )}
+          {images.length > 0 && (
+            <button
+              type="button"
+              onClick={removeCurrentImage}
+              className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors"
+              title="Remover foto atual"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={addImage}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Adicionar foto
+          </button>
+        </div>
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+const ImageCarousel = Node.create({
+  name: 'imageCarousel',
+  group: 'block',
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      images: {
+        default: JSON.stringify([]),
+        renderHTML: (attrs) => ({
+          'data-carousel': attrs.images || JSON.stringify([]),
+        }),
+        parseHTML: (el) =>
+          (el as HTMLElement).getAttribute('data-carousel') || JSON.stringify([]),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-image-carousel]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const raw = (HTMLAttributes as Record<string, string>)['data-carousel'] || JSON.stringify([]);
+    const imgs = parseCarouselImages(raw);
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        'data-image-carousel': '',
+        class: 'image-carousel-block',
+        style: 'display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px',
+      }),
+      ...imgs.map((src) => [
+        'img',
+        {
+          src,
+          class: 'carousel-slide-img',
+          style: 'flex:0 0 auto;width:85%;max-height:420px;object-fit:cover;border-radius:12px;scroll-snap-align:start',
+          alt: '',
+        },
+      ]),
+    ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageCarouselView);
   },
 });
 
@@ -408,6 +604,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       ResizableImage,
       VideoEmbed,
       ImageGrid,
+      ImageCarousel,
       Underline,
       Highlight.configure({ multicolor: false }),
       Youtube.configure({
@@ -472,7 +669,15 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     if (!editor) return;
     (editor.chain().focus() as any).insertContent({
       type: 'imageGrid',
-      attrs: { src1: '', src2: '', alt1: '', alt2: '' },
+      attrs: { images: JSON.stringify(EMPTY_GRID) },
+    }).run();
+  }, [editor]);
+
+  const addImageCarousel = useCallback(() => {
+    if (!editor) return;
+    (editor.chain().focus() as any).insertContent({
+      type: 'imageCarousel',
+      attrs: { images: JSON.stringify([]) },
     }).run();
   }, [editor]);
 
@@ -532,6 +737,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={addLink} active={editor.isActive('link')} icon={<LinkIcon className="w-4 h-4" />} title="Link" />
         <ToolbarButton onClick={addImage} icon={<ImageIcon className="w-4 h-4" />} title="Imagem" />
         <ToolbarButton onClick={addImageGrid} icon={<LayoutGrid className="w-4 h-4" />} title="Grade 2 imagens lado a lado" />
+        <ToolbarButton onClick={addImageCarousel} icon={<GalleryHorizontal className="w-4 h-4" />} title="Carrossel de fotos" />
         <ToolbarButton onClick={addVideo} icon={<YoutubeIcon className="w-4 h-4" />} title="Inserir vídeo (YouTube ou link direto)" />
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} icon={<Minus className="w-4 h-4" />} title="Linha Horizontal" />
       </div>
