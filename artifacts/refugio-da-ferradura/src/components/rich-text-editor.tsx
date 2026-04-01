@@ -168,29 +168,35 @@ function isDirectVideoUrl(url: string): boolean {
 }
 
 // ─── Two-Column Image Grid Node ───────────────────────────────────────────────
+// Uses a single JSON data attribute so serialisation is unambiguous across
+// editor.getHTML() → DB → setContent() round-trips.
+
+interface GridData { src1: string; src2: string; alt1: string; alt2: string }
+const EMPTY_GRID: GridData = { src1: '', src2: '', alt1: '', alt2: '' };
+
+function parseGridData(raw: string | null | undefined): GridData {
+  if (!raw) return { ...EMPTY_GRID };
+  try { return { ...EMPTY_GRID, ...JSON.parse(raw) }; } catch { return { ...EMPTY_GRID }; }
+}
 
 function ImageGridView({ node, updateAttributes, selected }: NodeViewProps) {
-  const { src1, src2, alt1, alt2 } = node.attrs;
+  const data = parseGridData(node.attrs.images);
 
   const promptUrl = (slot: 1 | 2) => {
-    const current = slot === 1 ? src1 : src2;
+    const current = slot === 1 ? data.src1 : data.src2;
     const url = window.prompt(`URL da imagem ${slot}:`, current || '');
     if (url === null) return;
-    if (slot === 1) updateAttributes({ src1: url });
-    else updateAttributes({ src2: url });
+    const next: GridData = { ...data };
+    if (slot === 1) next.src1 = url; else next.src2 = url;
+    updateAttributes({ images: JSON.stringify(next) });
   };
 
   return (
     <NodeViewWrapper data-drag-handle className="my-4">
-      <div
-        className={cn(
-          'grid grid-cols-2 gap-3 rounded-lg',
-          selected && 'outline outline-2 outline-blue-500 rounded-lg'
-        )}
-      >
+      <div className={cn('grid grid-cols-2 gap-3 rounded-lg', selected && 'outline outline-2 outline-blue-500 rounded-lg')}>
         {([1, 2] as const).map((slot) => {
-          const src = slot === 1 ? src1 : src2;
-          const alt = slot === 1 ? alt1 : alt2;
+          const src = slot === 1 ? data.src1 : data.src2;
+          const alt = slot === 1 ? data.alt1 : data.alt2;
           return (
             <div
               key={slot}
@@ -229,40 +235,26 @@ const ImageGrid = Node.create({
 
   addAttributes() {
     return {
-      src1: { default: '' },
-      src2: { default: '' },
-      alt1: { default: '' },
-      alt2: { default: '' },
+      // Single JSON string — survives getHTML() → setContent() round-trips cleanly
+      images: { default: JSON.stringify(EMPTY_GRID) },
     };
   },
 
   parseHTML() {
     return [{
       tag: 'div[data-image-grid]',
-      getAttrs: (el) => ({
-        src1: (el as HTMLElement).getAttribute('data-src1') || '',
-        src2: (el as HTMLElement).getAttribute('data-src2') || '',
-        alt1: (el as HTMLElement).getAttribute('data-alt1') || '',
-        alt2: (el as HTMLElement).getAttribute('data-alt2') || '',
-      }),
+      getAttrs: (el) => ({ images: (el as HTMLElement).getAttribute('data-images') || JSON.stringify(EMPTY_GRID) }),
     }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    // HTMLAttributes contains the raw attr values { src1, src2, alt1, alt2 }
-    const { src1, src2, alt1, alt2 } = HTMLAttributes;
+    const raw = HTMLAttributes.images || JSON.stringify(EMPTY_GRID);
+    const { src1, src2, alt1, alt2 } = parseGridData(raw);
     return [
       'div',
-      {
-        'data-image-grid': '',
-        'data-src1': src1 || '',
-        'data-src2': src2 || '',
-        'data-alt1': alt1 || '',
-        'data-alt2': alt2 || '',
-        class: 'image-grid-2col',
-      },
-      ['img', { src: src1 || '', alt: alt1 || '', class: 'image-grid-img' }],
-      ['img', { src: src2 || '', alt: alt2 || '', class: 'image-grid-img' }],
+      { 'data-image-grid': '', 'data-images': raw, class: 'image-grid-2col' },
+      ['img', { src: src1, alt: alt1, class: 'image-grid-img' }],
+      ['img', { src: src2, alt: alt2, class: 'image-grid-img' }],
     ];
   },
 
