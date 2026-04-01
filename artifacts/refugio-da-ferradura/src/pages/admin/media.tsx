@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { UploadCloud, Image as ImageIcon, Check, Copy, Loader2 } from "lucide-react";
+import { UploadCloud, Image as ImageIcon, Video, Check, Copy, Loader2, Film } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
@@ -8,20 +8,22 @@ import { useDropzone } from "react-dropzone";
 interface MediaItem {
   url: string;
   filename: string;
+  type: "image" | "video";
 }
 
 export default function AdminMedia() {
   const { toast } = useToast();
-  const [allImages, setAllImages] = useState<MediaItem[]>([]);
+  const [allMedia, setAllMedia] = useState<MediaItem[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "image" | "video">("all");
 
-  const loadImages = async () => {
+  const loadMedia = async () => {
     setLoadingList(true);
     try {
       const res = await fetch("/api/media/list", { credentials: "include" });
       const data = await res.json();
-      if (data.images) setAllImages(data.images);
+      if (data.images) setAllMedia(data.images);
     } catch {
       // silently ignore
     } finally {
@@ -30,7 +32,7 @@ export default function AdminMedia() {
   };
 
   useEffect(() => {
-    loadImages();
+    loadMedia();
   }, []);
 
   const [uploading, setUploading] = useState(false);
@@ -48,9 +50,14 @@ export default function AdminMedia() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro no upload");
-      const uploaded: { url: string; filename: string }[] = data.images || [{ url: data.url, filename: data.filename }];
-      toast({ title: `${uploaded.length} imagem(ns) enviada(s) com sucesso!` });
-      setAllImages(prev => [...uploaded, ...prev]);
+      const uploaded: MediaItem[] = data.images || [{ url: data.url, filename: data.filename, type: data.type || "image" }];
+      const videoCount = uploaded.filter((u) => u.type === "video").length;
+      const imageCount = uploaded.length - videoCount;
+      const parts = [];
+      if (imageCount > 0) parts.push(`${imageCount} imagem(ns)`);
+      if (videoCount > 0) parts.push(`${videoCount} vídeo(s)`);
+      toast({ title: `${parts.join(" e ")} enviado(s) com sucesso!` });
+      setAllMedia((prev) => [...uploaded, ...prev]);
     } catch (e: any) {
       toast({ title: "Erro no upload", description: e.message, variant: "destructive" });
     } finally {
@@ -60,7 +67,10 @@ export default function AdminMedia() {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "image/*": [] },
+    accept: {
+      "image/*": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"],
+      "video/*": [".mp4", ".webm", ".mov", ".avi", ".m4v"],
+    },
     multiple: true,
   });
 
@@ -71,21 +81,25 @@ export default function AdminMedia() {
     toast({ title: "URL copiada para a área de transferência" });
   };
 
+  const filtered = allMedia.filter((m) => filter === "all" || m.type === filter);
+  const imageCount = allMedia.filter((m) => m.type === "image").length;
+  const videoCount = allMedia.filter((m) => m.type === "video").length;
+
   return (
     <AdminLayout>
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-serif font-bold text-foreground">Mídia</h1>
           <p className="text-muted-foreground mt-1">
-            Imagens hospedadas no Cloudinary — permanentes e acessíveis em qualquer lugar
+            Imagens e vídeos hospedados no Cloudinary — permanentes e acessíveis em qualquer lugar
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-1">
+        <div className="md:col-span-1 space-y-4">
           <Card className="p-6">
-            <h3 className="font-medium text-foreground mb-4">Enviar nova imagem</h3>
+            <h3 className="font-medium text-foreground mb-4">Enviar arquivo</h3>
 
             <div
               {...getRootProps()}
@@ -97,8 +111,13 @@ export default function AdminMedia() {
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center mb-4">
                 <UploadCloud className="w-6 h-6" />
               </div>
-              <p className="font-medium mb-1">Clique ou arraste as imagens</p>
-              <p className="text-xs text-muted-foreground">JPG, PNG, WEBP — várias de uma vez (Max 20MB cada)</p>
+              <p className="font-medium mb-1">Clique ou arraste os arquivos</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                <strong>Imagens:</strong> JPG, PNG, WEBP, GIF (máx. 20 MB)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Vídeos:</strong> MP4, WEBM, MOV (máx. 100 MB)
+              </p>
 
               {uploading && (
                 <div className="mt-4 flex items-center justify-center gap-2 text-sm text-primary font-medium">
@@ -109,35 +128,87 @@ export default function AdminMedia() {
             </div>
 
             <p className="text-xs text-muted-foreground mt-4 text-center">
-              As imagens ficam salvas permanentemente no Cloudinary. Passe o mouse sobre uma imagem para copiar a URL e usar no editor.
+              Passe o mouse sobre um arquivo para copiar a URL e usar no editor.
             </p>
+          </Card>
+
+          {/* Stats */}
+          <Card className="p-4">
+            <div className="flex justify-around text-center">
+              <div>
+                <p className="text-2xl font-bold text-foreground">{imageCount}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center mt-0.5">
+                  <ImageIcon className="w-3 h-3" /> Imagens
+                </p>
+              </div>
+              <div className="border-l border-border" />
+              <div>
+                <p className="text-2xl font-bold text-foreground">{videoCount}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center mt-0.5">
+                  <Film className="w-3 h-3" /> Vídeos
+                </p>
+              </div>
+            </div>
           </Card>
         </div>
 
         <div className="md:col-span-2">
           <Card className="p-6 min-h-[400px]">
-            <h3 className="font-medium text-foreground mb-6 flex items-center gap-2">
-              <ImageIcon className="w-5 h-5 text-muted-foreground" />
-              Todas as Imagens ({allImages.length})
-            </h3>
+            {/* Filter tabs */}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-medium text-foreground flex items-center gap-2">
+                <ImageIcon className="w-5 h-5 text-muted-foreground" />
+                Todos os arquivos ({allMedia.length})
+              </h3>
+              <div className="flex gap-1 bg-muted rounded-lg p-1 text-xs">
+                {(["all", "image", "video"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-3 py-1 rounded-md transition-colors font-medium ${
+                      filter === f ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {f === "all" ? "Todos" : f === "image" ? "Imagens" : "Vídeos"}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {loadingList ? (
               <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Carregando imagens...
+                Carregando...
               </div>
-            ) : allImages.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <div className="text-center py-20 text-muted-foreground border border-dashed border-border rounded-xl">
-                Nenhuma imagem enviada ainda.
+                {filter === "video" ? "Nenhum vídeo enviado ainda." : "Nenhuma imagem enviada ainda."}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {allImages.map((item, i) => (
+                {filtered.map((item, i) => (
                   <div
                     key={i}
                     className="group relative aspect-square rounded-lg border border-border overflow-hidden bg-muted"
                   >
-                    <img src={item.url} alt={item.filename} className="w-full h-full object-cover" />
+                    {item.type === "video" ? (
+                      <>
+                        <video
+                          src={item.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                          onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
+                          onMouseLeave={(e) => { const v = e.currentTarget as HTMLVideoElement; v.pause(); v.currentTime = 0; }}
+                        />
+                        <div className="absolute top-2 left-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 pointer-events-none">
+                          <Video className="w-3 h-3" /> Vídeo
+                        </div>
+                      </>
+                    ) : (
+                      <img src={item.url} alt={item.filename} className="w-full h-full object-cover" />
+                    )}
+
                     <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
                       <p className="text-white text-[10px] text-center truncate w-full px-1">{item.filename}</p>
                       <Button

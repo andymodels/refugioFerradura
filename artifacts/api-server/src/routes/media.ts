@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
-import { UploadMediaResponse } from "@workspace/api-zod";
 import streamifier from "streamifier";
 
 const router: IRouter = Router();
@@ -12,28 +11,35 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+const ALLOWED_IMAGE = /jpeg|jpg|png|gif|webp|svg/;
+const ALLOWED_VIDEO = /mp4|webm|mov|avi|mkv|m4v/;
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB (vídeos pequenos)
   fileFilter: (_req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp|svg/;
-    const ext = allowedTypes.test(file.originalname.toLowerCase());
-    const mime = allowedTypes.test(file.mimetype);
-    if (ext && mime) {
+    const ext = file.originalname.toLowerCase().split(".").pop() || "";
+    const isImage = ALLOWED_IMAGE.test(ext) && /^image\//.test(file.mimetype);
+    const isVideo = ALLOWED_VIDEO.test(ext) && /^video\//.test(file.mimetype);
+    if (isImage || isVideo) {
       cb(null, true);
     } else {
-      cb(new Error("Somente imagens são permitidas"));
+      cb(new Error("Tipo de arquivo não suportado. Use imagens (JPG, PNG, WEBP) ou vídeos (MP4, WEBM, MOV)."));
     }
   },
 });
 
-function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
+function isVideoFile(file: Express.Multer.File) {
+  return /^video\//.test(file.mimetype);
+}
+
+function uploadToCloudinary(buffer: Buffer, folder: string, resourceType: "image" | "video"): Promise<{ url: string; type: string }> {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "image" },
+      { folder, resource_type: resourceType },
       (error, result) => {
         if (error || !result) return reject(error);
-        resolve(result.secure_url);
+        resolve({ url: result.secure_url, type: resourceType });
       }
     );
     streamifier.createReadStream(buffer).pipe(stream);
@@ -47,23 +53,45 @@ router.get("/media/list", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const result = await cloudinary.search
-      .expression("folder:refugio-da-ferradura")
-      .sort_by("created_at", "desc")
-      .max_results(60)
-      .execute();
-    const images = result.resources.map((r: any) => ({
+    const [imageResult, videoResult] = await Promise.all([
+      cloudinary.search
+        .expression("folder:refugio-da-ferradura AND resource_type:image")
+        .sort_by("created_at", "desc")
+        .max_results(50)
+        .execute()
+        .catch(() => ({ resources: [] })),
+      cloudinary.search
+        .expression("folder:refugio-da-ferradura AND resource_type:video")
+        .sort_by("created_at", "desc")
+        .max_results(20)
+        .execute()
+        .catch(() => ({ resources: [] })),
+    ]);
+
+    const images = (imageResult.resources as any[]).map((r) => ({
       url: r.secure_url,
       filename: r.public_id.split("/").pop(),
       createdAt: r.created_at,
+      type: "image",
     }));
-    res.json({ images });
+    const videos = (videoResult.resources as any[]).map((r) => ({
+      url: r.secure_url,
+      filename: r.public_id.split("/").pop(),
+      createdAt: r.created_at,
+      type: "video",
+    }));
+
+    const all = [...images, ...videos].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    res.json({ images: all });
   } catch (e: any) {
-    res.status(500).json({ error: "Erro ao listar imagens: " + e.message });
+    res.status(500).json({ error: "Erro ao listar mídia: " + e.message });
   }
 });
 
-router.post("/media/upload", upload.array("file", 20), async (req, res): Promise<void> => {
+router.post("/media/upload", upload.array("file", 10), async (req, res): Promise<void> => {
   const files = req.files as Express.Multer.File[];
   if (!files || files.length === 0) {
     res.status(400).json({ error: "Nenhum arquivo enviado" });
@@ -73,8 +101,9 @@ router.post("/media/upload", upload.array("file", 20), async (req, res): Promise
   try {
     const results = await Promise.all(
       files.map(async (file) => {
-        const url = await uploadToCloudinary(file.buffer, "refugio-da-ferradura");
-        return { url, filename: url.split("/").pop() || file.originalname };
+        const resourceType = isVideoFile(file) ? "video" : "image";
+        const { url, type } = await uploadToCloudinary(file.buffer, "refugio-da-ferradura", resourceType);
+        return { url, filename: url.split("/").pop() || file.originalname, type };
       })
     );
     res.json({ images: results, ...results[0] });
