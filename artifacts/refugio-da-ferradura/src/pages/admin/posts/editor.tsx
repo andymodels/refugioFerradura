@@ -74,23 +74,38 @@ export default function AdminPostEditor() {
     setValue("tags", next);
   };
 
-  // ── Draft persistence: auto-save to localStorage on every change ──────────
-  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Draft persistence ──────────────────────────────────────────────────────
+  // latestValuesRef always holds the most current form values, updated on
+  // every render. This lets the unmount effect flush them synchronously.
   const formValues = watch();
+  const latestValuesRef = React.useRef(formValues);
+  latestValuesRef.current = formValues;
 
+  const saveDraft = React.useCallback((values: typeof formValues) => {
+    if (!values.title && !values.content) return;
+    try {
+      localStorage.setItem(draftKey(postId), JSON.stringify(values));
+    } catch {}
+  }, [postId]);
+
+  // Debounced save while the user is typing (avoids hammering localStorage)
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    // Don't persist while still loading (empty title + content)
     if (!formValues.title && !formValues.content) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem(draftKey(postId), JSON.stringify(formValues));
-      } catch {}
-    }, 600);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => saveDraft(formValues), 400);
+    // ⚠ Do NOT clear the timer on cleanup — we want it to fire even after
+    // a quick navigation. The unmount effect below handles the final flush.
+  }, [JSON.stringify(formValues)]); // eslint-disable-line
+
+  // Flush immediately when the component unmounts (user navigates away)
+  useEffect(() => {
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // Cancel any pending debounce; we'll save right now instead
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      saveDraft(latestValuesRef.current);
     };
-  }, [JSON.stringify(formValues), postId]);
+  }, [saveDraft]);
 
   // ── Load post for edit mode, then check for a local draft ─────────────────
   useEffect(() => {
