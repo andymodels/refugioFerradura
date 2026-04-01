@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { UploadCloud, Image as ImageIcon, Video, Check, Copy, Loader2, Film } from "lucide-react";
+import { UploadCloud, Image as ImageIcon, Video, Check, Copy, Loader2, Film, Trash2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,7 @@ import { useDropzone } from "react-dropzone";
 interface MediaItem {
   url: string;
   filename: string;
+  publicId: string;
   type: "image" | "video";
 }
 
@@ -79,6 +80,29 @@ export default function AdminMedia() {
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(null), 2000);
     toast({ title: "URL copiada para a área de transferência" });
+  };
+
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (item: MediaItem) => {
+    if (!confirm(`Excluir permanentemente "${item.filename}"?\n\nEsta ação não pode ser desfeita.`)) return;
+    setDeletingId(item.publicId);
+    try {
+      const res = await fetch(`/api/media`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicId: item.publicId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao excluir");
+      setAllMedia((prev) => prev.filter((m) => m.publicId !== item.publicId));
+      toast({ title: "Arquivo excluído com sucesso" });
+    } catch (e: any) {
+      toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const filtered = allMedia.filter((m) => filter === "all" || m.type === filter);
@@ -214,11 +238,23 @@ export default function AdminMedia() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="gap-2 bg-white text-black hover:bg-gray-100"
+                        className="gap-1.5 bg-white text-black hover:bg-gray-100 w-full max-w-[130px]"
                         onClick={() => copyToClipboard(item.url)}
                       >
-                        {copiedUrl === item.url ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        {copiedUrl === item.url ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                         {copiedUrl === item.url ? "Copiado!" : "Copiar URL"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="gap-1.5 bg-red-600 hover:bg-red-700 text-white w-full max-w-[130px]"
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
+                        disabled={deletingId === item.publicId}
+                      >
+                        {deletingId === item.publicId
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Trash2 className="w-3.5 h-3.5" />}
+                        {deletingId === item.publicId ? "Excluindo..." : "Excluir"}
                       </Button>
                     </div>
                   </div>

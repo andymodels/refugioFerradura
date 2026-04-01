@@ -71,12 +71,14 @@ router.get("/media/list", async (req, res): Promise<void> => {
     const images = (imageResult.resources as any[]).map((r) => ({
       url: r.secure_url,
       filename: r.public_id.split("/").pop(),
+      publicId: r.public_id,
       createdAt: r.created_at,
       type: "image",
     }));
     const videos = (videoResult.resources as any[]).map((r) => ({
       url: r.secure_url,
       filename: r.public_id.split("/").pop(),
+      publicId: r.public_id,
       createdAt: r.created_at,
       type: "video",
     }));
@@ -109,6 +111,40 @@ router.post("/media/upload", upload.array("file", 10), async (req, res): Promise
     res.json({ images: results, ...results[0] });
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao enviar para Cloudinary: " + e.message });
+  }
+});
+
+router.delete("/media", async (req, res): Promise<void> => {
+  const session = (req as any).session;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const publicId: string | undefined = req.body?.publicId;
+  if (!publicId) {
+    res.status(400).json({ error: "publicId obrigatório" });
+    return;
+  }
+
+  // Try deleting as image first, then as video
+  try {
+    const imageResult = await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
+    if (imageResult.result === "ok") {
+      res.json({ ok: true });
+      return;
+    }
+  } catch {}
+
+  try {
+    const videoResult = await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
+    if (videoResult.result === "ok") {
+      res.json({ ok: true });
+      return;
+    }
+    res.status(404).json({ error: "Arquivo não encontrado no Cloudinary" });
+  } catch (e: any) {
+    res.status(500).json({ error: "Erro ao excluir: " + e.message });
   }
 });
 
