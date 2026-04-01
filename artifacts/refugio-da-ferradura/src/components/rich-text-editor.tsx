@@ -134,16 +134,22 @@ const VideoEmbed = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'video[data-video-embed]' }];
+    return [{
+      tag: 'video[data-video-embed]',
+      getAttrs: (el) => ({ src: (el as HTMLElement).getAttribute('src') || '' }),
+    }];
   },
 
   renderHTML({ HTMLAttributes }) {
     return [
       'video',
-      mergeAttributes(
-        { 'data-video-embed': '', controls: '', playsinline: '', class: 'video-embed' },
-        { src: HTMLAttributes.src }
-      ),
+      {
+        'data-video-embed': '',
+        controls: '',
+        playsinline: '',
+        class: 'video-embed',
+        src: HTMLAttributes.src || '',
+      },
     ];
   },
 
@@ -231,14 +237,30 @@ const ImageGrid = Node.create({
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-image-grid]' }];
+    return [{
+      tag: 'div[data-image-grid]',
+      getAttrs: (el) => ({
+        src1: (el as HTMLElement).getAttribute('data-src1') || '',
+        src2: (el as HTMLElement).getAttribute('data-src2') || '',
+        alt1: (el as HTMLElement).getAttribute('data-alt1') || '',
+        alt2: (el as HTMLElement).getAttribute('data-alt2') || '',
+      }),
+    }];
   },
 
   renderHTML({ HTMLAttributes }) {
+    // HTMLAttributes contains the raw attr values { src1, src2, alt1, alt2 }
     const { src1, src2, alt1, alt2 } = HTMLAttributes;
     return [
       'div',
-      mergeAttributes({ 'data-image-grid': '', class: 'image-grid-2col' }),
+      {
+        'data-image-grid': '',
+        'data-src1': src1 || '',
+        'data-src2': src2 || '',
+        'data-alt1': alt1 || '',
+        'data-alt2': alt2 || '',
+        class: 'image-grid-2col',
+      },
       ['img', { src: src1 || '', alt: alt1 || '', class: 'image-grid-img' }],
       ['img', { src: src2 || '', alt: alt2 || '', class: 'image-grid-img' }],
     ];
