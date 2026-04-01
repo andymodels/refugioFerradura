@@ -124,8 +124,20 @@ function isDirectVideoUrl(url: string): boolean {
   );
 }
 
+type VideoAlign = 'left' | 'center' | 'right';
+
+function alignWrapperStyle(align: VideoAlign, width: number | null): React.CSSProperties {
+  const base: React.CSSProperties = width ? { width, maxWidth: '100%' } : { width: '100%' };
+  if (!width) return base; // full-width: alignment has no visual effect
+  if (align === 'left')   return { ...base, marginRight: 'auto', marginLeft: 0 };
+  if (align === 'right')  return { ...base, marginLeft: 'auto', marginRight: 0 };
+  return { ...base, marginLeft: 'auto', marginRight: 'auto' }; // center
+}
+
 function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
-  const { src, embedType, width } = node.attrs as { src: string; embedType: string; width: number | null };
+  const { src, embedType, width, align } = node.attrs as {
+    src: string; embedType: string; width: number | null; align: VideoAlign;
+  };
   const isInsta = embedType === 'instagram';
   const wrapperRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<{ x: number; w: number } | null>(null);
@@ -152,13 +164,60 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
     window.addEventListener('mouseup', onUp);
   }, [width, updateAttributes]);
 
-  const containerStyle: React.CSSProperties = width
-    ? { width, maxWidth: '100%' }
-    : { width: '100%' };
-
   return (
     <NodeViewWrapper data-drag-handle className="my-4">
-      <div ref={wrapperRef} style={containerStyle} className="relative">
+      {/* Alignment + resize controls toolbar — shown when selected */}
+      {selected && (
+        <div className="flex items-center gap-1 mb-1.5">
+          <div className="flex items-center gap-0.5 bg-background border border-border rounded-lg px-1 py-0.5 shadow-sm">
+            <button
+              type="button"
+              onClick={() => updateAttributes({ align: 'left' })}
+              title="Alinhar à esquerda"
+              className={cn(
+                'p-1 rounded transition-colors',
+                (align ?? 'left') === 'left' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <AlignLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => updateAttributes({ align: 'center' })}
+              title="Centralizar"
+              className={cn(
+                'p-1 rounded transition-colors',
+                align === 'center' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <AlignCenter className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => updateAttributes({ align: 'right' })}
+              title="Alinhar à direita"
+              className={cn(
+                'p-1 rounded transition-colors',
+                align === 'right' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+            >
+              <AlignRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {width && (
+            <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              {width}px — arraste a borda direita para redimensionar
+            </span>
+          )}
+          {!width && (
+            <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              Largura total — arraste a borda direita para definir uma largura
+            </span>
+          )}
+        </div>
+      )}
+
+      <div ref={wrapperRef} style={alignWrapperStyle(align ?? 'left', width)} className="relative">
         <div className={cn(
           'relative rounded-xl overflow-hidden',
           isInsta ? 'bg-white' : 'bg-black',
@@ -184,39 +243,24 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
             />
           )}
 
-          {/* Overlay for iframes: captures clicks so ProseMirror can select the node.
-              Disappears when selected so the resize handle is accessible. */}
+          {/* Overlay for iframes — captures click to select node */}
           {isInsta && !selected && (
             <div
               className="absolute inset-0 z-10 cursor-pointer"
-              title="Clique para selecionar e redimensionar"
+              title="Clique para selecionar"
             />
-          )}
-
-          {/* Selected indicator label for iframe nodes */}
-          {isInsta && selected && (
-            <div className="absolute top-2 left-2 z-20 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full pointer-events-none">
-              Selecionado — arraste a borda direita para redimensionar
-            </div>
           )}
         </div>
 
-        {/* Resize handle — right edge, always outside the iframe */}
+        {/* Resize handle — right edge */}
         {selected && (
-          <>
-            <div
-              onMouseDown={onMouseDownHandle}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex items-center justify-center cursor-ew-resize"
-              style={{ width: 20, height: 56 }}
-            >
-              <div className="w-2.5 h-12 bg-white border-2 border-blue-500 rounded-full shadow-lg" />
-            </div>
-            {width && (
-              <div className="absolute bottom-2 right-6 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none z-30">
-                {width}px
-              </div>
-            )}
-          </>
+          <div
+            onMouseDown={onMouseDownHandle}
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex items-center justify-center cursor-ew-resize"
+            style={{ width: 20, height: 56 }}
+          >
+            <div className="w-2.5 h-12 bg-white border-2 border-blue-500 rounded-full shadow-lg" />
+          </div>
         )}
       </div>
     </NodeViewWrapper>
@@ -250,6 +294,11 @@ const VideoEmbed = Node.create({
           return w ? parseInt(w) : null;
         },
       },
+      align: {
+        default: 'left',
+        renderHTML: (attrs) => ({ 'data-align': attrs.align || 'left' }),
+        parseHTML: (el) => (el as HTMLElement).getAttribute('data-align') || 'left',
+      },
     };
   },
 
@@ -261,15 +310,23 @@ const VideoEmbed = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    const embedType = (HTMLAttributes as Record<string, string>)['data-embed-type'] || 'video';
-    const src = (HTMLAttributes as Record<string, string>).src || '';
-    const w = (HTMLAttributes as Record<string, string>)['data-width'];
-    const wrapStyle = w ? `width:${w}px;max-width:100%` : 'width:100%';
+    const attrs = HTMLAttributes as Record<string, string>;
+    const embedType = attrs['data-embed-type'] || 'video';
+    const src = attrs.src || '';
+    const w = attrs['data-width'];
+    const align = attrs['data-align'] || 'left';
+
+    let wrapStyle = w ? `width:${w}px;max-width:100%` : 'width:100%';
+    if (w) {
+      if (align === 'center') wrapStyle += ';margin-left:auto;margin-right:auto';
+      else if (align === 'right') wrapStyle += ';margin-left:auto;margin-right:0';
+      else wrapStyle += ';margin-right:auto;margin-left:0';
+    }
 
     if (embedType === 'instagram') {
       return [
         'div',
-        mergeAttributes({ style: wrapStyle, class: 'video-embed-wrap' }),
+        { style: wrapStyle, class: 'video-embed-wrap' },
         [
           'iframe',
           mergeAttributes(HTMLAttributes, {
@@ -286,7 +343,7 @@ const VideoEmbed = Node.create({
     }
     return [
       'div',
-      mergeAttributes({ style: wrapStyle, class: 'video-embed-wrap' }),
+      { style: wrapStyle, class: 'video-embed-wrap' },
       [
         'video',
         mergeAttributes(HTMLAttributes, {
