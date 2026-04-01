@@ -128,6 +128,7 @@ REGRAS ABSOLUTAS — nunca as quebre:
 6. Sempre em Português do Brasil, tom editorial sofisticado e acolhedor.
 7. VERIFICAÇÃO DE RELEVÂNCIA OBRIGATÓRIA: o conteúdo deve tratar de turismo, natureza, gastronomia, cultura, eventos ou serviços relacionados à Rota da Ferradura, Buenos Aires, Guarapari, região serrana do ES ou ao Espírito Santo em geral. Se for completamente alheio a essa região, retorne APENAS o JSON de erro — nunca invente conteúdo genérico.`;
 
+// Modo FONTE: usuário colou texto longo de um artigo externo — reescrever com fidelidade
 const USER_PROMPT_TEXT = (sourceText: string, instructions?: string) => `Analise o conteúdo-fonte abaixo e siga este fluxo obrigatório:
 
 PASSO 1 — VERIFICAÇÃO DE RELEVÂNCIA:
@@ -152,6 +153,31 @@ RESPONDA APENAS EM JSON válido:
 
 CONTEÚDO-FONTE:
 ${sourceText}`;
+
+// Modo TEMA: usuário digitou um tema/tópico curto — gerar artigo com o conhecimento da IA
+const USER_PROMPT_TOPIC = (topic: string, instructions?: string) => `Você vai criar um artigo editorial para o site Refúgio da Ferradura com base no tema abaixo.
+
+TEMA SOLICITADO: ${topic}
+
+PASSO 1 — VERIFICAÇÃO DE RELEVÂNCIA:
+O tema acima é relacionado a turismo, gastronomia, natureza, cultura, eventos ou serviços da Rota da Ferradura, Buenos Aires, Guarapari, região serrana do ES ou ao Espírito Santo em geral?
+- Se NÃO for relevante: retorne SOMENTE este JSON:
+  {"error": "fora_de_escopo", "message": "Este tema não está relacionado à Rota da Ferradura, Buenos Aires ou Guarapari - ES. Por favor, informe um tema sobre a região para gerar artigos relevantes para o site."}
+- Se SIM for relevante: siga para o Passo 2.
+
+PASSO 2 — GERAÇÃO DO ARTIGO:
+Crie um artigo editorial completo, informativo e envolvente sobre o tema. Use seu conhecimento sobre a região da Rota da Ferradura, Guarapari e o Espírito Santo.
+Escreva com tom acolhedor e sofisticado, adequado a um guia de turismo premium.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima):\n${instructions}` : ""}
+
+RESPONDA APENAS EM JSON válido:
+{
+  "title": "Título atraente sobre o tema",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases que capturam a essência do artigo",
+  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li> — rico em detalhes e informações úteis para o visitante",
+  "metaDescription": "Até 160 caracteres para SEO",
+  "tags": ["turismo"]
+}`;
 
 const USER_PROMPT_IMAGE = (imageUrl: string, instructions?: string) => `Analise a imagem abaixo e siga este fluxo obrigatório:
 
@@ -179,7 +205,10 @@ router.post("/generate-from-url", async (req, res) => {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const input: string = (req.body.url || "").trim();
   const extraInstructions: string = (req.body.instructions || "").trim();
+
   const isUrl = input.startsWith("http");
+  // Texto curto (< 400 chars, sem URL) = tema/tópico; texto longo = fonte a reescrever
+  const isTopicMode = !isUrl && input.length < 400;
 
   let sourceText = input;
   let isImage = false;
@@ -204,7 +233,7 @@ router.post("/generate-from-url", async (req, res) => {
     let completion;
 
     if (isImage) {
-      // Usa visão do GPT-4o para analisar a foto
+      // Modo imagem: visão do GPT-4o para analisar a foto
       completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -220,8 +249,19 @@ router.post("/generate-from-url", async (req, res) => {
         response_format: { type: "json_object" },
         temperature: 0.4,
       });
+    } else if (isTopicMode) {
+      // Modo tema: usuário digitou um tópico curto — gerar artigo com conhecimento da IA
+      completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: USER_PROMPT_TOPIC(sourceText, extraInstructions || undefined) },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.6,
+      });
     } else {
-      // Usa texto extraído ou colado pelo usuário
+      // Modo fonte: texto longo colado pelo usuário ou extraído de URL — reescrever
       completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [

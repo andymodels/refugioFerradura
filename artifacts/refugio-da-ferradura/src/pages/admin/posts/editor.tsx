@@ -299,7 +299,7 @@ export default function AdminPostEditor() {
             Gerar com IA
           </div>
           <p className="text-white/40 text-[11px]">
-            Cole uma URL de artigo, <span className="text-white/60">um link direto de foto (.jpg/.png)</span> ou o próprio texto copiado — a IA gera o artigo com fidelidade ao conteúdo original.
+            Digite um <span className="text-white/60">tema ou tópico</span> (ex: "bares da Rota da Ferradura"), cole uma URL de artigo, um link de foto (.jpg/.png) ou o próprio texto copiado — a IA gera o artigo automaticamente.
           </p>
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 bg-black/50 border border-white/10 rounded-lg px-3 py-2">
@@ -309,7 +309,7 @@ export default function AdminPostEditor() {
                 value={aiUrl}
                 onChange={(e) => { setAiUrl(e.target.value); setAiError(null); }}
                 onKeyDown={(e) => e.key === "Enter" && handleAIGeneration()}
-                placeholder="https://artigo.com, https://foto.jpg ou cole o texto aqui"
+                placeholder="tema, https://artigo.com, https://foto.jpg ou cole o texto aqui"
                 className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/20"
               />
             </div>
@@ -343,7 +343,7 @@ export default function AdminPostEditor() {
 
           {aiError && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-300 leading-relaxed">
-              <span className="font-semibold block mb-2">⚠ Não foi possível ler o link</span>
+              <span className="font-semibold block mb-2">⚠ Erro na geração</span>
               {aiError.split("\n\n").map((paragraph, i) => (
                 <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
               ))}
