@@ -183,20 +183,36 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
               style={{ maxHeight: 480 }}
             />
           )}
+
+          {/* Overlay for iframes: captures clicks so ProseMirror can select the node.
+              Disappears when selected so the resize handle is accessible. */}
+          {isInsta && !selected && (
+            <div
+              className="absolute inset-0 z-10 cursor-pointer"
+              title="Clique para selecionar e redimensionar"
+            />
+          )}
+
+          {/* Selected indicator label for iframe nodes */}
+          {isInsta && selected && (
+            <div className="absolute top-2 left-2 z-20 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full pointer-events-none">
+              Selecionado — arraste a borda direita para redimensionar
+            </div>
+          )}
         </div>
 
-        {/* Resize handle — right edge */}
+        {/* Resize handle — right edge, always outside the iframe */}
         {selected && (
           <>
             <div
               onMouseDown={onMouseDownHandle}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 flex items-center justify-center cursor-ew-resize"
-              style={{ width: 16, height: 48 }}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex items-center justify-center cursor-ew-resize"
+              style={{ width: 20, height: 56 }}
             >
-              <div className="w-2 h-10 bg-white border border-blue-500 rounded shadow-md" />
+              <div className="w-2.5 h-12 bg-white border-2 border-blue-500 rounded-full shadow-lg" />
             </div>
             {width && (
-              <div className="absolute bottom-2 right-4 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none z-10">
+              <div className="absolute bottom-2 right-6 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none z-30">
                 {width}px
               </div>
             )}
