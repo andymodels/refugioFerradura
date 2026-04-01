@@ -50,7 +50,7 @@ export default function AdminPostEditor() {
   const [saving, setSaving] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
 
-  const { register, handleSubmit, setValue, control, watch, reset } = useForm({
+  const { register, handleSubmit, setValue, control, watch, reset, getValues } = useForm({
     defaultValues: {
       title: "",
       subtitle: "",
@@ -75,37 +75,25 @@ export default function AdminPostEditor() {
   };
 
   // ── Draft persistence ──────────────────────────────────────────────────────
-  // latestValuesRef always holds the most current form values, updated on
-  // every render. This lets the unmount effect flush them synchronously.
-  const formValues = watch();
-  const latestValuesRef = React.useRef(formValues);
-  latestValuesRef.current = formValues;
+  // Uses watch(callback) subscription — fires on every field change immediately,
+  // no debounce, no re-render dependency. On unmount we read getValues() directly.
+  const formValues = watch(); // still needed for tags/status display
 
-  const saveDraft = React.useCallback((values: typeof formValues) => {
-    if (!values.title && !values.content) return;
-    try {
-      localStorage.setItem(draftKey(postId), JSON.stringify(values));
-    } catch {}
-  }, [postId]);
-
-  // Debounced save while the user is typing (avoids hammering localStorage)
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!formValues.title && !formValues.content) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => saveDraft(formValues), 400);
-    // ⚠ Do NOT clear the timer on cleanup — we want it to fire even after
-    // a quick navigation. The unmount effect below handles the final flush.
-  }, [JSON.stringify(formValues)]); // eslint-disable-line
-
-  // Flush immediately when the component unmounts (user navigates away)
-  useEffect(() => {
-    return () => {
-      // Cancel any pending debounce; we'll save right now instead
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      saveDraft(latestValuesRef.current);
+    const writeDraft = (values: Record<string, any>) => {
+      if (!values.title && !values.content) return;
+      try { localStorage.setItem(draftKey(postId), JSON.stringify(values)); } catch {}
     };
-  }, [saveDraft]);
+
+    // Subscribe: fires immediately on every change, no timing issues
+    const { unsubscribe } = watch((values) => writeDraft(values as any));
+
+    return () => {
+      unsubscribe();
+      // Final flush on unmount using getValues() — guaranteed to be the latest snapshot
+      writeDraft(getValues());
+    };
+  }, [postId]); // eslint-disable-line
 
   // ── Load post for edit mode, then check for a local draft ─────────────────
   useEffect(() => {

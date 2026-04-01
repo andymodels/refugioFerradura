@@ -1,17 +1,36 @@
 import React from "react";
 import { Link } from "wouter";
-import { Plus, Edit, Trash2 } from "lucide-react";
+import { Plus, Edit, Trash2, FileEdit } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card } from "@/components/ui-elements";
 import { useListPostsAdmin, useDeletePost } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
+const NEW_DRAFT_KEY = "refugio-editor-draft-new";
+
 export default function AdminPosts() {
   const { data, isLoading } = useListPostsAdmin();
   const deleteMutation = useDeletePost();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [pendingDraft, setPendingDraft] = React.useState<{ title?: string } | null>(null);
+
+  // Check for unsaved new-post draft on mount
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NEW_DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.title || draft.content) setPendingDraft(draft);
+      }
+    } catch {}
+  }, []);
+
+  const discardDraft = () => {
+    localStorage.removeItem(NEW_DRAFT_KEY);
+    setPendingDraft(null);
+  };
 
   const posts = data?.posts || [];
 
@@ -40,6 +59,31 @@ export default function AdminPosts() {
           </Button>
         </Link>
       </div>
+
+      {pendingDraft && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 text-amber-800">
+            <FileEdit className="w-4 h-4 shrink-0" />
+            <span>
+              Você tem um rascunho não salvo
+              {pendingDraft.title ? <strong> — "{pendingDraft.title}"</strong> : ""}.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/admin/posts/novo">
+              <Button size="sm" className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white">
+                Continuar rascunho
+              </Button>
+            </Link>
+            <button
+              onClick={discardDraft}
+              className="text-xs text-amber-700 hover:text-amber-900 underline"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
