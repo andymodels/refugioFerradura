@@ -216,3 +216,38 @@
   height: 100% !important;
   border-radius: 0.75rem;
 }
+
+/* ── Two-column image grid — editor and post content ── */
+.post-content [data-image-grid],
+.ProseMirror [data-image-grid] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+.post-content .image-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+.post-content .image-grid-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  display: block;
+}
+
+/* ── Text color — spans from Tiptap Color extension render via inline style ── */
+.post-content span[style] {
+  display: inline;
+}
+
+/* ── Text alignment ── */
+.post-content [style*="text-align: center"],
+.post-content [style*="text-align:center"] { text-align: center; }
+.post-content [style*="text-align: right"],
+.post-content [style*="text-align:right"] { text-align: right; }
+.post-content [style*="text-align: justify"],
+.post-content [style*="text-align:justify"] { text-align: justify; }
