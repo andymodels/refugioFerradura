@@ -5,27 +5,43 @@ import { Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useSeo } from "@/hooks/use-seo";
 
-const TAG_META: Record<string, { title: string; subtitle: string; description: string }> = {
+const TAG_META: Record<string, { displayTitle: string; seoTitle: string; subtitle: string; description: string; slug: string }> = {
   lugares: {
-    title: "Lugares para Visitar",
+    displayTitle: "Lugares para Visitar",
+    seoTitle: "Lugares para Visitar na Rota da Ferradura · Guarapari, ES",
     subtitle: "Destinos",
-    description: "Os melhores destinos e pontos turísticos da Rota da Ferradura para explorar.",
+    description: "Os melhores destinos e pontos turísticos da Rota da Ferradura, Guarapari – ES, para explorar com a família ou amigos.",
+    slug: "lugares",
   },
   experiencias: {
-    title: "Experiências",
+    displayTitle: "Experiências",
+    seoTitle: "Experiências na Rota da Ferradura · Guarapari, ES",
     subtitle: "Viva a Rota",
-    description: "Aventuras, atividades e momentos inesquecíveis para vivenciar na região.",
+    description: "Aventuras, atividades e momentos inesquecíveis para vivenciar na Rota da Ferradura em Guarapari, Espírito Santo.",
+    slug: "experiencias",
   },
   gastronomia: {
-    title: "Gastronomia",
+    displayTitle: "Gastronomia",
+    seoTitle: "Gastronomia da Rota da Ferradura · Restaurantes em Guarapari",
     subtitle: "Sabores Locais",
-    description: "Restaurantes, pratos típicos e sabores autênticos que encantam visitantes e moradores.",
+    description: "Restaurantes, pratos típicos e sabores autênticos da culinária capixaba na Rota da Ferradura, Guarapari – ES.",
+    slug: "gastronomia",
   },
   hospedagem: {
-    title: "Hospedagem",
+    displayTitle: "Hospedagem",
+    seoTitle: "Hospedagem na Rota da Ferradura · Pousadas em Guarapari",
     subtitle: "Onde Ficar",
-    description: "Pousadas, chalés e acomodações charmosas para tornar sua estadia inesquecível.",
+    description: "Pousadas, chalés e acomodações charmosas para tornar sua estadia na Rota da Ferradura inesquecível.",
+    slug: "hospedagem",
+  },
+  eventos: {
+    displayTitle: "Eventos",
+    seoTitle: "Eventos na Rota da Ferradura · Guarapari, ES",
+    subtitle: "Agenda",
+    description: "Feiras, festivais e eventos culturais na Rota da Ferradura, Guarapari – ES. Confira a programação.",
+    slug: "eventos",
   },
 };
 
@@ -34,9 +50,36 @@ interface TagPageProps {
 }
 
 export default function TagPage({ tag }: TagPageProps) {
-  const meta = TAG_META[tag] || { title: tag, subtitle: tag, description: "" };
+  const meta = TAG_META[tag] || { displayTitle: tag, seoTitle: tag, subtitle: tag, description: "", slug: tag };
   const { data, isLoading } = useListPosts({ tag } as any);
   const posts = data?.posts || [];
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const pageUrl = `${origin}/${meta.slug || tag}`;
+
+  useSeo({
+    title: meta.seoTitle,
+    description: meta.description,
+    url: pageUrl,
+    type: "website",
+    jsonLd:
+      posts.length > 0
+        ? {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: meta.seoTitle,
+            description: meta.description,
+            numberOfItems: posts.length,
+            itemListElement: posts.map((post, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              name: post.title,
+              url: `${origin}/blog/${post.slug}`,
+              image: post.coverImage || undefined,
+            })),
+          }
+        : undefined,
+  });
 
   return (
     <Layout>
@@ -45,7 +88,7 @@ export default function TagPage({ tag }: TagPageProps) {
           <span className="text-primary font-medium tracking-wider uppercase text-xs mb-2 block">
             {meta.subtitle}
           </span>
-          <h1 className="text-4xl md:text-5xl font-serif text-foreground mb-4">{meta.title}</h1>
+          <h1 className="text-4xl md:text-5xl font-serif text-foreground mb-4">{meta.displayTitle}</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{meta.description}</p>
         </div>
       </div>

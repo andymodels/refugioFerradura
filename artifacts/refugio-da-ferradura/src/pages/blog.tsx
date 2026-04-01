@@ -5,6 +5,7 @@ import { ptBR } from "date-fns/locale";
 import { Layout } from "@/components/layout";
 import { Card, cn } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
+import { useSeo } from "@/hooks/use-seo";
 
 const TAGS = [
   { label: "Todos", value: "" },
@@ -18,6 +19,33 @@ export default function Blog() {
   const [activeTag, setActiveTag] = useState("");
   const { data, isLoading } = useListPosts({ tag: activeTag || undefined } as any);
   const posts = data?.posts || [];
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+  useSeo({
+    title: "Conteúdo & Histórias da Rota da Ferradura",
+    description:
+      "Artigos sobre lugares, experiências, gastronomia e hospedagem na Rota da Ferradura, Guarapari – ES. Inspire-se para sua próxima viagem.",
+    url: `${origin}/blog`,
+    type: "website",
+    jsonLd:
+      posts.length > 0
+        ? {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "Artigos · Rota da Ferradura",
+            description:
+              "Lista de artigos sobre turismo na Rota da Ferradura, Guarapari – ES.",
+            numberOfItems: posts.length,
+            itemListElement: posts.map((post, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              name: post.title,
+              url: `${origin}/blog/${post.slug}`,
+            })),
+          }
+        : undefined,
+  });
 
   return (
     <Layout>

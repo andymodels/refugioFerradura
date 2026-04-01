@@ -1,15 +1,137 @@
 import { useParams } from "wouter";
 import { Layout } from "@/components/layout";
 import { useGetPost } from "@workspace/api-client-react";
+import { useSeo } from "@/hooks/use-seo";
 
 function stripLeadingH1(html: string): string {
   // Remove the first <h1>...</h1> regardless of attributes or line breaks
   return html.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "").trim();
 }
 
+function buildJsonLd(post: {
+  title: string;
+  subtitle?: string | null;
+  excerpt?: string | null;
+  content?: string | null;
+  coverImage?: string | null;
+  slug: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  tags?: string | null;
+}) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const url = `${origin}/blog/${post.slug}`;
+  const tags: string[] = post.tags ? JSON.parse(post.tags) : [];
+  const hasTag = (t: string) => tags.includes(t);
+  const desc =
+    post.excerpt ||
+    (post.content || "").replace(/<[^>]*>/g, "").substring(0, 160);
+  const image = post.coverImage || undefined;
+
+  const publisher = {
+    "@type": "Organization",
+    name: "Refúgio da Ferradura",
+    url: origin,
+    logo: { "@type": "ImageObject", url: `${origin}/favicon.svg` },
+  };
+
+  if (hasTag("gastronomia")) {
+    return {
+      "@context": "https://schema.org",
+      "@type": "Restaurant",
+      name: post.title,
+      description: desc,
+      image,
+      url,
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Guarapari",
+        addressRegion: "Espírito Santo",
+        addressCountry: "BR",
+      },
+      servesCuisine: "Cozinha Regional Capixaba",
+      areaServed: "Rota da Ferradura, Guarapari – ES",
+    };
+  }
+
+  if (hasTag("hospedagem")) {
+    return {
+      "@context": "https://schema.org",
+      "@type": "LodgingBusiness",
+      name: post.title,
+      description: desc,
+      image,
+      url,
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Guarapari",
+        addressRegion: "Espírito Santo",
+        addressCountry: "BR",
+      },
+      areaServed: "Rota da Ferradura, Guarapari – ES",
+    };
+  }
+
+  if (hasTag("lugares") || hasTag("experiencias")) {
+    return {
+      "@context": "https://schema.org",
+      "@type": "TouristAttraction",
+      name: post.title,
+      description: desc,
+      image,
+      url,
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "Guarapari",
+        addressRegion: "Espírito Santo",
+        addressCountry: "BR",
+      },
+    };
+  }
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: desc,
+    image,
+    url,
+    datePublished: post.createdAt,
+    dateModified: post.updatedAt || post.createdAt,
+    author: publisher,
+    publisher,
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+  };
+}
+
 export default function BlogPost() {
   const { slug } = useParams();
   const { data, isLoading } = useGetPost(slug || "");
+
+  const post = data ?? null;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const postUrl = `${origin}/blog/${slug}`;
+
+  useSeo(
+    post
+      ? {
+          title: post.title,
+          description:
+            post.metaDescription ||
+            post.excerpt ||
+            (post.content || "").replace(/<[^>]*>/g, "").substring(0, 160),
+          image: post.coverImage || undefined,
+          url: postUrl,
+          type: "article",
+          jsonLd: buildJsonLd({
+            ...post,
+            slug: slug || "",
+            createdAt: String(post.createdAt),
+            updatedAt: String(post.updatedAt ?? post.createdAt),
+          }),
+        }
+      : { noIndex: isLoading }
+  );
 
   if (isLoading) {
     return (
@@ -31,8 +153,7 @@ export default function BlogPost() {
     );
   }
 
-  const post = data;
-  const cleanedContent = stripLeadingH1(post.content || "");
+  const cleanedContent = stripLeadingH1(post!.content || "");
 
   return (
     <Layout>

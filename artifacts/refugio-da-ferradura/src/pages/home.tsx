@@ -5,6 +5,7 @@ import { Layout } from "@/components/layout";
 import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 import { useSiteSettings, parseHomeBlocks, parseHeroPool, getOverlayStyle } from "@/hooks/use-site-settings";
+import { useSeo } from "@/hooks/use-seo";
 
 export default function Home() {
   const s = useSiteSettings();
@@ -20,6 +21,46 @@ export default function Home() {
 
   const { data: recentData } = useListPosts({ limit: 6 } as any);
   const recentPosts = recentData?.posts || [];
+
+  useSeo({
+    title: "Explore a Rota da Ferradura · Guarapari, ES",
+    description:
+      "Descubra a Rota da Ferradura em Guarapari, Espírito Santo. Guia completo de lugares, gastronomia, pousadas e experiências únicas na serra capixaba.",
+    image: heroImage,
+    url: typeof window !== "undefined" ? window.location.origin : undefined,
+    type: "website",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "TouristDestination",
+      name: "Rota da Ferradura",
+      alternateName: "Refúgio da Ferradura",
+      description:
+        "Roteiro turístico em Guarapari, Espírito Santo, que reúne cachoeiras, trilhas, gastronomia regional, pousadas e a tranquilidade da serra capixaba.",
+      url: typeof window !== "undefined" ? window.location.origin : "",
+      touristType: ["Ecoturismo", "Gastronomia", "Natureza", "Aventura"],
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "Rodovia do Sol, Bueno Ayres",
+        addressLocality: "Guarapari",
+        addressRegion: "Espírito Santo",
+        addressCountry: "BR",
+        postalCode: "29200-000",
+      },
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: -20.6456,
+        longitude: -40.4989,
+      },
+      containedInPlace: {
+        "@type": "City",
+        name: "Guarapari",
+        containedInPlace: {
+          "@type": "State",
+          name: "Espírito Santo",
+        },
+      },
+    },
+  });
 
   return (
     <Layout>

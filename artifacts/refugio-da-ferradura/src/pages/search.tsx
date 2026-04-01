@@ -6,10 +6,17 @@ import { useListPosts } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useSeo } from "@/hooks/use-seo";
 
 export default function Search() {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+
+  useSeo({
+    title: "Buscar · Rota da Ferradura",
+    description: "Pesquise por lugares, restaurantes, pousadas e experiências na Rota da Ferradura, Guarapari – ES.",
+    noIndex: true,
+  });
 
   const { data: postsData, isLoading } = useListPosts({ search: submittedQuery || undefined } as any);
 
