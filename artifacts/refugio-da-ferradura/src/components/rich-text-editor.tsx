@@ -103,20 +103,57 @@ const ResizableImage = TiptapImage.extend({
   inline: false,
 });
 
-// ─── Direct Video Embed Node ─────────────────────────────────────────────────
+// ─── Direct Video / Instagram Embed Node ─────────────────────────────────────
+
+function toInstagramEmbedUrl(url: string): string | null {
+  // Matches: /p/CODE, /reel/CODE, /tv/CODE  (with optional trailing slash / query)
+  const m = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
+  if (!m) return null;
+  return `https://www.instagram.com/${m[1]}/${m[2]}/embed/`;
+}
+
+function isInstagramUrl(url: string): boolean {
+  return /instagram\.com\/(p|reel|tv)\//i.test(url);
+}
+
+function isDirectVideoUrl(url: string): boolean {
+  return (
+    /\.(mp4|webm|mov|avi|m4v|ogv)(\?.*)?$/i.test(url) ||
+    url.includes('res.cloudinary.com') ||
+    url.includes('/video/upload/')
+  );
+}
 
 function VideoEmbedView({ node, selected }: NodeViewProps) {
-  const { src } = node.attrs;
+  const { src, embedType } = node.attrs as { src: string; embedType: string };
+  const isInsta = embedType === 'instagram';
+
   return (
     <NodeViewWrapper data-drag-handle className="my-4">
-      <div className={cn('relative rounded-xl overflow-hidden bg-black', selected && 'outline outline-2 outline-blue-500 rounded-xl')}>
-        <video
-          src={src}
-          controls
-          playsInline
-          className="w-full rounded-xl"
-          style={{ maxHeight: 480 }}
-        />
+      <div className={cn(
+        'relative rounded-xl overflow-hidden',
+        isInsta ? 'bg-white' : 'bg-black',
+        selected && 'outline outline-2 outline-blue-500 rounded-xl'
+      )}>
+        {isInsta ? (
+          <iframe
+            src={src}
+            className="w-full rounded-xl border-0"
+            style={{ minHeight: 540, maxHeight: 700 }}
+            allowTransparency
+            scrolling="no"
+            frameBorder="0"
+            title="Instagram embed"
+          />
+        ) : (
+          <video
+            src={src}
+            controls
+            playsInline
+            className="w-full rounded-xl"
+            style={{ maxHeight: 480 }}
+          />
+        )}
       </div>
     </NodeViewWrapper>
   );
@@ -130,27 +167,52 @@ const VideoEmbed = Node.create({
 
   addAttributes() {
     return {
-      src: { default: '' },
+      src: {
+        default: '',
+        renderHTML: (attrs) => ({ src: attrs.src || '' }),
+        parseHTML: (el) => (el as HTMLElement).getAttribute('src') || '',
+      },
+      embedType: {
+        default: 'video',
+        renderHTML: (attrs) => ({ 'data-embed-type': attrs.embedType || 'video' }),
+        parseHTML: (el) => (el as HTMLElement).getAttribute('data-embed-type') || 'video',
+      },
     };
   },
 
   parseHTML() {
-    return [{
-      tag: 'video[data-video-embed]',
-      getAttrs: (el) => ({ src: (el as HTMLElement).getAttribute('src') || '' }),
-    }];
+    return [
+      { tag: 'video[data-video-embed]' },
+      { tag: 'iframe[data-video-embed]' },
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
+    const embedType = (HTMLAttributes as Record<string, string>)['data-embed-type'] || 'video';
+    const src = (HTMLAttributes as Record<string, string>).src || '';
+    if (embedType === 'instagram') {
+      return [
+        'iframe',
+        mergeAttributes(HTMLAttributes, {
+          'data-video-embed': '',
+          class: 'video-embed-instagram',
+          frameborder: '0',
+          scrolling: 'no',
+          allowtransparency: 'true',
+          style: 'width:100%;min-height:540px;border-radius:12px',
+          src,
+        }),
+      ];
+    }
     return [
       'video',
-      {
+      mergeAttributes(HTMLAttributes, {
         'data-video-embed': '',
         controls: '',
         playsinline: '',
         class: 'video-embed',
-        src: HTMLAttributes.src || '',
-      },
+        src,
+      }),
     ];
   },
 
@@ -158,15 +220,6 @@ const VideoEmbed = Node.create({
     return ReactNodeViewRenderer(VideoEmbedView);
   },
 });
-
-// Helper: detect direct video file URLs vs YouTube
-function isDirectVideoUrl(url: string): boolean {
-  return (
-    /\.(mp4|webm|mov|avi|m4v|ogv)(\?.*)?$/i.test(url) ||
-    url.includes('res.cloudinary.com') ||
-    url.includes('/video/upload/')
-  );
-}
 
 // ─── Two-Column Image Grid Node ───────────────────────────────────────────────
 // IMPORTANT: renderHTML is defined INSIDE each addAttributes() entry so that
@@ -653,12 +706,22 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
 
   const addVideo = useCallback(() => {
     if (!editor) return;
-    const url = window.prompt('Cole o link do vídeo (YouTube, Cloudinary ou MP4 direto):');
+    const url = window.prompt('Cole o link do vídeo (YouTube, Instagram Reels, Cloudinary ou MP4 direto):');
     if (!url) return;
-    if (isDirectVideoUrl(url)) {
+    if (isInstagramUrl(url)) {
+      const embedSrc = toInstagramEmbedUrl(url);
+      if (!embedSrc) {
+        alert('Link do Instagram inválido. Use um link de post, reel ou vídeo do Instagram.');
+        return;
+      }
       (editor.chain().focus() as any).insertContent({
         type: 'videoEmbed',
-        attrs: { src: url },
+        attrs: { src: embedSrc, embedType: 'instagram' },
+      }).run();
+    } else if (isDirectVideoUrl(url)) {
+      (editor.chain().focus() as any).insertContent({
+        type: 'videoEmbed',
+        attrs: { src: url, embedType: 'video' },
       }).run();
     } else {
       editor.chain().focus().setYoutubeVideo({ src: url }).run();
