@@ -12,15 +12,44 @@ import Youtube from '@tiptap/extension-youtube';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
-import { mergeAttributes, Node } from '@tiptap/core';
+import FontFamily from '@tiptap/extension-font-family';
+import { mergeAttributes, Node, Extension } from '@tiptap/core';
 import {
   Bold, Italic, UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
   Undo, Redo, Minus, Code, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal,
-  ChevronLeft, ChevronRight, Plus, Trash2,
+  ChevronLeft, ChevronRight, Plus, Trash2, Eraser,
 } from 'lucide-react';
 import { cn } from './ui-elements';
+
+// ─── FontSize extension ────────────────────────────────────────────────────────
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addGlobalAttributes() {
+    return [{
+      types: ['textStyle'],
+      attributes: {
+        fontSize: {
+          default: null,
+          parseHTML: (el: Element) => (el as HTMLElement).style.fontSize || null,
+          renderHTML: (attrs: Record<string, unknown>) => {
+            if (!attrs.fontSize) return {};
+            return { style: `font-size: ${attrs.fontSize}` };
+          },
+        },
+      },
+    }];
+  },
+  addCommands() {
+    return {
+      setFontSize: (fontSize: string) => ({ chain }: any) =>
+        chain().setMark('textStyle', { fontSize }).run(),
+      unsetFontSize: () => ({ chain }: any) =>
+        chain().setMark('textStyle', { fontSize: null }).run(),
+    } as any;
+  },
+});
 
 // ─── Resizable Image NodeView ─────────────────────────────────────────────────
 
@@ -809,11 +838,29 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       TextStyle,
       Color,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      FontFamily,
+      FontSize,
     ],
     content: value,
     editorProps: {
       attributes: {
         class: 'prose prose-stone max-w-none p-5 min-h-[380px] focus:outline-none text-foreground',
+      },
+      transformPastedHTML(html: string) {
+        const div = document.createElement('div');
+        div.innerHTML = html;
+        div.querySelectorAll<HTMLElement>('[style]').forEach(el => {
+          el.removeAttribute('style');
+        });
+        div.querySelectorAll<HTMLElement>('[class]').forEach(el => {
+          el.removeAttribute('class');
+        });
+        div.querySelectorAll<HTMLElement>('font').forEach(el => {
+          const span = document.createElement('span');
+          span.innerHTML = el.innerHTML;
+          el.parentNode?.replaceChild(span, el);
+        });
+        return div.innerHTML;
       },
     },
     onUpdate: ({ editor }) => {
@@ -903,6 +950,54 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         {/* Undo / Redo */}
         <ToolbarButton onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} icon={<Undo className="w-4 h-4" />} title="Desfazer" />
         <ToolbarButton onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} icon={<Redo className="w-4 h-4" />} title="Refazer" />
+        <Divider />
+
+        {/* Font family */}
+        <select
+          title="Fonte"
+          value={editor.getAttributes('textStyle').fontFamily ?? ''}
+          onChange={e => {
+            const v = e.target.value;
+            if (!v) (editor.chain().focus() as any).unsetFontFamily().run();
+            else (editor.chain().focus() as any).setFontFamily(v).run();
+          }}
+          className="h-7 rounded border border-border bg-background text-xs px-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">Fonte padrão</option>
+          <option value="'Lora', serif">Lora (Serif)</option>
+          <option value="'Plus Jakarta Sans', sans-serif">Jakarta Sans</option>
+          <option value="Georgia, serif">Georgia</option>
+          <option value="Arial, sans-serif">Arial</option>
+          <option value="'Courier New', monospace">Courier (mono)</option>
+        </select>
+
+        {/* Font size */}
+        <select
+          title="Tamanho"
+          value={editor.getAttributes('textStyle').fontSize ?? ''}
+          onChange={e => {
+            const v = e.target.value;
+            if (!v) (editor.chain().focus() as any).unsetFontSize().run();
+            else (editor.chain().focus() as any).setFontSize(v).run();
+          }}
+          className="h-7 w-20 rounded border border-border bg-background text-xs px-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <option value="">Normal</option>
+          <option value="0.75rem">Pequeno</option>
+          <option value="0.875rem">Menor</option>
+          <option value="1rem">Médio</option>
+          <option value="1.125rem">Grande</option>
+          <option value="1.25rem">Maior</option>
+          <option value="1.5rem">Extra</option>
+          <option value="2rem">Destaque</option>
+        </select>
+
+        {/* Clear all formatting */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+          icon={<Eraser className="w-4 h-4" />}
+          title="Limpar toda a formatação do texto selecionado"
+        />
         <Divider />
 
         {/* Headings */}
