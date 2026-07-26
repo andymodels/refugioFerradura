@@ -64,7 +64,7 @@ app.use(
 
 app.use("/api", router);
 
-if (process.env.NODE_ENV === "production") {
+if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
   const staticDir = path.join(
     process.cwd(),
     "artifacts/refugio-da-ferradura/dist/public",
