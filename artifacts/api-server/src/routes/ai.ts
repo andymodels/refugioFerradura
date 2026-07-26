@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 
@@ -141,15 +141,7 @@ PASSO 2 — GERAÇÃO DO ARTIGO:
 Reescreva como artigo editorial para o site Refúgio da Ferradura, baseando-se EXCLUSIVAMENTE nos fatos do conteúdo-fonte.
 NÃO adicione informações, atrações, preços ou detalhes que não estejam no conteúdo original.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima, dentro dos limites do conteúdo-fonte):\n${instructions}` : ""}
 
-RESPONDA APENAS EM JSON válido:
-{
-  "title": "Título atraente baseado no conteúdo real",
-  "subtitle": "Subtítulo complementar",
-  "excerpt": "Resumo de 2 a 3 frases fiéis ao conteúdo",
-  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li>",
-  "metaDescription": "Até 160 caracteres para SEO",
-  "tags": ["turismo"]
-}
+Use a ferramenta "generate_article" para responder — no caso de fora de escopo, preencha somente "error" e "message"; caso contrário, preencha os campos do artigo e deixe "error"/"message" vazios.
 
 CONTEÚDO-FONTE:
 ${sourceText}`;
@@ -169,15 +161,7 @@ PASSO 2 — GERAÇÃO DO ARTIGO:
 Crie um artigo editorial completo, informativo e envolvente sobre o tema. Use seu conhecimento sobre a região da Rota da Ferradura, Guarapari e o Espírito Santo.
 Escreva com tom acolhedor e sofisticado, adequado a um guia de turismo premium.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima):\n${instructions}` : ""}
 
-RESPONDA APENAS EM JSON válido:
-{
-  "title": "Título atraente sobre o tema",
-  "subtitle": "Subtítulo complementar",
-  "excerpt": "Resumo de 2 a 3 frases que capturam a essência do artigo",
-  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li> — rico em detalhes e informações úteis para o visitante",
-  "metaDescription": "Até 160 caracteres para SEO",
-  "tags": ["turismo"]
-}`;
+Use a ferramenta "generate_article" para responder — no caso de fora de escopo, preencha somente "error" e "message"; caso contrário, preencha os campos do artigo, rico em detalhes e informações úteis para o visitante, e deixe "error"/"message" vazios.`;
 
 const USER_PROMPT_IMAGE = (imageUrl: string, instructions?: string) => `Analise a imagem abaixo e siga este fluxo obrigatório:
 
@@ -191,18 +175,45 @@ PASSO 2 — GERAÇÃO DO ARTIGO:
 Descreva o que você vê na imagem com detalhes — elementos visuais, cores, ambiente, sensações transmitidas — e use isso para criar um artigo editorial rico e envolvente para o site Refúgio da Ferradura.
 NÃO invente locais ou nomes específicos que não sejam claramente identificáveis na imagem.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima):\n${instructions}` : ""}
 
-RESPONDA APENAS EM JSON válido:
-{
-  "title": "Título atraente inspirado na imagem",
-  "subtitle": "Subtítulo complementar",
-  "excerpt": "Resumo de 2 a 3 frases que capturam a essência da imagem",
-  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li> — baseado no que é visível na imagem",
-  "metaDescription": "Até 160 caracteres para SEO",
-  "tags": ["turismo"]
-}`;
+Use a ferramenta "generate_article" para responder — no caso de fora de escopo, preencha somente "error" e "message"; caso contrário, preencha os campos do artigo, baseado no que é visível na imagem, e deixe "error"/"message" vazios.`;
+
+const ARTICLE_TOOL: Anthropic.Tool = {
+  name: "generate_article",
+  description:
+    "Registra o artigo gerado para o site Refúgio da Ferradura, ou um erro de fora de escopo.",
+  input_schema: {
+    type: "object",
+    properties: {
+      error: {
+        type: "string",
+        enum: ["fora_de_escopo"],
+        description:
+          "Preencha apenas se o conteúdo/tema/imagem não for relacionado à Rota da Ferradura, Buenos Aires, Guarapari ou Espírito Santo.",
+      },
+      message: {
+        type: "string",
+        description: "Mensagem de erro amigável em português, obrigatória se 'error' for preenchido.",
+      },
+      title: { type: "string", description: "Título atraente do artigo." },
+      subtitle: { type: "string", description: "Subtítulo complementar." },
+      excerpt: { type: "string", description: "Resumo de 2 a 3 frases fiéis ao conteúdo." },
+      content: {
+        type: "string",
+        description: "Artigo completo em HTML usando apenas <h2>, <p>, <ul>, <li>.",
+      },
+      metaDescription: { type: "string", description: "Até 160 caracteres para SEO." },
+      tags: {
+        type: "array",
+        items: { type: "string" },
+        description: "Tags do artigo, ex: [\"turismo\"].",
+      },
+    },
+    required: [],
+  },
+};
 
 router.post("/generate-from-url", async (req, res) => {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const input: string = (req.body.url || "").trim();
   const extraInstructions: string = (req.body.instructions || "").trim();
 
@@ -230,50 +241,46 @@ router.post("/generate-from-url", async (req, res) => {
   }
 
   try {
-    let completion;
+    let userContent: Anthropic.MessageParam["content"];
+    let temperature: number;
 
     if (isImage) {
-      // Modo imagem: visão do GPT-4o para analisar a foto
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: USER_PROMPT_IMAGE(input, extraInstructions || undefined) },
-              { type: "image_url", image_url: { url: input, detail: "high" } },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.4,
-      });
+      // Modo imagem: visão do Claude para analisar a foto
+      userContent = [
+        { type: "text", text: USER_PROMPT_IMAGE(input, extraInstructions || undefined) },
+        { type: "image", source: { type: "url", url: input } },
+      ];
+      temperature = 0.4;
     } else if (isTopicMode) {
       // Modo tema: usuário digitou um tópico curto — gerar artigo com conhecimento da IA
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: USER_PROMPT_TOPIC(sourceText, extraInstructions || undefined) },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.6,
-      });
+      userContent = USER_PROMPT_TOPIC(sourceText, extraInstructions || undefined);
+      temperature = 0.6;
     } else {
       // Modo fonte: texto longo colado pelo usuário ou extraído de URL — reescrever
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: USER_PROMPT_TEXT(sourceText, extraInstructions || undefined) },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-      });
+      userContent = USER_PROMPT_TEXT(sourceText, extraInstructions || undefined);
+      temperature = 0.3;
     }
 
-    res.json(JSON.parse(completion.choices[0].message.content || "{}"));
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
+      temperature,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userContent }],
+      tools: [ARTICLE_TOOL],
+      tool_choice: { type: "tool", name: "generate_article" },
+    });
+
+    const toolUse = message.content.find(
+      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
+    );
+
+    if (!toolUse) {
+      res.status(500).json({ error: "A IA não retornou um artigo estruturado." });
+      return;
+    }
+
+    res.json(toolUse.input);
   } catch (e: any) {
     res.status(500).json({ error: "Erro na geração com IA: " + e.message });
   }
