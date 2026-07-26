@@ -7,6 +7,8 @@ export async function setupDatabase(): Promise<void> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
+    await pool.query("SET search_path TO public");
+
     // --- Tables ---
     await pool.query(`
       CREATE TABLE IF NOT EXISTS "admins" (

@@ -4,6 +4,7 @@ import path from "path";
 import pinoHttp from "pino-http";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import { pool } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -47,7 +48,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(
   session({
     store: new PgSession({
-      conString: process.env.DATABASE_URL,
+      pool,
       tableName: "session",
     }),
     secret: process.env.SESSION_SECRET ?? "refugio-ferradura-secret-key-2024",
