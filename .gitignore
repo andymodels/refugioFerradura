@@ -57,3 +57,5 @@ Thumbs.db
 .cache/
 .local/
 .agents/
+.vercel
+.env*
