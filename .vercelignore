@@ -1,0 +1,41 @@
+# .vercelignore fully replaces .gitignore for upload purposes, so it needs
+# to mirror .gitignore's excludes plus dirs that only matter locally.
+
+.git
+
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+
+# dependencies
+node_modules
+
+# environment variables
+.env
+.env.*
+!.env.example
+
+# build artifacts / sourcemaps
+*.map
+
+# media uploads (local, ephemeral)
+uploads/
+
+# attached assets (Replit session files, not needed for deploy)
+attached_assets/
+
+# misc
+.cache/
+.local/
+.agents/
+.vercel
+.DS_Store
+
+# local dev tooling, not needed for deploy
+.serena
+.claude
+skills-lock.json
