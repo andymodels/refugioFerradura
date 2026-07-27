@@ -2,7 +2,9 @@ name: Publicar matéria de busca regional (1x/dia)
 
 on:
   schedule:
-    - cron: "0 22 * * *" # 19h BRT — horário de maior engajamento
+    # Minuto fora da hora cheia — GitHub recomenda evitar "0 * * * *" porque
+    # é quando o agendador fica mais sobrecarregado e pode atrasar/pular.
+    - cron: "14 22 * * *" # ~19h BRT — horário de maior engajamento
   workflow_dispatch: {}
 
 jobs:

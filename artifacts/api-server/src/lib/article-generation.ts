@@ -597,7 +597,11 @@ export async function searchAndGenerateRegionalArticle(
 // Não precisam ser do lugar/evento exato do artigo, só da região.
 export async function searchIllustrativePhotos(topic: string): Promise<RegionalSearchImage[]> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const prompt = `Busque na internet 2 a 3 FOTOS reais, bonitas e livres para ilustrar um artigo sobre "${topic}", relacionado à Rota da Ferradura / Guarapari - ES. Não precisam ser do lugar/evento exato — podem ser fotos de paisagem, natureza ou turismo da região em geral (${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}), de perfis de turismo, prefeitura, sites de notícia ou redes sociais.
+  const prompt = `Busque na internet 3 a 4 FOTOS reais e bonitas para ilustrar um artigo sobre "${topic}".
+
+IMPORTANTE: as fotos precisam ser da REGIÃO SERRANA/MONTANHA da Rota da Ferradura especificamente (${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}) — trilhas, cachoeiras, montanhas, sítios, roça, natureza rural. NÃO use fotos de praia, orla ou do centro urbano/litorâneo de Guarapari (isso é outra região, não serve pra ilustrar conteúdo da Rota da Ferradura). Se não achar foto específica da serra, prefira não incluir a não colocar foto de praia/cidade por engano.
+
+Não precisam ser do lugar/evento exato do artigo — podem ser fotos de paisagem/natureza da região em geral, de perfis de turismo, prefeitura, sites de notícia ou redes sociais.
 
 Você PRECISA ter a URL direta do ARQUIVO de imagem (terminando em .jpg/.jpeg/.png/.webp — não o link da página/post) e a URL da página de origem, pra dar crédito.
 

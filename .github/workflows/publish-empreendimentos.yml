@@ -2,9 +2,11 @@ name: Publicar empreendimento da fila (3x/dia)
 
 on:
   schedule:
-    - cron: "0 10 * * *" # 7h BRT
-    - cron: "0 15 * * *" # 12h BRT
-    - cron: "0 22 * * *" # 19h BRT
+    # Minutos fora da hora cheia — GitHub recomenda evitar "0 * * * *" porque
+    # é quando o agendador fica mais sobrecarregado e pode atrasar/pular.
+    - cron: "7 10 * * *" # ~7h BRT
+    - cron: "12 15 * * *" # ~12h BRT
+    - cron: "9 22 * * *" # ~19h BRT
   workflow_dispatch: {}
 
 jobs:
