@@ -532,7 +532,8 @@ REGRAS ABSOLUTAS:
 2. Baseie o artigo EXCLUSIVAMENTE no que a pesquisa retornou. Não invente fatos, números, nomes, datas ou eventos que não estejam nos resultados da busca.
 3. Priorize conteúdo verdadeiramente atual: eventos futuros/próximos, notícias recentes. Evite reescrever algo genérico ou datado se encontrar algo mais atual.
 4. Sempre em Português do Brasil, tom editorial sofisticado e acolhedor, escrevendo com suas próprias palavras (nunca copie frases literais da fonte).
-5. "Refúgio da Ferradura" é um SITE DE TURISMO da região, não um estabelecimento físico.`;
+5. "Refúgio da Ferradura" é um SITE DE TURISMO da região, não um estabelecimento físico.
+6. O campo "content" deve ser HTML LIMPO, só com <h2>, <p>, <ul>, <li>, <strong>, <em> preenchidos com texto de verdade. NUNCA inclua tags vazias (ex: <span></span>), marcadores de citação, referências tipo "[1]" ou qualquer resíduo da ferramenta de busca — escreva prosa corrida normal, sem indicar de onde tirou cada frase dentro do próprio texto.`;
 
 const REGIONAL_SEARCH_PROMPT = (excludeUrls: string[], recentTopics: string[]) => `Pesquise na internet conteúdo atual e real sobre a Rota da Ferradura (Guarapari-ES) e as localidades que a compõem: ${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}.
 
