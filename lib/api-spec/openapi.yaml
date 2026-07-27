@@ -17,6 +17,8 @@ tags:
     description: Authentication
   - name: ai
     description: AI content generation
+  - name: fontes
+    description: Content sources for the automated publishing pipeline
 paths:
   /healthz:
     get:
@@ -242,6 +244,80 @@ paths:
               schema:
                 $ref: "#/components/schemas/Post"
 
+  /fontes/admin:
+    get:
+      operationId: listFontes
+      tags: [fontes]
+      summary: List all content sources
+      responses:
+        "200":
+          description: List of sources
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FonteListResponse"
+    post:
+      operationId: createFonte
+      tags: [fontes]
+      summary: Create a new content source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFonteBody"
+      responses:
+        "201":
+          description: Created source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Fonte"
+
+  /fontes/admin/{id}:
+    patch:
+      operationId: updateFonte
+      tags: [fontes]
+      summary: Update a content source
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFonteBody"
+      responses:
+        "200":
+          description: Updated source
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Fonte"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteFonte
+      tags: [fontes]
+      summary: Delete a content source
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /media/upload:
     post:
       operationId: uploadMedia
@@ -465,6 +541,73 @@ components:
           type: string
         metaDescription:
           type: ["string", "null"]
+
+    Fonte:
+      type: object
+      properties:
+        id:
+          type: integer
+        nome:
+          type: string
+        url:
+          type: string
+        tipo:
+          type: string
+        ativo:
+          type: boolean
+        ultimaVerificacao:
+          type: ["string", "null"]
+          format: date-time
+        criadoEm:
+          type: string
+          format: date-time
+      required:
+        - id
+        - nome
+        - url
+        - tipo
+        - ativo
+        - criadoEm
+
+    FonteListResponse:
+      type: object
+      properties:
+        fontes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Fonte"
+        total:
+          type: integer
+      required:
+        - fontes
+        - total
+
+    CreateFonteBody:
+      type: object
+      properties:
+        nome:
+          type: string
+        url:
+          type: string
+        tipo:
+          type: string
+        ativo:
+          type: boolean
+      required:
+        - nome
+        - url
+
+    UpdateFonteBody:
+      type: object
+      properties:
+        nome:
+          type: string
+        url:
+          type: string
+        tipo:
+          type: string
+        ativo:
+          type: boolean
 
     MediaUploadResponse:
       type: object

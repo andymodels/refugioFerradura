@@ -228,6 +228,65 @@ export const CreatePostBody = zod.object({
 });
 
 /**
+ * @summary List all content sources
+ */
+export const ListFontesResponse = zod.object({
+  fontes: zod.array(
+    zod.object({
+      id: zod.number(),
+      nome: zod.string(),
+      url: zod.string(),
+      tipo: zod.string(),
+      ativo: zod.boolean(),
+      ultimaVerificacao: zod.coerce.date().nullish(),
+      criadoEm: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Create a new content source
+ */
+export const CreateFonteBody = zod.object({
+  nome: zod.string(),
+  url: zod.string(),
+  tipo: zod.string().optional(),
+  ativo: zod.boolean().optional(),
+});
+
+/**
+ * @summary Update a content source
+ */
+export const UpdateFonteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateFonteBody = zod.object({
+  nome: zod.string().optional(),
+  url: zod.string().optional(),
+  tipo: zod.string().optional(),
+  ativo: zod.boolean().optional(),
+});
+
+export const UpdateFonteResponse = zod.object({
+  id: zod.number(),
+  nome: zod.string(),
+  url: zod.string(),
+  tipo: zod.string(),
+  ativo: zod.boolean(),
+  ultimaVerificacao: zod.coerce.date().nullish(),
+  criadoEm: zod.coerce.date(),
+});
+
+/**
+ * @summary Delete a content source
+ */
+export const DeleteFonteParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Upload media file
  */
 export const UploadMediaBody = zod.object({

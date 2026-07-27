@@ -18,6 +18,7 @@ import AdminPosts from "./pages/admin/posts";
 import AdminPostEditor from "./pages/admin/posts/editor";
 import AdminMedia from "./pages/admin/media";
 import AdminSettings from "./pages/admin/settings";
+import AdminFontes from "./pages/admin/fontes";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,9 @@ function Router() {
 
       {/* Admin Settings */}
       <Route path="/admin/settings" component={AdminSettings} />
+
+      {/* Admin Fontes */}
+      <Route path="/admin/fontes" component={AdminFontes} />
 
       <Route component={NotFound} />
     </Switch>

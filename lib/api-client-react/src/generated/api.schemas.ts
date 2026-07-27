@@ -112,6 +112,36 @@ export interface UpdatePostBody {
   metaDescription?: string | null;
 }
 
+export interface Fonte {
+  id: number;
+  nome: string;
+  url: string;
+  tipo: string;
+  ativo: boolean;
+  /** @nullable */
+  ultimaVerificacao?: string | null;
+  criadoEm: string;
+}
+
+export interface FonteListResponse {
+  fontes: Fonte[];
+  total: number;
+}
+
+export interface CreateFonteBody {
+  nome: string;
+  url: string;
+  tipo?: string;
+  ativo?: boolean;
+}
+
+export interface UpdateFonteBody {
+  nome?: string;
+  url?: string;
+  tipo?: string;
+  ativo?: boolean;
+}
+
 export interface MediaUploadResponse {
   url: string;
   filename: string;

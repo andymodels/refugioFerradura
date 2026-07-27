@@ -7,8 +7,11 @@
  */
 
 export * from "./adminUser";
+export * from "./createFonteBody";
 export * from "./createPostBody";
 export * from "./errorResponse";
+export * from "./fonte";
+export * from "./fonteListResponse";
 export * from "./generatedArticle";
 export * from "./generateFromUrlBody";
 export * from "./healthStatus";
@@ -19,5 +22,6 @@ export * from "./mediaUploadResponse";
 export * from "./post";
 export * from "./postListResponse";
 export * from "./successResponse";
+export * from "./updateFonteBody";
 export * from "./updatePostBody";
 export * from "./uploadMediaBody";

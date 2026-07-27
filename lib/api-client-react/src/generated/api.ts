@@ -18,8 +18,11 @@ import type {
 
 import type {
   AdminUser,
+  CreateFonteBody,
   CreatePostBody,
   ErrorResponse,
+  Fonte,
+  FonteListResponse,
   GenerateFromUrlBody,
   GeneratedArticle,
   HealthStatus,
@@ -30,6 +33,7 @@ import type {
   Post,
   PostListResponse,
   SuccessResponse,
+  UpdateFonteBody,
   UpdatePostBody,
   UploadMediaBody,
 } from "./api.schemas";
@@ -936,6 +940,338 @@ export const useCreatePost = <
   TContext
 > => {
   return useMutation(getCreatePostMutationOptions(options));
+};
+
+/**
+ * @summary List all content sources
+ */
+export const getListFontesUrl = () => {
+  return `/api/fontes/admin`;
+};
+
+export const listFontes = async (
+  options?: RequestInit,
+): Promise<FonteListResponse> => {
+  return customFetch<FonteListResponse>(getListFontesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFontesQueryKey = () => {
+  return [`/api/fontes/admin`] as const;
+};
+
+export const getListFontesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFontes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFontes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFontesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFontes>>> = ({
+    signal,
+  }) => listFontes({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFontes>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFontesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFontes>>
+>;
+export type ListFontesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all content sources
+ */
+
+export function useListFontes<
+  TData = Awaited<ReturnType<typeof listFontes>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listFontes>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFontesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new content source
+ */
+export const getCreateFonteUrl = () => {
+  return `/api/fontes/admin`;
+};
+
+export const createFonte = async (
+  createFonteBody: CreateFonteBody,
+  options?: RequestInit,
+): Promise<Fonte> => {
+  return customFetch<Fonte>(getCreateFonteUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createFonteBody),
+  });
+};
+
+export const getCreateFonteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFonte>>,
+    TError,
+    { data: BodyType<CreateFonteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFonte>>,
+  TError,
+  { data: BodyType<CreateFonteBody> },
+  TContext
+> => {
+  const mutationKey = ["createFonte"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFonte>>,
+    { data: BodyType<CreateFonteBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFonte(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFonteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFonte>>
+>;
+export type CreateFonteMutationBody = BodyType<CreateFonteBody>;
+export type CreateFonteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new content source
+ */
+export const useCreateFonte = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFonte>>,
+    TError,
+    { data: BodyType<CreateFonteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFonte>>,
+  TError,
+  { data: BodyType<CreateFonteBody> },
+  TContext
+> => {
+  return useMutation(getCreateFonteMutationOptions(options));
+};
+
+/**
+ * @summary Update a content source
+ */
+export const getUpdateFonteUrl = (id: number) => {
+  return `/api/fontes/admin/${id}`;
+};
+
+export const updateFonte = async (
+  id: number,
+  updateFonteBody: UpdateFonteBody,
+  options?: RequestInit,
+): Promise<Fonte> => {
+  return customFetch<Fonte>(getUpdateFonteUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateFonteBody),
+  });
+};
+
+export const getUpdateFonteMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFonte>>,
+    TError,
+    { id: number; data: BodyType<UpdateFonteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFonte>>,
+  TError,
+  { id: number; data: BodyType<UpdateFonteBody> },
+  TContext
+> => {
+  const mutationKey = ["updateFonte"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFonte>>,
+    { id: number; data: BodyType<UpdateFonteBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateFonte(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFonteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFonte>>
+>;
+export type UpdateFonteMutationBody = BodyType<UpdateFonteBody>;
+export type UpdateFonteMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a content source
+ */
+export const useUpdateFonte = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFonte>>,
+    TError,
+    { id: number; data: BodyType<UpdateFonteBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFonte>>,
+  TError,
+  { id: number; data: BodyType<UpdateFonteBody> },
+  TContext
+> => {
+  return useMutation(getUpdateFonteMutationOptions(options));
+};
+
+/**
+ * @summary Delete a content source
+ */
+export const getDeleteFonteUrl = (id: number) => {
+  return `/api/fontes/admin/${id}`;
+};
+
+export const deleteFonte = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFonteUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFonteMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFonte>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFonte>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFonte"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFonte>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteFonte(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFonteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFonte>>
+>;
+
+export type DeleteFonteMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a content source
+ */
+export const useDeleteFonte = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFonte>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFonte>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteFonteMutationOptions(options));
 };
 
 /**

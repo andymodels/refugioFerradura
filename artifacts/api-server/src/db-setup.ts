@@ -60,6 +60,31 @@ export async function setupDatabase(): Promise<void> {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS "fontes" (
+        "id" serial PRIMARY KEY,
+        "nome" text NOT NULL,
+        "url" text NOT NULL,
+        "tipo" text NOT NULL DEFAULT 'site',
+        "ativo" boolean NOT NULL DEFAULT true,
+        "ultima_verificacao" timestamptz,
+        "criado_em" timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "fontes_processadas" (
+        "id" serial PRIMARY KEY,
+        "fonte_id" integer NOT NULL REFERENCES "fontes"("id"),
+        "url" text NOT NULL UNIQUE,
+        "post_id" integer REFERENCES "posts"("id"),
+        "status" text NOT NULL,
+        "alerta_revisao" text,
+        "detalhe" text,
+        "criado_em" timestamptz NOT NULL DEFAULT now()
+      );
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
         "sess" json NOT NULL,
