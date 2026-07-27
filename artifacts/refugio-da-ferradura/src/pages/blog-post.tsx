@@ -14,6 +14,7 @@ function buildJsonLd(post: {
   excerpt?: string | null;
   content?: string | null;
   coverImage?: string | null;
+  coverImageDisplayMode?: string | null;
   slug: string;
   createdAt: string;
   updatedAt?: string | null;
@@ -206,11 +207,21 @@ export default function BlogPost() {
 
         {/* Cover image */}
         {post.coverImage && (
-          <div className="relative w-full mb-10 rounded-xl overflow-hidden">
+          <div
+            className={
+              post.coverImageDisplayMode === "natural"
+                ? "mb-10 flex justify-center"
+                : "relative w-full mb-10 rounded-xl overflow-hidden"
+            }
+          >
             <img
               src={post.coverImage}
               alt={post.title}
-              className="w-full max-h-[480px] object-cover"
+              className={
+                post.coverImageDisplayMode === "natural"
+                  ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain"
+                  : "w-full max-h-[480px] object-cover"
+              }
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = "none";
               }}

@@ -16,6 +16,7 @@ export interface UpdatePostBody {
   content?: string;
   /** @nullable */
   coverImage?: string | null;
+  coverImageDisplayMode?: 'cover' | 'natural';
   /** @nullable */
   gallery?: string | null;
   /** @nullable */

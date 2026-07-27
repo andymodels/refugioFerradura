@@ -65,6 +65,7 @@ export const ListPostsResponse = zod.object({
       excerpt: zod.string().nullish(),
       content: zod.string(),
       coverImage: zod.string().nullish(),
+      coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
       gallery: zod.string().nullish().describe("JSON array of image URLs"),
       videoEmbeds: zod
         .string()
@@ -93,6 +94,7 @@ export const ListPostsAdminResponse = zod.object({
       excerpt: zod.string().nullish(),
       content: zod.string(),
       coverImage: zod.string().nullish(),
+      coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
       gallery: zod.string().nullish().describe("JSON array of image URLs"),
       videoEmbeds: zod
         .string()
@@ -123,6 +125,7 @@ export const GetPostResponse = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
+  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -150,6 +153,7 @@ export const GetPostAdminResponse = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
+  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -176,6 +180,7 @@ export const UpdatePostBody = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string().optional(),
   coverImage: zod.string().nullish(),
+  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
   gallery: zod.string().nullish(),
   videoEmbeds: zod.string().nullish(),
   tags: zod.string().nullish(),
@@ -191,6 +196,7 @@ export const UpdatePostResponse = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
+  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -220,6 +226,7 @@ export const CreatePostBody = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
+  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
   gallery: zod.string().nullish(),
   videoEmbeds: zod.string().nullish(),
   tags: zod.string().nullish(),

@@ -444,6 +444,10 @@ components:
           type: string
         coverImage:
           type: ["string", "null"]
+        coverImageDisplayMode:
+          type: string
+          enum: [cover, natural]
+          description: How the cover image is shown inside the article
         gallery:
           type: ["string", "null"]
           description: JSON array of image URLs
@@ -500,6 +504,9 @@ components:
           type: string
         coverImage:
           type: ["string", "null"]
+        coverImageDisplayMode:
+          type: string
+          enum: [cover, natural]
         gallery:
           type: ["string", "null"]
         videoEmbeds:
@@ -531,6 +538,9 @@ components:
           type: string
         coverImage:
           type: ["string", "null"]
+        coverImageDisplayMode:
+          type: string
+          enum: [cover, natural]
         gallery:
           type: ["string", "null"]
         videoEmbeds:

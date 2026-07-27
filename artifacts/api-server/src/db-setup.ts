@@ -28,6 +28,7 @@ export async function setupDatabase(): Promise<void> {
         "excerpt" text,
         "content" text NOT NULL DEFAULT '',
         "cover_image" text,
+        "cover_image_display_mode" text NOT NULL DEFAULT 'cover',
         "gallery" text,
         "video_embeds" text,
         "tags" text,
@@ -36,6 +37,14 @@ export async function setupDatabase(): Promise<void> {
         "created_at" timestamptz NOT NULL DEFAULT now(),
         "updated_at" timestamptz NOT NULL DEFAULT now()
       );
+    `);
+
+    // Existing databases need the new presentation setting as well. Automated
+    // publishing keeps the default "cover" mode; only manual editor posts opt
+    // into the uncropped, proportion-preserving mode.
+    await pool.query(`
+      ALTER TABLE "posts"
+      ADD COLUMN IF NOT EXISTS "cover_image_display_mode" text NOT NULL DEFAULT 'cover';
     `);
 
     await pool.query(`

@@ -43,6 +43,7 @@ export interface Post {
   content: string;
   /** @nullable */
   coverImage?: string | null;
+  coverImageDisplayMode?: 'cover' | 'natural';
   /**
    * JSON array of image URLs
    * @nullable
@@ -80,6 +81,7 @@ export interface CreatePostBody {
   content: string;
   /** @nullable */
   coverImage?: string | null;
+  coverImageDisplayMode?: 'cover' | 'natural';
   /** @nullable */
   gallery?: string | null;
   /** @nullable */
@@ -101,6 +103,7 @@ export interface UpdatePostBody {
   content?: string;
   /** @nullable */
   coverImage?: string | null;
+  coverImageDisplayMode?: 'cover' | 'natural';
   /** @nullable */
   gallery?: string | null;
   /** @nullable */

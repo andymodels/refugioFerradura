@@ -10,6 +10,7 @@ export const postsTable = pgTable("posts", {
   excerpt: text("excerpt"),
   content: text("content").notNull().default(""),
   coverImage: text("cover_image"),
+  coverImageDisplayMode: text("cover_image_display_mode").notNull().default("cover"),
   gallery: text("gallery"),
   videoEmbeds: text("video_embeds"),
   tags: text("tags"),

@@ -17,6 +17,7 @@ export interface Post {
   content: string;
   /** @nullable */
   coverImage?: string | null;
+  coverImageDisplayMode?: 'cover' | 'natural';
   /**
    * JSON array of image URLs
    * @nullable

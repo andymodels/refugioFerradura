@@ -64,6 +64,7 @@ export default function AdminPostEditor() {
       status: "draft" as "draft" | "published",
       tags: [] as string[],
       coverImage: "",
+      coverImageDisplayMode: "natural" as "cover" | "natural",
     },
   });
 
@@ -132,6 +133,7 @@ export default function AdminPostEditor() {
           status: post.status || "draft",
           tags: post.tags ? JSON.parse(post.tags) : [],
           coverImage: post.coverImage || "",
+          coverImageDisplayMode: post.coverImageDisplayMode || "cover",
         };
         // Check if there's a local draft with more recent edits
         try {
@@ -173,11 +175,12 @@ export default function AdminPostEditor() {
               status: post.status || "draft",
               tags: post.tags ? JSON.parse(post.tags) : [],
               coverImage: post.coverImage || "",
+              coverImageDisplayMode: post.coverImageDisplayMode || "cover",
             });
           }
         });
     } else {
-      reset({ title: "", subtitle: "", content: "", excerpt: "", metaDescription: "", slug: "", status: "draft", tags: [], coverImage: "" });
+      reset({ title: "", subtitle: "", content: "", excerpt: "", metaDescription: "", slug: "", status: "draft", tags: [], coverImage: "", coverImageDisplayMode: "natural" });
     }
   };
 
@@ -278,6 +281,7 @@ export default function AdminPostEditor() {
         slug: data.slug || slugify(data.title || "post") + "-" + Date.now(),
         status: data.status || "draft",
         coverImage: data.coverImage || "",
+        coverImageDisplayMode: data.coverImage ? data.coverImageDisplayMode || "natural" : "cover",
         tags: JSON.stringify(data.tags || []),
       };
 
