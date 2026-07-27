@@ -291,16 +291,20 @@ Depois de pesquisar, sua ÚLTIMA mensagem deve conter SOMENTE o objeto JSON abai
 // (posts "Descubra a Rota da Ferradura" / "paisagens, sabores e aventura").
 const INSTITUTIONAL_FALLBACK_IMAGES: { url: string; label: string }[] = [
   {
-    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/refugio-da-ferradura/institucional-paisagem-serra.jpg",
+    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/v1775002767/refugio-da-ferradura/urot9h6goam0sbbiroxs.jpg",
     label: "Paisagem da Rota da Ferradura",
   },
   {
-    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/refugio-da-ferradura/institucional-cachoeira.jpg",
-    label: "Cachoeira da Rota da Ferradura",
+    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/v1785184012/refugio-da-ferradura/jx9fyustnmeord8muciw.png",
+    label: "Cachoeira de Pernambuco, Guarapari",
   },
   {
-    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/refugio-da-ferradura/institucional-montanhas.jpg",
-    label: "Montanhas da Rota da Ferradura",
+    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/v1785184014/refugio-da-ferradura/m6pnscvok3lwxwuokkml.png",
+    label: "Pedra do Elefante, Rota da Ferradura",
+  },
+  {
+    url: "https://res.cloudinary.com/dj7gpnjnl/image/upload/c_limit,w_640,h_640,q_auto,f_auto/v1785184016/refugio-da-ferradura/neb7hhllw8ikadgh6dg0.png",
+    label: "Cachoeira de Buenos Aires, Guarapari",
   },
 ];
 
