@@ -1,14 +1,15 @@
 import { Router, type IRouter } from "express";
 import { parseHTML } from "linkedom";
-import { db, fontesTable, fontesProcessadasTable, postsTable } from "@workspace/db";
+import { db, fontesTable, fontesProcessadasTable, postsTable, empreendimentosFilaTable } from "@workspace/db";
 import { CONTENT_TAGS } from "@workspace/db/constants/tags";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, asc, sql } from "drizzle-orm";
 import {
   extractArticleContent,
   extractImagesFromSource,
   interleaveImages,
   generateFromText,
   verifyArticleAgainstSource,
+  generateEmpreendimentoArticle,
   slugify,
 } from "../lib/article-generation";
 import { logger } from "../lib/logger";
@@ -201,6 +202,111 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
   }
 
   res.json({ status: "ok", message: "Nenhum conteúdo novo encontrado nas fontes ativas." });
+});
+
+async function isLinkReachable(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; RefugioFerraduraBot/1.0)" },
+    });
+    return res.ok || (res.status >= 300 && res.status < 400);
+  } catch {
+    return false;
+  }
+}
+
+// Publica 1 item da fila de empreendimentos (catálogo do PDF do diagnóstico
+// oficial). Chamado 3x/dia via GitHub Actions (Vercel Free só permite cron
+// 1x/dia). Encerra sozinho quando a fila acabar.
+router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const [item] = await db
+    .select()
+    .from(empreendimentosFilaTable)
+    .where(eq(empreendimentosFilaTable.status, "pendente"))
+    .orderBy(asc(empreendimentosFilaTable.ordem))
+    .limit(1);
+
+  if (!item) {
+    res.json({ status: "ok", message: "Fila de empreendimentos vazia — nada a publicar." });
+    return;
+  }
+
+  try {
+    // Confere se os links ainda funcionam antes de incluir no post.
+    const [instagramOk, siteOk] = await Promise.all([
+      item.instagram ? isLinkReachable(`https://instagram.com/${item.instagram.replace(/^@/, "")}`) : Promise.resolve(false),
+      item.site && item.site.startsWith("http") ? isLinkReachable(item.site) : Promise.resolve(false),
+    ]);
+
+    const caracteristicas: string[] = item.caracteristicas ? JSON.parse(item.caracteristicas) : [];
+    const fotos: string[] = item.fotos ? JSON.parse(item.fotos) : [];
+
+    const article = await generateEmpreendimentoArticle({
+      nome: item.nome,
+      regiao: item.regiao,
+      proprietario: item.proprietario,
+      telefone: item.telefone,
+      email: item.email,
+      endereco: item.endereco,
+      plusCode: item.plusCode,
+      instagram: instagramOk ? item.instagram : null,
+      site: siteOk ? item.site : null,
+      caracteristicas,
+    });
+
+    if (!article.title || !article.content) {
+      await db
+        .update(empreendimentosFilaTable)
+        .set({ status: "falhou" })
+        .where(eq(empreendimentosFilaTable.id, item.id));
+      res.status(500).json({ error: "Falha ao gerar o artigo do empreendimento." });
+      return;
+    }
+
+    const finalContent = interleaveImages(article.content, fotos.map((url) => ({ url })));
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+
+    const [post] = await db
+      .insert(postsTable)
+      .values({
+        title: article.title,
+        subtitle: article.subtitle ?? null,
+        slug,
+        excerpt: article.excerpt ?? null,
+        content: finalContent,
+        coverImage: fotos[0] ?? null,
+        tags: JSON.stringify(["empreendimentos"]),
+        status: "published",
+        metaDescription: article.metaDescription ?? null,
+      })
+      .returning();
+
+    await db
+      .update(empreendimentosFilaTable)
+      .set({ status: "publicado", postId: post.id, publicadoEm: new Date() })
+      .where(eq(empreendimentosFilaTable.id, item.id));
+
+    logger.info({ postId: post.id, slug, empreendimento: item.nome }, "[cron] Post de empreendimento publicado");
+
+    res.json({ status: "ok", post: { id: post.id, slug: post.slug, status: post.status } });
+  } catch (err: any) {
+    logger.error({ err, item: item.nome }, "[cron] Falha ao publicar empreendimento");
+    await db
+      .update(empreendimentosFilaTable)
+      .set({ status: "falhou" })
+      .where(eq(empreendimentosFilaTable.id, item.id));
+    res.status(500).json({ error: "Erro ao publicar empreendimento: " + err.message });
+  }
 });
 
 export default router;

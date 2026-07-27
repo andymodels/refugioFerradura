@@ -408,3 +408,58 @@ export async function verifyArticleAgainstSource(
   });
   return parseJsonResponse(getTextBlock(message)) as VerificationResult;
 }
+
+export interface EmpreendimentoData {
+  nome: string;
+  regiao?: string | null;
+  proprietario?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  endereco?: string | null;
+  plusCode?: string | null;
+  instagram?: string | null;
+  site?: string | null;
+  caracteristicas: string[];
+}
+
+const EMPREENDIMENTO_SYSTEM_PROMPT = `Você é um editor de conteúdo especialista em turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura, Buenos Aires e Guarapari - ES.
+
+REGRAS ABSOLUTAS:
+1. Use APENAS as informações fornecidas sobre o empreendimento. NUNCA invente características, preços, horários ou serviços que não estejam na lista fornecida.
+2. Escreva um texto editorial e convidativo, na perspectiva de quem apresenta o local ao visitante da Rota da Ferradura.
+3. Sempre em Português do Brasil, tom acolhedor e profissional.
+4. O conteúdo é baseado num levantamento oficial (Diagnóstico Turístico e Econômico da Rota da Ferradura), não invente nada além do que foi listado.`;
+
+const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => `Escreva um artigo editorial apresentando o seguinte empreendimento da Rota da Ferradura para o site Refúgio da Ferradura:
+
+Nome: ${data.nome}
+Região: ${data.regiao || "não informado"}
+Características/serviços oferecidos:
+${data.caracteristicas.map((c) => `- ${c}`).join("\n")}
+
+Estruture o artigo em HTML com <h2>, <p>, <ul>, <li>:
+1. Comece apresentando o empreendimento e a região onde fica.
+2. Descreva as características/serviços de forma fluida e convidativa (pode agrupar em parágrafos ou lista).
+3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, os dados de contato/acesso que existirem entre estes (omita os que não existirem, não invente nenhum): endereço, telefone, e-mail, site, Instagram.
+
+RESPONDA APENAS EM JSON válido, sem markdown ao redor:
+{
+  "title": "Título atraente com o nome do empreendimento",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases",
+  "content": "Artigo completo em HTML, terminando com a seção Serviços",
+  "metaDescription": "Até 160 caracteres para SEO"
+}`;
+
+export async function generateEmpreendimentoArticle(
+  data: EmpreendimentoData,
+): Promise<GeneratedArticle> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 4096,
+    system: EMPREENDIMENTO_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: EMPREENDIMENTO_PROMPT(data) }],
+  });
+  return parseJsonResponse(getTextBlock(message));
+}
