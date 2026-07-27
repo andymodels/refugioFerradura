@@ -1,7 +1,5 @@
 import { useState } from "react";
 
-const FALLBACK_IMAGE = `${import.meta.env.BASE_URL}images/hero-bg.png`;
-
 function isDirectImageUrl(url?: string | null): boolean {
   if (!url) return false;
   try {
@@ -15,9 +13,21 @@ function isDirectImageUrl(url?: string | null): boolean {
   }
 }
 
-export function PostThumbnail({ src, alt, className }: { src?: string | null; alt: string; className?: string }) {
+function firstImageInArticle(content?: string | null): string | null {
+  const match = content?.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match?.[1] || null;
+}
+
+export function PostThumbnail({ src, content, alt, className }: { src?: string | null; content?: string | null; alt: string; className?: string }) {
   const [failed, setFailed] = useState(false);
-  const imageSrc = !failed && isDirectImageUrl(src) ? src! : FALLBACK_IMAGE;
+  const imageSrc = !failed && (isDirectImageUrl(src) ? src : firstImageInArticle(content));
+
+  // Uma imagem genérica repetida fazia parecer que todos os lugares eram o
+  // mesmo. Se ainda não existe foto própria, preservamos o card sem inventar
+  // uma paisagem: ele será preenchido quando a mídia do post for aprovada.
+  if (!imageSrc || !isDirectImageUrl(imageSrc)) {
+    return <div role="img" aria-label={`Imagem em atualização: ${alt}`} className={`${className || ""} bg-muted/60`} />;
+  }
 
   return (
     <img

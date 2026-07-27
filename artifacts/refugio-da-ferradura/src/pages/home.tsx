@@ -185,7 +185,7 @@ export default function Home() {
               {recentPosts.map((post: any) => (
                 <Link key={post.id} href={`/blog/${post.slug}`}>
                   <Card className="overflow-hidden hover:shadow-lg transition-all cursor-pointer">
-                    <PostThumbnail src={post.coverImage} alt={post.title} className="aspect-video object-cover w-full" />
+                    <PostThumbnail src={post.coverImage} content={post.content} alt={post.title} className="aspect-video object-cover w-full" />
                     <div className="p-4">
                       <h3 className="font-serif font-bold text-lg mb-2">{post.title}</h3>
                       <p className="text-sm text-muted-foreground line-clamp-2">{post.excerpt}</p>

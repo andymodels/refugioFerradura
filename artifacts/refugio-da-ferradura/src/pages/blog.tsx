@@ -101,6 +101,7 @@ export default function Blog() {
                   <div className="aspect-[4/3] overflow-hidden rounded-lg mb-6 relative">
                     <PostThumbnail
                       src={post.coverImage}
+                      content={post.content}
                       alt={post.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />

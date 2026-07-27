@@ -81,6 +81,7 @@ export default function Places() {
                     <div className="aspect-[4/3] overflow-hidden relative">
                       <PostThumbnail
                         src={post.coverImage}
+                        content={post.content}
                         alt={post.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                       />

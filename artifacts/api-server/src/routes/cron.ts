@@ -19,6 +19,7 @@ import {
 } from "../lib/article-generation";
 import { resolveEmpreendimentoImage } from "../lib/empreendimento-image";
 import { logger } from "../lib/logger";
+import { archiveApprovedImage } from "../lib/media-library";
 
 const router: IRouter = Router();
 
@@ -341,10 +342,28 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       fotosPdf: fotos,
     });
 
-    const finalContent = imageResolution
-      ? interleaveImages(article.content, imageResolution.contentImages)
-      : article.content;
     const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+    let storedImage = imageResolution;
+    if (imageResolution) {
+      try {
+        const permanentUrl = await archiveApprovedImage(imageResolution.coverImageUrl, slug);
+        storedImage = {
+          ...imageResolution,
+          coverImageUrl: permanentUrl,
+          contentImages: imageResolution.contentImages.map((image) =>
+            image.url === imageResolution.coverImageUrl ? { ...image, url: permanentUrl } : image,
+          ),
+        };
+      } catch (err) {
+        // Não troca uma fonte externa por uma capa instável: se o acervo não
+        // conseguir guardar a mídia aprovada, o artigo vai para revisão.
+        logger.warn({ err, empreendimento: item.nome }, "[cron] Não foi possível arquivar imagem aprovada");
+        storedImage = null;
+      }
+    }
+    const finalContent = storedImage
+      ? interleaveImages(article.content, storedImage.contentImages)
+      : article.content;
     const tags = mapTags(
       { title: item.nome, content: `${caracteristicas.join(" ")} ${article.content}` },
       ["empreendimentos"],
@@ -352,7 +371,7 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
 
     // Sem nenhuma imagem aprovada por nenhuma das fontes, o post vira
     // rascunho pra revisão manual em vez de publicar uma capa fraca.
-    const status = imageResolution ? "published" : "draft";
+    const status = storedImage ? "published" : "draft";
 
     const [post] = await db
       .insert(postsTable)
@@ -362,8 +381,8 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
         slug,
         excerpt: article.excerpt ?? null,
         content: finalContent,
-        coverImage: imageResolution?.coverImageUrl ?? null,
-        coverImageMeta: imageResolution ? JSON.stringify(imageResolution.meta) : null,
+        coverImage: storedImage?.coverImageUrl ?? null,
+        coverImageMeta: storedImage ? JSON.stringify(storedImage.meta) : null,
         tags: JSON.stringify(tags),
         status,
         metaDescription: article.metaDescription ?? null,
@@ -376,7 +395,7 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       .where(eq(empreendimentosFilaTable.id, item.id));
 
     logger.info(
-      { postId: post.id, slug, empreendimento: item.nome, status, imagemTipo: imageResolution?.meta.tipo ?? "nenhuma" },
+      { postId: post.id, slug, empreendimento: item.nome, status, imagemTipo: storedImage?.meta.tipo ?? "nenhuma" },
       "[cron] Post de empreendimento processado",
     );
 
