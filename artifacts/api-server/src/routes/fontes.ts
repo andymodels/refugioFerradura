@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, fontesTable } from "@workspace/db";
+import { db, fontesTable, fontesProcessadasTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import {
   ListFontesResponse,
@@ -86,6 +86,8 @@ router.delete("/fontes/admin/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Apaga primeiro o histórico de processamento (senão a FK bloqueia a exclusão da fonte).
+  await db.delete(fontesProcessadasTable).where(eq(fontesProcessadasTable.fonteId, params.data.id));
   await db.delete(fontesTable).where(eq(fontesTable.id, params.data.id));
   res.sendStatus(204);
 });
