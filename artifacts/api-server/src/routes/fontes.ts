@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, fontesTable, fontesProcessadasTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, ne, desc } from "drizzle-orm";
 import {
   ListFontesResponse,
   CreateFonteBody,
@@ -19,7 +19,14 @@ router.get("/fontes/admin", async (req, res): Promise<void> => {
     return;
   }
 
-  const fontes = await db.select().from(fontesTable).orderBy(desc(fontesTable.criadoEm));
+  // A fonte "busca_web" é um registro interno de bookkeeping da Pipeline 2
+  // (dedup/rate-limit da busca regional) — não é algo que o usuário cadastrou,
+  // então fica de fora da listagem gerenciável.
+  const fontes = await db
+    .select()
+    .from(fontesTable)
+    .where(ne(fontesTable.tipo, "busca_web"))
+    .orderBy(desc(fontesTable.criadoEm));
   res.json(ListFontesResponse.parse({ fontes, total: fontes.length }));
 });
 
