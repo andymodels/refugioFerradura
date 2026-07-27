@@ -133,7 +133,10 @@ export default function AdminPostEditor() {
           status: post.status || "draft",
           tags: post.tags ? JSON.parse(post.tags) : [],
           coverImage: post.coverImage || "",
-          coverImageDisplayMode: post.coverImageDisplayMode || "cover",
+          // Posts opened in this manual editor should preserve any cover image
+          // supplied by the administrator, including posts created before this
+          // setting existed. Automated publishing never passes through here.
+          coverImageDisplayMode: post.coverImage ? "natural" : "cover",
         };
         // Check if there's a local draft with more recent edits
         try {
@@ -175,7 +178,7 @@ export default function AdminPostEditor() {
               status: post.status || "draft",
               tags: post.tags ? JSON.parse(post.tags) : [],
               coverImage: post.coverImage || "",
-              coverImageDisplayMode: post.coverImageDisplayMode || "cover",
+              coverImageDisplayMode: post.coverImage ? "natural" : "cover",
             });
           }
         });
