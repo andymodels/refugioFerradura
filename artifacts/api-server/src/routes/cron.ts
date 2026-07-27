@@ -12,6 +12,7 @@ import {
   verifyArticleAgainstSource,
   generateEmpreendimentoArticle,
   searchAndGenerateRegionalArticle,
+  searchIllustrativePhotos,
   slugify,
   type InterleaveImage,
   type RegionalSearchImage,
@@ -151,7 +152,24 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
           continue;
         }
 
-        const images = await extractImagesFromSource(link);
+        let images = await extractImagesFromSource(link);
+        let imageCredits = { creditLabel: fonte.nome, creditHref: link };
+
+        // A região tem fotos de sobra na internet — se a fonte não tinha
+        // nenhuma foto própria, busca fotos ilustrativas da região antes de
+        // desistir dessa publicação.
+        if (images.length === 0) {
+          const fallbackImages = await searchIllustrativePhotos(article.title || fonte.nome);
+          const validatedFallback = (
+            await Promise.all(
+              fallbackImages.map(async (img) => ((await isImageUrlValid(img.url)) ? img : null)),
+            )
+          ).filter((img): img is NonNullable<typeof img> => img !== null);
+          if (validatedFallback.length > 0) {
+            images = validatedFallback.map((img) => img.url);
+            imageCredits = { creditLabel: validatedFallback[0].creditLabel, creditHref: validatedFallback[0].pageUrl };
+          }
+        }
 
         // Regra obrigatória: post de turismo sem foto não vale a pena publicar.
         if (images.length === 0) {
@@ -159,7 +177,7 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
             fonteId: fonte.id,
             url: link,
             status: "falhou",
-            detalhe: "Nenhuma foto encontrada na fonte — post não vale sem imagem.",
+            detalhe: "Nenhuma foto encontrada, nem no reforço — post não vale sem imagem.",
           });
           continue;
         }
@@ -167,7 +185,7 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
         const verification = await verifyArticleAgainstSource(extraction.text, article);
         const finalContent = interleaveImages(
           article.content,
-          images.map((url) => ({ url, creditLabel: fonte.nome, creditHref: link })),
+          images.map((url) => ({ url, creditLabel: imageCredits.creditLabel, creditHref: imageCredits.creditHref })),
         );
         const tags = mapTags(article);
         const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
@@ -432,20 +450,36 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
     const sourceImages = await extractImagesFromSource(article.sourceUrl);
     const sourceName = new URL(article.sourceUrl).hostname.replace(/^www\./, "");
 
-    const allImages: InterleaveImage[] = [
+    let allImages: InterleaveImage[] = [
       ...validatedImages.map((img) => ({ url: img.url, creditLabel: img.creditLabel, creditHref: img.pageUrl })),
       ...sourceImages.map((url) => ({ url, creditLabel: sourceName, creditHref: article.sourceUrl! })),
     ];
 
-    // Regra obrigatória: post de turismo sem foto não vale a pena publicar.
-    // Sem nenhuma imagem válida, registra como falha e não cria o post — a
-    // próxima execução tenta um tema diferente.
+    // A região tem fotos de sobra na internet — se a busca principal não
+    // trouxe nenhuma foto do tema específico, faz uma busca de reforço só
+    // por fotos ilustrativas da região (paisagem, natureza, turismo).
+    if (allImages.length === 0) {
+      const fallbackImages = await searchIllustrativePhotos(article.title);
+      const validatedFallback = (
+        await Promise.all(
+          fallbackImages.map(async (img) => ((await isImageUrlValid(img.url)) ? img : null)),
+        )
+      ).filter((img): img is RegionalSearchImage => img !== null);
+      allImages = validatedFallback.map((img) => ({
+        url: img.url,
+        creditLabel: img.creditLabel,
+        creditHref: img.pageUrl,
+      }));
+    }
+
+    // Só como último recurso, se mesmo a busca de reforço não achar nada,
+    // pula essa publicação — post de turismo sem nenhuma foto não vale.
     if (allImages.length === 0) {
       await db.insert(fontesProcessadasTable).values({
         fonteId: fonte.id,
         url: article.sourceUrl,
         status: "falhou",
-        detalhe: "Nenhuma foto válida encontrada — post não vale sem imagem.",
+        detalhe: "Nenhuma foto válida encontrada, nem no reforço — post não vale sem imagem.",
       });
       res.json({ status: "ok", message: "Conteúdo encontrado, mas sem foto válida — pulado." });
       return;

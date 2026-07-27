@@ -525,19 +525,22 @@ export interface RegionalSearchArticle extends GeneratedArticle {
   images?: RegionalSearchImage[];
 }
 
-const REGIONAL_SEARCH_SYSTEM_PROMPT = `Você é um editor de conteúdo especialista em turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura, Guarapari - ES, e as localidades que a compõem.
+const REGIONAL_SEARCH_SYSTEM_PROMPT = `Você é um editor de conteúdo especialista em turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura, uma região de MONTANHAS/SERRA dentro do município de Guarapari - ES, e as localidades que a compõem.
 
 REGRAS ABSOLUTAS:
-1. Use a ferramenta de busca na web pra encontrar conteúdo REAL e ATUAL sobre a região. NUNCA invente uma fonte ou escreva sem antes ter pesquisado de verdade.
-2. Baseie o artigo EXCLUSIVAMENTE no que a pesquisa retornou. Não invente fatos, números, nomes, datas ou eventos que não estejam nos resultados da busca.
-3. Priorize conteúdo verdadeiramente atual: eventos futuros/próximos, notícias recentes. Evite reescrever algo genérico ou datado se encontrar algo mais atual.
-4. Sempre em Português do Brasil, tom editorial sofisticado e acolhedor, escrevendo com suas próprias palavras (nunca copie frases literais da fonte).
-5. "Refúgio da Ferradura" é um SITE DE TURISMO da região, não um estabelecimento físico.
-6. O campo "content" deve ser HTML LIMPO, só com <h2>, <p>, <ul>, <li>, <strong>, <em> preenchidos com texto de verdade. NUNCA inclua tags vazias (ex: <span></span>), marcadores de citação, referências tipo "[1]" ou qualquer resíduo da ferramenta de busca — escreva prosa corrida normal, sem indicar de onde tirou cada frase dentro do próprio texto.`;
+1. IMPORTANTE — Rota da Ferradura ≠ Guarapari cidade/praia. "Guarapari" sozinho geralmente remete às praias e ao centro urbano litorâneo, que é OUTRA coisa. A Rota da Ferradura é especificamente a região serrana/rural do município: Oratório, Buenos Aires, Barra do Limão, Boa Esperança, Arraial do Jabuti, Jabuti, São João do Jabuti, Cachoeirinha. O conteúdo tem que ser genuinamente SOBRE essa região de montanha — não um evento qualquer da cidade/praia de Guarapari só porque acontece no mesmo município. Se o evento/notícia for só do centro/praia de Guarapari e não tiver conexão real com a região serrana, não é um bom tema — procure outro.
+2. Use a ferramenta de busca na web pra encontrar conteúdo REAL e ATUAL sobre a região. NUNCA invente uma fonte ou escreva sem antes ter pesquisado de verdade.
+3. Baseie o artigo EXCLUSIVAMENTE no que a pesquisa retornou. Não invente fatos, números, nomes, datas ou eventos que não estejam nos resultados da busca.
+4. Priorize conteúdo verdadeiramente atual: eventos futuros/próximos, notícias recentes. Evite reescrever algo genérico ou datado se encontrar algo mais atual.
+5. Sempre em Português do Brasil, tom editorial sofisticado e acolhedor, escrevendo com suas próprias palavras (nunca copie frases literais da fonte).
+6. "Refúgio da Ferradura" é um SITE DE TURISMO da região, não um estabelecimento físico.
+7. O campo "content" deve ser HTML LIMPO, só com <h2>, <p>, <ul>, <li>, <strong>, <em> preenchidos com texto de verdade. NUNCA inclua tags vazias (ex: <span></span>), marcadores de citação, referências tipo "[1]" ou qualquer resíduo da ferramenta de busca — escreva prosa corrida normal, sem indicar de onde tirou cada frase dentro do próprio texto.`;
 
-const REGIONAL_SEARCH_PROMPT = (excludeUrls: string[], recentTopics: string[]) => `Pesquise na internet conteúdo atual e real sobre a Rota da Ferradura (Guarapari-ES) e as localidades que a compõem: ${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}.
+const REGIONAL_SEARCH_PROMPT = (excludeUrls: string[], recentTopics: string[]) => `Pesquise na internet conteúdo atual e real sobre a Rota da Ferradura — a região de MONTANHA/SERRA dentro do município de Guarapari-ES, formada pelas localidades: ${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}.
 
-Pode ser sobre: um lugar/atrativo, uma curiosidade, uma paisagem, um restaurante, uma pousada, ou (com prioridade especial) um evento atualizado/próximo na região.
+Lembre-se: isso NÃO é a cidade/praia de Guarapari em geral (centro urbano, litoral, Praia do Morro etc.) — é especificamente essa região serrana. Um evento no centro ou na praia de Guarapari só serve de tema se tiver conexão real e direta com a região da Rota da Ferradura.
+
+Pode ser sobre: um lugar/atrativo, uma curiosidade, uma paisagem, um restaurante, uma pousada, ou (com prioridade especial) um evento atualizado/próximo NA PRÓPRIA região serrana.
 
 IMPORTANTE — VARIE O TIPO DE CONTEÚDO, nunca repita o mesmo ângulo/categoria do post mais recente. Os últimos posts publicados por este pipeline foram:
 ${recentTopics.length > 0 ? recentTopics.map((t) => `- ${t}`).join("\n") : "(nenhum ainda — é o primeiro)"}
@@ -586,4 +589,40 @@ export async function searchAndGenerateRegionalArticle(
   if (!lastTextBlock) throw new Error("A IA não retornou texto após a pesquisa.");
 
   return parseJsonResponse(lastTextBlock.text);
+}
+
+// Busca de reforço só pra achar fotos ilustrativas quando a geração principal
+// não trouxe nenhuma — a região tem fotos de sobra na internet (paisagens,
+// perfis de turismo, prefeitura etc.), então isso raramente deveria falhar.
+// Não precisam ser do lugar/evento exato do artigo, só da região.
+export async function searchIllustrativePhotos(topic: string): Promise<RegionalSearchImage[]> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const prompt = `Busque na internet 2 a 3 FOTOS reais, bonitas e livres para ilustrar um artigo sobre "${topic}", relacionado à Rota da Ferradura / Guarapari - ES. Não precisam ser do lugar/evento exato — podem ser fotos de paisagem, natureza ou turismo da região em geral (${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}), de perfis de turismo, prefeitura, sites de notícia ou redes sociais.
+
+Você PRECISA ter a URL direta do ARQUIVO de imagem (terminando em .jpg/.jpeg/.png/.webp — não o link da página/post) e a URL da página de origem, pra dar crédito.
+
+RESPONDA APENAS EM JSON, sem markdown ao redor:
+{"images": [{"url": "...", "pageUrl": "...", "creditLabel": "..."}]}
+
+Se não encontrar nenhuma foto com URL de arquivo direta e confiável, responda {"images": []}`;
+
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 2048,
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const textBlocks = message.content.filter(
+    (block): block is Anthropic.TextBlock => block.type === "text",
+  );
+  const lastTextBlock = textBlocks[textBlocks.length - 1];
+  if (!lastTextBlock) return [];
+
+  try {
+    const parsed = parseJsonResponse(lastTextBlock.text);
+    return parsed.images ?? [];
+  } catch {
+    return [];
+  }
 }
