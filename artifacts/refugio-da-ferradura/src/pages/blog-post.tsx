@@ -210,7 +210,7 @@ export default function BlogPost() {
           <div
             className={
               post.coverImageDisplayMode === "natural"
-                ? "mb-10 flex justify-center"
+                ? "mb-10 flex justify-start"
                 : "relative w-full mb-10 rounded-xl overflow-hidden"
             }
           >

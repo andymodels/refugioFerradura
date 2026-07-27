@@ -517,11 +517,28 @@ REGRAS ABSOLUTAS:
 4. O conteúdo é baseado num levantamento oficial (Diagnóstico Turístico e Econômico da Rota da Ferradura), não invente nada além do que foi listado.`;
 
 const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => {
+  const phoneDigits = (data.telefone || "").replace(/\D/g, "");
+  const whatsappNumber = phoneDigits.length === 10 || phoneDigits.length === 11
+    ? `55${phoneDigits}`
+    : phoneDigits;
+  const whatsappMessage = "Olá! Conheci vocês através do site Refúgio da Ferradura e gostaria de saber mais.";
+  const phoneHtml = data.telefone && whatsappNumber.length >= 12
+    ? `<a href="https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}" target="_blank" rel="noopener noreferrer">${data.telefone}</a>`
+    : null;
   const instagramHtml = data.instagram
     ? `<a href="https://instagram.com/${data.instagram.replace(/^@/, "")}" target="_blank" rel="noopener noreferrer">@${data.instagram.replace(/^@/, "")}</a>`
     : null;
   const siteHtml = data.site && data.site.startsWith("http")
     ? `<a href="${data.site}" target="_blank" rel="noopener noreferrer">${data.site}</a>`
+    : null;
+  // O link de rota é gerado a partir do endereço e, quando disponível, do
+  // Plus Code. Assim o visitante abre o Google Maps já com o destino certo,
+  // sem depender de coordenadas exatas cadastradas manualmente.
+  const mapDestination = [data.endereco, data.plusCode, "Guarapari - ES"]
+    .filter(Boolean)
+    .join(", ");
+  const mapsHtml = (data.endereco || data.plusCode)
+    ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapDestination)}" target="_blank" rel="noopener noreferrer">Abrir rota no Google Maps</a>`
     : null;
 
   return `Escreva um artigo editorial apresentando o seguinte empreendimento da Rota da Ferradura para o site Refúgio da Ferradura:
@@ -530,18 +547,19 @@ Nome: ${data.nome}
 Região: ${data.regiao || "não informado"}
 Proprietário/Responsável: ${data.proprietario || "não informado"}
 Endereço: ${data.endereco || "não informado"}
-Telefone: ${data.telefone || "não informado"}
+Telefone / WhatsApp (HTML já pronto, use exatamente como está, não reescreva): ${phoneHtml || data.telefone || "não informado"}
 E-mail: ${data.email || "não informado"}
 Localização (Plus Code): ${data.plusCode || "não informado"}
 Instagram (HTML já pronto, use exatamente como está, não reescreva): ${instagramHtml || "não informado"}
 Site (HTML já pronto, use exatamente como está, não reescreva): ${siteHtml || "não informado"}
+Google Maps (HTML já pronto, use exatamente como está, não reescreva): ${mapsHtml || "não informado"}
 Características/serviços oferecidos:
 ${data.caracteristicas.map((c) => `- ${c}`).join("\n")}
 
 Estruture o artigo em HTML com <h2>, <p>, <ul>, <li>:
 1. Comece apresentando o empreendimento e a região onde fica.
 2. Descreva as características/serviços de forma fluida e convidativa (pode agrupar em parágrafos ou lista).
-3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone, e-mail, site, Instagram, proprietário) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Para Instagram e Site, copie o HTML de link fornecido acima exatamente como está, sem modificar a URL. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
+3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone/WhatsApp, e-mail, site, Instagram, proprietário e Google Maps) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Para Telefone/WhatsApp, Instagram, Site e Google Maps, copie o HTML de link fornecido acima exatamente como está, sem modificar a URL. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
 
 RESPONDA APENAS EM JSON válido, sem markdown ao redor:
 {
