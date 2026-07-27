@@ -8,18 +8,19 @@ import {
   extractImagesFromSource,
   isImageUrlValid,
   interleaveImages,
+  stripExistingMedia,
   generateFromText,
   verifyArticleAgainstSource,
   generateEmpreendimentoArticle,
   searchAndGenerateRegionalArticle,
   searchIllustrativePhotos,
   slugify,
-  type InterleaveImage,
   type RegionalSearchImage,
 } from "../lib/article-generation";
 import { resolveEmpreendimentoImage } from "../lib/empreendimento-image";
+import { vetAndArchiveFoundImages, getInstitutionalFallback } from "../lib/media-pipeline";
+import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink } from "../lib/contact-links";
 import { logger } from "../lib/logger";
-import { archiveApprovedImage } from "../lib/media-library";
 
 const router: IRouter = Router();
 
@@ -172,8 +173,8 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
           continue;
         }
 
+        const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
         let images = await extractImagesFromSource(link);
-        let imageCredits = { creditLabel: fonte.nome, creditHref: link };
 
         // A região tem fotos de sobra na internet — se a fonte não tinha
         // nenhuma foto própria, busca fotos ilustrativas da região antes de
@@ -185,30 +186,29 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
               fallbackImages.map(async (img) => ((await isImageUrlValid(img.url)) ? img : null)),
             )
           ).filter((img): img is NonNullable<typeof img> => img !== null);
-          if (validatedFallback.length > 0) {
-            images = validatedFallback.map((img) => img.url);
-            imageCredits = { creditLabel: validatedFallback[0].creditLabel, creditHref: validatedFallback[0].pageUrl };
-          }
+          images = validatedFallback.map((img) => img.url);
         }
 
-        // Regra obrigatória: post de turismo sem foto não vale a pena publicar.
-        if (images.length === 0) {
+        // Pipeline único: vetting visual + arquivamento no Cloudinary do site.
+        // Sem estabelecimento específico aqui, então cai direto pro fallback
+        // institucional se nada passar na vetting — nunca publica sem mídia.
+        let mediaItems = await vetAndArchiveFoundImages(article.title || fonte.nome, images, slug);
+        if (mediaItems.length === 0) mediaItems = getInstitutionalFallback(3);
+
+        if (mediaItems.length === 0) {
           await db.insert(fontesProcessadasTable).values({
             fonteId: fonte.id,
             url: link,
             status: "falhou",
-            detalhe: "Nenhuma foto encontrada, nem no reforço — post não vale sem imagem.",
+            detalhe: "Nenhuma mídia aprovada, nem institucional — post não vale sem mídia.",
           });
           continue;
         }
 
         const verification = await verifyArticleAgainstSource(extraction.text, article);
-        const finalContent = interleaveImages(
-          article.content,
-          images.map((url) => ({ url, creditLabel: imageCredits.creditLabel, creditHref: imageCredits.creditHref })),
-        );
+        const finalContent = interleaveImages(article.content, mediaItems);
         const tags = mapTags(article);
-        const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+        const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
 
         const status = !verification.ok ? "draft" : AUTO_PUBLISH_STATUS;
 
@@ -220,7 +220,10 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
             slug,
             excerpt: article.excerpt ?? null,
             content: finalContent,
-            coverImage: images[0] ?? null,
+            coverImage: cover?.urlArquivo ?? null,
+            coverImageDisplayMode: "natural",
+            coverImageMeta: cover ? JSON.stringify(cover) : null,
+            mediaItems: JSON.stringify(mediaItems),
             tags: JSON.stringify(tags),
             status,
             metaDescription: article.metaDescription ?? null,
@@ -303,7 +306,6 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
     ]);
 
     const caracteristicas: string[] = item.caracteristicas ? JSON.parse(item.caracteristicas) : [];
-    const fotos: string[] = item.fotos ? JSON.parse(item.fotos) : [];
 
     const article = await generateEmpreendimentoArticle({
       nome: item.nome,
@@ -327,51 +329,31 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       return;
     }
 
-    // Prioridade de imagem: Instagram oficial > site oficial > busca de apoio
-    // (só pra achar canal oficial) > PDF do diagnóstico (com filtro de
-    // qualidade, sem upscale). O PDF é fonte de texto/dados, não de mídia —
-    // suas fotos já vêm pequenas/comprimidas, então só entram como último
-    // recurso.
-    const imageResolution = await resolveEmpreendimentoImage({
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+
+    // Pipeline único de mídia: Instagram oficial > site oficial > busca de
+    // apoio (só pra achar canal) > paisagens institucionais da Rota da
+    // Ferradura. O PDF do diagnóstico é fonte de texto/dados, nunca de mídia.
+    const mediaItems = await resolveEmpreendimentoImage({
       nome: item.nome,
       regiao: item.regiao,
       endereco: item.endereco,
       plusCode: item.plusCode,
       instagram: instagramOk ? item.instagram : null,
       site: siteOk ? item.site : null,
-      fotosPdf: fotos,
+      slug,
     });
 
-    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
-    let storedImage = imageResolution;
-    if (imageResolution) {
-      try {
-        const permanentUrl = await archiveApprovedImage(imageResolution.coverImageUrl, slug);
-        storedImage = {
-          ...imageResolution,
-          coverImageUrl: permanentUrl,
-          contentImages: imageResolution.contentImages.map((image) =>
-            image.url === imageResolution.coverImageUrl ? { ...image, url: permanentUrl } : image,
-          ),
-        };
-      } catch (err) {
-        // Não troca uma fonte externa por uma capa instável: se o acervo não
-        // conseguir guardar a mídia aprovada, o artigo vai para revisão.
-        logger.warn({ err, empreendimento: item.nome }, "[cron] Não foi possível arquivar imagem aprovada");
-        storedImage = null;
-      }
-    }
-    const finalContent = storedImage
-      ? interleaveImages(article.content, storedImage.contentImages)
-      : article.content;
+    const finalContent = mediaItems.length > 0 ? interleaveImages(article.content, mediaItems) : article.content;
     const tags = mapTags(
       { title: item.nome, content: `${caracteristicas.join(" ")} ${article.content}` },
       ["empreendimentos"],
     );
 
-    // Sem nenhuma imagem aprovada por nenhuma das fontes, o post vira
-    // rascunho pra revisão manual em vez de publicar uma capa fraca.
-    const status = storedImage ? "published" : "draft";
+    // Sem nenhuma mídia aprovada (nem o fallback institucional funcionou), o
+    // post vira rascunho pra revisão manual em vez de publicar sem mídia.
+    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+    const status = mediaItems.length > 0 ? "published" : "draft";
 
     const [post] = await db
       .insert(postsTable)
@@ -381,8 +363,10 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
         slug,
         excerpt: article.excerpt ?? null,
         content: finalContent,
-        coverImage: storedImage?.coverImageUrl ?? null,
-        coverImageMeta: storedImage ? JSON.stringify(storedImage.meta) : null,
+        coverImage: cover?.urlArquivo ?? null,
+        coverImageDisplayMode: "natural",
+        coverImageMeta: cover ? JSON.stringify(cover) : null,
+        mediaItems: mediaItems.length > 0 ? JSON.stringify(mediaItems) : null,
         tags: JSON.stringify(tags),
         status,
         metaDescription: article.metaDescription ?? null,
@@ -395,7 +379,7 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       .where(eq(empreendimentosFilaTable.id, item.id));
 
     logger.info(
-      { postId: post.id, slug, empreendimento: item.nome, status, imagemTipo: storedImage?.meta.tipo ?? "nenhuma" },
+      { postId: post.id, slug, empreendimento: item.nome, status, totalMidia: mediaItems.length, tipos: mediaItems.map((m) => m.tipo) },
       "[cron] Post de empreendimento processado",
     );
 
@@ -515,46 +499,44 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
 
     // Complementa com fotos raspadas da própria página-fonte, se sobrar espaço.
     const sourceImages = await extractImagesFromSource(article.sourceUrl);
-    const sourceName = new URL(article.sourceUrl).hostname.replace(/^www\./, "");
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
 
-    let allImages: InterleaveImage[] = [
-      ...validatedImages.map((img) => ({ url: img.url, creditLabel: img.creditLabel, creditHref: img.pageUrl })),
-      ...sourceImages.map((url) => ({ url, creditLabel: sourceName, creditHref: article.sourceUrl! })),
-    ];
+    const candidateUrls = [...validatedImages.map((img) => img.url), ...sourceImages];
 
-    // A região tem fotos de sobra na internet — se a busca principal não
-    // trouxe nenhuma foto do tema específico, faz uma busca de reforço só
-    // por fotos ilustrativas da região (paisagem, natureza, turismo).
-    if (allImages.length === 0) {
+    // Pipeline único: vetting visual + arquivamento no Cloudinary do site
+    // (nunca hotlink pro site/rede social de origem).
+    let mediaItems = await vetAndArchiveFoundImages(article.title, candidateUrls, slug);
+
+    // A região tem fotos de sobra na internet — se nada passou na vetting,
+    // faz uma busca de reforço só por fotos ilustrativas antes de cair no
+    // fallback institucional.
+    if (mediaItems.length === 0) {
       const fallbackImages = await searchIllustrativePhotos(article.title);
       const validatedFallback = (
         await Promise.all(
           fallbackImages.map(async (img) => ((await isImageUrlValid(img.url)) ? img : null)),
         )
       ).filter((img): img is RegionalSearchImage => img !== null);
-      allImages = validatedFallback.map((img) => ({
-        url: img.url,
-        creditLabel: img.creditLabel,
-        creditHref: img.pageUrl,
-      }));
+      mediaItems = await vetAndArchiveFoundImages(article.title, validatedFallback.map((img) => img.url), slug);
     }
 
-    // Só como último recurso, se mesmo a busca de reforço não achar nada,
-    // pula essa publicação — post de turismo sem nenhuma foto não vale.
-    if (allImages.length === 0) {
+    // Nunca publica sem mídia — último recurso é a paisagem institucional.
+    if (mediaItems.length === 0) mediaItems = getInstitutionalFallback(3);
+
+    if (mediaItems.length === 0) {
       await db.insert(fontesProcessadasTable).values({
         fonteId: fonte.id,
         url: article.sourceUrl,
         status: "falhou",
-        detalhe: "Nenhuma foto válida encontrada, nem no reforço — post não vale sem imagem.",
+        detalhe: "Nenhuma mídia aprovada, nem institucional — post não vale sem mídia.",
       });
-      res.json({ status: "ok", message: "Conteúdo encontrado, mas sem foto válida — pulado." });
+      res.json({ status: "ok", message: "Conteúdo encontrado, mas sem mídia válida — pulado." });
       return;
     }
 
-    const finalContent = interleaveImages(article.content, allImages);
+    const finalContent = interleaveImages(article.content, mediaItems);
     const tags = mapTags(article);
-    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
 
     const [post] = await db
       .insert(postsTable)
@@ -564,7 +546,10 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
         slug,
         excerpt: article.excerpt ?? null,
         content: finalContent,
-        coverImage: allImages[0]?.url ?? null,
+        coverImage: cover?.urlArquivo ?? null,
+        coverImageDisplayMode: "natural",
+        coverImageMeta: cover ? JSON.stringify(cover) : null,
+        mediaItems: JSON.stringify(mediaItems),
         tags: JSON.stringify(tags),
         // Fase de validação: sempre rascunho, igual ao pipeline de fontes —
         // troca pra "published" depois de confirmar a qualidade por 1-2 semanas.
@@ -619,6 +604,170 @@ router.get("/backfill-tags", async (req, res): Promise<void> => {
   }
 
   res.json({ status: "ok", totalPosts: posts.length, updated });
+});
+
+function significantWords(html: string): Set<string> {
+  const text = html.replace(/<[^>]+>/g, " ").toLowerCase();
+  return new Set(text.match(/[a-zà-úçã-õ0-9]{4,}/g) || []);
+}
+
+// Garante que a reconciliação nunca trunca/reescreve o texto original: pelo
+// menos 95% dos termos significativos do conteúdo anterior precisam
+// continuar presentes no novo, e o resultado precisa manter pelo menos um
+// <h2>. Não é uma comparação byte-a-byte pra tolerar o texto de um link ser
+// re-envolvido em <a>, mas pega qualquer perda real de conteúdo.
+function validateReconciledContent(oldHtml: string, newHtml: string): { ok: boolean; motivo: string | null } {
+  const oldWords = significantWords(oldHtml);
+  const newWords = significantWords(newHtml);
+  const missing = [...oldWords].filter((w) => !newWords.has(w));
+  const ratio = oldWords.size > 0 ? missing.length / oldWords.size : 0;
+  if (ratio > 0.05) {
+    return { ok: false, motivo: `Perdeu ${missing.length} termo(s) do texto original (${(ratio * 100).toFixed(1)}%)` };
+  }
+  if (!/<h2>/i.test(newHtml)) {
+    return { ok: false, motivo: "Resultado sem nenhum <h2>" };
+  }
+  return { ok: true, motivo: null };
+}
+
+async function isVideoUrlValid(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: "GET", headers: { Range: "bytes=0-1024" }, signal: AbortSignal.timeout(8000) });
+    if (!response.ok && response.status !== 206) return false;
+    return (response.headers.get("content-type") || "").startsWith("video/");
+  } catch {
+    return false;
+  }
+}
+
+// Reconcilia UM post por chamada (mesmo padrão de "1 item por invocação" das
+// demais rotas de cron, dado o timeout padrão do Vercel) — nunca escreve
+// nada se a validação falhar, e faz backup do conteúdo original na primeira
+// vez que o post é tocado.
+router.get("/reconcile-media", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const postId = Number(req.query.postId);
+  const dryRun = req.query.dryRun === "1";
+  if (!postId) {
+    res.status(400).json({ error: "Informe ?postId=<id>" });
+    return;
+  }
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, postId));
+  if (!post) {
+    res.status(404).json({ error: "Post não encontrado" });
+    return;
+  }
+
+  const [fila] = await db
+    .select()
+    .from(empreendimentosFilaTable)
+    .where(eq(empreendimentosFilaTable.postId, postId));
+
+  const log: Record<string, unknown> = { postId, slug: post.slug, filaLinked: !!fila };
+
+  let newContent = post.content;
+  let newMediaItems: string | null = post.mediaItems;
+  let newCoverImage = post.coverImage;
+  let newCoverImageMeta = post.coverImageMeta;
+
+  const currentMediaCount = (post.content.match(/<figure class="instagram-editorial-(photo|video)"/g) || []).length;
+  const needsMedia = !post.coverImage || currentMediaCount < 3;
+  log.mediaAtual = currentMediaCount;
+  log.precisaMidia = needsMedia;
+
+  if (fila && needsMedia) {
+    const mediaItems = await resolveEmpreendimentoImage({
+      nome: fila.nome,
+      regiao: fila.regiao,
+      endereco: fila.endereco,
+      plusCode: fila.plusCode,
+      instagram: fila.instagram,
+      site: fila.site,
+      slug: post.slug,
+    });
+    log.midiaAprovada = mediaItems.map((m) => ({ kind: m.kind, tipo: m.tipo, url: m.urlArquivo }));
+    if (mediaItems.length > 0) {
+      const stripped = stripExistingMedia(post.content);
+      newContent = interleaveImages(stripped, mediaItems);
+      newMediaItems = JSON.stringify(mediaItems);
+      const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+      newCoverImage = cover.urlArquivo;
+      newCoverImageMeta = JSON.stringify(cover);
+    }
+  }
+
+  if (fila) {
+    const before = newContent;
+    newContent = ensureMailtoLink(newContent, fila.email);
+    newContent = ensureMapsLink(newContent, fila.endereco, fila.plusCode);
+    newContent = fixSplitInstagramLink(newContent, fila.instagram);
+    log.linksAjustados = before !== newContent;
+  }
+
+  const validation = validateReconciledContent(post.content, newContent);
+  log.validacao = validation;
+
+  if (!validation.ok) {
+    if (!dryRun) {
+      await db.update(postsTable).set({ mediaMigrationFlag: validation.motivo }).where(eq(postsTable.id, postId));
+    }
+    logger.warn(log, "[cron] Reconciliação de mídia falhou na validação");
+    res.status(422).json({ status: "invalid", log });
+    return;
+  }
+
+  // Confere que toda mídia nova realmente resolve pra um arquivo de
+  // imagem/vídeo de verdade antes de gravar.
+  if (newMediaItems && newMediaItems !== post.mediaItems) {
+    const items = JSON.parse(newMediaItems) as { kind: string; urlArquivo: string }[];
+    for (const item of items) {
+      const ok = item.kind === "video" ? await isVideoUrlValid(item.urlArquivo) : await isImageUrlValid(item.urlArquivo);
+      if (!ok) {
+        if (!dryRun) {
+          await db.update(postsTable).set({ mediaMigrationFlag: `Mídia inválida: ${item.urlArquivo}` }).where(eq(postsTable.id, postId));
+        }
+        logger.warn({ ...log, item }, "[cron] Reconciliação de mídia falhou na checagem de URL");
+        res.status(422).json({ status: "invalid", log: { ...log, item } });
+        return;
+      }
+    }
+  }
+
+  if (dryRun) {
+    res.json({ status: "preview", log, before: post.content, after: newContent });
+    return;
+  }
+
+  const backup = post.mediaMigrationBackup
+    ?? JSON.stringify({
+      content: post.content,
+      coverImage: post.coverImage,
+      coverImageDisplayMode: post.coverImageDisplayMode,
+      coverImageMeta: post.coverImageMeta,
+    });
+
+  await db
+    .update(postsTable)
+    .set({
+      content: newContent,
+      coverImage: newCoverImage,
+      coverImageDisplayMode: "natural",
+      coverImageMeta: newCoverImageMeta,
+      mediaItems: newMediaItems,
+      mediaMigrationBackup: backup,
+      mediaMigrationFlag: null,
+    })
+    .where(eq(postsTable.id, postId));
+
+  logger.info(log, "[cron] Post reconciliado com sucesso");
+  res.json({ status: "ok", log });
 });
 
 export default router;

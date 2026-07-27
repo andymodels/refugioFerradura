@@ -218,6 +218,39 @@
 .post-content .instagram-editorial-photo a:focus-visible::after {
   opacity: 1;
 }
+
+/* Vídeo editorial real (nunca embed do Instagram) — mesmo tratamento de
+   tamanho/alinhamento da foto editorial; o crédito discreto fica num link
+   pequeno abaixo do quadro, já que o vídeo tem controles nativos por cima. */
+.post-content .instagram-editorial-video {
+  display: block;
+  margin: 1.5rem 0;
+  max-width: 640px;
+}
+.post-content .instagram-editorial-video video {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(640px, 100%);
+  max-height: 640px;
+  margin: 0;
+  border-radius: 0.75rem;
+  background: #000;
+}
+.post-content .instagram-editorial-video-badge {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.post-content .instagram-editorial-video:hover .instagram-editorial-video-badge,
+.post-content .instagram-editorial-video-badge:focus-visible {
+  opacity: 1;
+}
 .post-content table {
   @apply w-full border-collapse my-6 text-sm;
 }

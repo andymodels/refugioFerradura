@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
+import { buildWhatsappHtml, buildMailtoHtml, buildMapsHtml, buildInstagramHtml } from "./contact-links";
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|avif|bmp|tiff?)(\?.*)?$/i;
 
@@ -56,13 +57,17 @@ function isBlockedContent(text: string): boolean {
 
 export interface PageFeaturedMedia {
   imageUrl?: string;
+  videoUrl?: string;
   caption?: string;
 }
 
-// Busca a imagem de destaque (og:image/twitter:image) e uma legenda curta
-// (título/descrição) de uma página pública — usado tanto pro site oficial de
-// um empreendimento quanto pra checar um post público do Instagram (que
-// expõe essas mesmas meta tags pra permitir preview em outras redes).
+// Busca a imagem/vídeo de destaque (og:image/og:video/twitter:image) e uma
+// legenda curta (título/descrição) de uma página pública — usado tanto pro
+// site oficial de um empreendimento quanto pra checar um post/reel público do
+// Instagram (que expõe essas mesmas meta tags pra permitir preview em outras
+// redes, sem precisar de login). `og:video`/`og:video:secure_url` só existe
+// quando a página é de fato um Reel/vídeo — best-effort: se não vier, quem
+// chamar essa função simplesmente não tem vídeo pra essa mídia.
 export async function extractFeaturedMedia(url: string): Promise<PageFeaturedMedia> {
   for (const userAgent of USER_AGENTS) {
     try {
@@ -83,12 +88,14 @@ export async function extractFeaturedMedia(url: string): Promise<PageFeaturedMed
 
       const rawImage = get("og:image:secure_url") || get("og:image") || get("twitter:image");
       const imageUrl = rawImage ? new URL(rawImage, url).toString() : undefined;
+      const rawVideo = get("og:video:secure_url") || get("og:video") || get("twitter:player:stream");
+      const videoUrl = rawVideo ? new URL(rawVideo, url).toString() : undefined;
       const title = get("og:title") || get("twitter:title") || doc.title || "";
       const description = get("og:description") || get("twitter:description") || "";
       const caption = [title, description].filter(Boolean).join(" — ").trim() || undefined;
 
-      if (imageUrl && !isBlockedContent(caption || "")) {
-        return { imageUrl, caption };
+      if ((imageUrl || videoUrl) && !isBlockedContent(caption || "")) {
+        return { imageUrl, videoUrl, caption };
       }
     } catch {
       continue;
@@ -209,56 +216,88 @@ export async function isImageUrlValid(url: string): Promise<boolean> {
   }
 }
 
-export interface InterleaveImage {
-  // Ausente quando `embedHtml` é usado no lugar de uma URL de imagem simples.
-  url?: string;
-  // Se ausente, a imagem entra sem legenda de crédito (ex: foto enviada pelo próprio usuário).
-  creditLabel?: string;
-  creditHref?: string;
-  // Quando a foto vem de um canal oficial, a própria imagem leva o leitor à
-  // fonte. Assim preservamos crédito sem exibir o card visual do Instagram.
-  linkHref?: string;
-  // Bloco HTML pronto pra incorporar em vez de um <img> simples — usado pro
-  // embed oficial de um post do Instagram (blockquote + widget), que já traz
-  // clique pro post/perfil original embutido pela própria Meta.
-  embedHtml?: string;
+// Tipo único de mídia editorial — usado pra intercalar no HTML do artigo E
+// pra persistir metadados (coluna `gallery`). `urlArquivo` é sempre um arquivo
+// arquivado no Cloudinary do site (nunca a página de origem); `urlOrigem` é
+// onde a mídia foi encontrada; `urlDestino` é pra onde o clique leva (quase
+// sempre igual a `urlOrigem`, mas mantido separado pra clareza).
+export interface MediaItem {
+  kind: "foto" | "video";
+  urlArquivo: string;
+  urlOrigem: string | null;
+  urlDestino: string | null;
+  tipo: "instagram_oficial" | "site_oficial" | "licenciada" | "institucional";
+  verificadoEm: string;
+  isReel: boolean;
 }
 
-// Intercala fotos (ou embeds) entre os blocos <h2> do artigo, com crédito
-// visível quando informado.
-export function interleaveImages(contentHtml: string, images: InterleaveImage[]): string {
-  if (images.length === 0) return contentHtml;
-  const parts = contentHtml.split(/(?=<h2>)/i).filter((p) => p.trim().length > 0);
+function renderMediaItem(item: MediaItem): string {
+  if (item.kind === "video") {
+    const badge = item.urlDestino
+      ? `<a class="instagram-editorial-video-badge" href="${item.urlDestino}" target="_blank" rel="noopener noreferrer">Instagram oficial ↗</a>`
+      : "";
+    return `<figure class="instagram-editorial-video"><video controls playsinline preload="metadata" src="${item.urlArquivo}"></video>${badge}</figure>`;
+  }
+  const img = `<img src="${item.urlArquivo}" alt="" loading="lazy">`;
+  const inner = item.urlDestino
+    ? `<a href="${item.urlDestino}" target="_blank" rel="noopener noreferrer" aria-label="Ver origem oficial">${img}</a>`
+    : img;
+  return `<figure class="instagram-editorial-photo">${inner}</figure>`;
+}
+
+// Remove mídia editorial já existente no HTML de um post (qualquer
+// convenção usada até hoje: <figure class="instagram-editorial-photo">,
+// <figure class="instagram-editorial-video">, <figure class="video-embed-wrap">
+// e o <img class="rounded-lg"> antigo com o parágrafo de crédito visível
+// logo depois) — usada pela rotina de reconciliação antes de reinserir a
+// mídia aprovada pelo pipeline atual. Nunca toca em <h2>/<p>/<ul> de texto.
+export function stripExistingMedia(contentHtml: string): string {
+  return contentHtml
+    .replace(/<figure class="instagram-editorial-photo">[\s\S]*?<\/figure>/g, "")
+    .replace(/<figure class="instagram-editorial-video">[\s\S]*?<\/figure>/g, "")
+    .replace(/<figure class="video-embed-wrap"[\s\S]*?<\/figure>/g, "")
+    .replace(/<img class="rounded-lg"[\s\S]*?>\s*(<p><em>Foto:[\s\S]*?<\/em><\/p>)?/g, "")
+    .trim();
+}
+
+// Calcula em quais "gaps" entre blocos inserir mídia, garantindo que nunca
+// haja duas mídias seguidas (pelo menos 1 bloco de texto entre elas) e que a
+// última mídia nunca seja o último bloco do artigo. Se o artigo for curto
+// demais pra caber todas as mídias aprovadas respeitando essa regra, insere
+// menos mídia em vez de violar o espaçamento.
+function computeInsertionGaps(blockCount: number, itemCount: number): number[] {
+  if (blockCount < 2 || itemCount === 0) return [];
+  const maxSlots = Math.max(1, Math.ceil((blockCount - 1) / 2));
+  const count = Math.min(itemCount, maxSlots);
+  const step = Math.max(2, Math.floor((blockCount - 1) / count));
+  const gaps: number[] = [];
+  let pos = step;
+  for (let i = 0; i < count; i++) {
+    gaps.push(Math.min(pos, blockCount - 1));
+    pos += step;
+  }
+  return [...new Set(gaps)];
+}
+
+// Intercala mídia (foto ou vídeo) entre os blocos de texto do artigo — nunca
+// remove/trunca texto, só insere <figure> nos pontos calculados por
+// computeInsertionGaps. Divide em blocos por <h2>/<p>/<ul> pra ter pontos de
+// inserção suficientes mesmo em artigos com poucos <h2>.
+export function interleaveImages(contentHtml: string, items: MediaItem[]): string {
+  if (items.length === 0) return contentHtml;
+  const blocks = contentHtml.split(/(?=<h2>|<p>|<ul>)/i).filter((b) => b.trim().length > 0);
+  const gaps = computeInsertionGaps(blocks.length, items.length);
+
   const out: string[] = [];
-  let imgIdx = 0;
-  for (const part of parts) {
-    out.push(part);
-    if (imgIdx < images.length) {
-      const img = images[imgIdx];
-      const credit = img.creditLabel
-        ? img.creditHref
-          ? `\n<p><em>Foto: <a href="${img.creditHref}" target="_blank" rel="noopener noreferrer">${img.creditLabel}</a></em></p>\n`
-          : `\n<p><em>Foto: ${img.creditLabel}</em></p>\n`
-        : "\n";
-      const image = `<img class="rounded-lg" src="${img.url}" alt="" style="width: 100%; max-width: 100%;">`;
-      const media = img.embedHtml
-        ? `\n${img.embedHtml}\n`
-        : `\n${img.linkHref ? `<a href="${img.linkHref}" target="_blank" rel="noopener noreferrer">${image}</a>` : image}${credit}`;
-      out.push(media);
-      imgIdx++;
+  let itemIdx = 0;
+  for (let b = 0; b < blocks.length; b++) {
+    out.push(blocks[b]);
+    if (itemIdx < gaps.length && b + 1 === gaps[itemIdx]) {
+      out.push(renderMediaItem(items[itemIdx]));
+      itemIdx++;
     }
   }
   return out.join("\n");
-}
-
-// Snippet oficial de embed do Instagram (blockquote + embed.js) — não exige
-// API/token, é o mesmo HTML gerado pelo botão "Incorporar" do próprio
-// Instagram. Renderiza o post real, com link de volta pro post/perfil.
-export function renderInstagramEmbed(permalink: string): string {
-  return `<blockquote class="instagram-media" data-instgrm-permalink="${permalink}" data-instgrm-version="14" style="background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:540px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);">
-  <a href="${permalink}" target="_blank" rel="noopener noreferrer">Ver esta publicação no Instagram</a>
-</blockquote>
-<script async src="//www.instagram.com/embed.js"></script>`;
 }
 
 export function slugify(text: string): string {
@@ -517,29 +556,13 @@ REGRAS ABSOLUTAS:
 4. O conteúdo é baseado num levantamento oficial (Diagnóstico Turístico e Econômico da Rota da Ferradura), não invente nada além do que foi listado.`;
 
 const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => {
-  const phoneDigits = (data.telefone || "").replace(/\D/g, "");
-  const whatsappNumber = phoneDigits.length === 10 || phoneDigits.length === 11
-    ? `55${phoneDigits}`
-    : phoneDigits;
-  const whatsappMessage = "Olá! Conheci vocês através do site Refúgio da Ferradura e gostaria de saber mais.";
-  const phoneHtml = data.telefone && whatsappNumber.length >= 12
-    ? `<a href="https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}" target="_blank" rel="noopener noreferrer">${data.telefone}</a>`
-    : null;
-  const instagramHtml = data.instagram
-    ? `<a href="https://instagram.com/${data.instagram.replace(/^@/, "")}" target="_blank" rel="noopener noreferrer">@${data.instagram.replace(/^@/, "")}</a>`
-    : null;
+  const phoneHtml = buildWhatsappHtml(data.telefone);
+  const emailHtml = buildMailtoHtml(data.email);
+  const instagramHtml = buildInstagramHtml(data.instagram);
   const siteHtml = data.site && data.site.startsWith("http")
     ? `<a href="${data.site}" target="_blank" rel="noopener noreferrer">${data.site}</a>`
     : null;
-  // O link de rota é gerado a partir do endereço e, quando disponível, do
-  // Plus Code. Assim o visitante abre o Google Maps já com o destino certo,
-  // sem depender de coordenadas exatas cadastradas manualmente.
-  const mapDestination = [data.endereco, data.plusCode, "Guarapari - ES"]
-    .filter(Boolean)
-    .join(", ");
-  const mapsHtml = (data.endereco || data.plusCode)
-    ? `<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mapDestination)}" target="_blank" rel="noopener noreferrer">Abrir rota no Google Maps</a>`
-    : null;
+  const mapsHtml = buildMapsHtml(data.endereco, data.plusCode);
 
   return `Escreva um artigo editorial apresentando o seguinte empreendimento da Rota da Ferradura para o site Refúgio da Ferradura:
 
@@ -548,7 +571,7 @@ Região: ${data.regiao || "não informado"}
 Proprietário/Responsável: ${data.proprietario || "não informado"}
 Endereço: ${data.endereco || "não informado"}
 Telefone / WhatsApp (HTML já pronto, use exatamente como está, não reescreva): ${phoneHtml || data.telefone || "não informado"}
-E-mail: ${data.email || "não informado"}
+E-mail (HTML já pronto, use exatamente como está, não reescreva): ${emailHtml || data.email || "não informado"}
 Localização (Plus Code): ${data.plusCode || "não informado"}
 Instagram (HTML já pronto, use exatamente como está, não reescreva): ${instagramHtml || "não informado"}
 Site (HTML já pronto, use exatamente como está, não reescreva): ${siteHtml || "não informado"}
@@ -559,7 +582,7 @@ ${data.caracteristicas.map((c) => `- ${c}`).join("\n")}
 Estruture o artigo em HTML com <h2>, <p>, <ul>, <li>:
 1. Comece apresentando o empreendimento e a região onde fica.
 2. Descreva as características/serviços de forma fluida e convidativa (pode agrupar em parágrafos ou lista).
-3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone/WhatsApp, e-mail, site, Instagram, proprietário e Google Maps) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Para Telefone/WhatsApp, Instagram, Site e Google Maps, copie o HTML de link fornecido acima exatamente como está, sem modificar a URL. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
+3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone/WhatsApp, e-mail, site, Instagram, proprietário e Google Maps) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Para Telefone/WhatsApp, E-mail, Instagram, Site e Google Maps, copie o HTML de link fornecido acima exatamente como está, sem modificar a URL. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
 
 RESPONDA APENAS EM JSON válido, sem markdown ao redor:
 {

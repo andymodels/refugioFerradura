@@ -9,8 +9,9 @@ import {
   interleaveImages,
   slugify,
   type ExtractionFailure,
-  type InterleaveImage,
+  type MediaItem,
 } from "../lib/article-generation";
+import { vetAndArchiveFoundImages } from "../lib/media-pipeline";
 import { uploadToCloudinary } from "./media";
 
 const router: IRouter = Router();
@@ -78,19 +79,30 @@ router.post("/generate-and-create", upload.array("photos", 10), async (req, res)
       return;
     }
 
-    const uploadedPhotos = await Promise.all(
-      files.map((file) => uploadToCloudinary(file.buffer, "refugio-da-ferradura", "image")),
-    );
-    const sourceImages = await extractImagesFromSource(url);
-    const sourceName = new URL(url).hostname.replace(/^www\./, "");
+    // Fotos que o próprio admin escolheu e enviou não passam por vetting —
+    // ele já decidiu que servem. Fotos raspadas da página-fonte, sim (mesma
+    // regra de qualquer outro pipeline automático: nunca hotlink, nunca
+    // flyer/logo/texto-sobreposto/selfie sem revisão visual).
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+    const verificadoEm = new Date().toISOString();
+    const uploadedItems: MediaItem[] = (
+      await Promise.all(files.map((file) => uploadToCloudinary(file.buffer, "refugio-da-ferradura", "image")))
+    ).map((p) => ({
+      kind: "foto",
+      urlArquivo: p.url,
+      urlOrigem: null,
+      urlDestino: null,
+      tipo: "licenciada",
+      verificadoEm,
+      isReel: false,
+    }));
 
-    const images: InterleaveImage[] = [
-      ...uploadedPhotos.map((p) => ({ url: p.url })),
-      ...sourceImages.map((imgUrl) => ({ url: imgUrl, creditLabel: sourceName, creditHref: url })),
-    ];
+    const sourceImages = await extractImagesFromSource(url);
+    const vettedSourceItems = await vetAndArchiveFoundImages(article.title || url, sourceImages, slug);
+
+    const images: MediaItem[] = [...uploadedItems, ...vettedSourceItems];
 
     const finalContent = interleaveImages(article.content, images);
-    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
 
     const [post] = await db
       .insert(postsTable)
@@ -100,7 +112,9 @@ router.post("/generate-and-create", upload.array("photos", 10), async (req, res)
         slug,
         excerpt: article.excerpt ?? null,
         content: finalContent,
-        coverImage: images[0]?.url ?? null,
+        coverImage: images[0]?.urlArquivo ?? null,
+        coverImageDisplayMode: "natural",
+        mediaItems: images.length > 0 ? JSON.stringify(images) : null,
         tags: JSON.stringify(article.tags ?? []),
         status: "draft",
         metaDescription: article.metaDescription ?? null,

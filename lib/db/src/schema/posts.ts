@@ -17,6 +17,16 @@ export const postsTable = pgTable("posts", {
   coverImageMeta: text("cover_image_meta"),
   gallery: text("gallery"),
   videoEmbeds: text("video_embeds"),
+  // JSON MediaItem[] — mídia editorial aprovada (foto/vídeo) do corpo do
+  // post, com metadados completos de proveniência. Preenchido pelo pipeline
+  // único de mídia (lib/media-pipeline.ts) e pela rotina de reconciliação.
+  mediaItems: text("media_items"),
+  // Snapshot do content/coverImage originais, gravado uma única vez antes da
+  // primeira reconciliação — nunca sobrescrito depois, serve de backup.
+  mediaMigrationBackup: text("media_migration_backup"),
+  // Motivo da última falha de validação da reconciliação, se houver; null
+  // quando o post está em dia ou nunca foi reconciliado.
+  mediaMigrationFlag: text("media_migration_flag"),
   tags: text("tags"),
   status: text("status").notNull().default("draft"),
   metaDescription: text("meta_description"),

@@ -14,22 +14,35 @@ function isCloudinaryUrl(url: string): boolean {
   }
 }
 
-// Copia uma foto aprovada para a biblioteca permanente do Refúgio. A fonte
-// original continua registrada no post para crédito e clique, mas o site não
-// depende mais de links temporários de redes sociais ou sites de terceiros.
-export async function archiveApprovedImage(sourceUrl: string, slug: string): Promise<string> {
+// Copia uma mídia aprovada (foto ou vídeo) para a biblioteca permanente do
+// Refúgio. A fonte original continua registrada no post (metadados de
+// origem/destino), mas o `src` real nunca depende de um link temporário de
+// rede social ou site de terceiros — sempre um arquivo hospedado no
+// Cloudinary do próprio site. `index` evita colisão de public_id quando um
+// post tem várias mídias.
+export async function archiveApprovedMedia(
+  sourceUrl: string,
+  slug: string,
+  index: number,
+  resourceType: "image" | "video" = "image",
+): Promise<string> {
   if (isCloudinaryUrl(sourceUrl)) return sourceUrl;
 
   const result = await cloudinary.uploader.upload(sourceUrl, {
     folder: "refugio-da-ferradura",
-    public_id: `post-${slug}`,
+    public_id: `post-${slug}-${index}`,
     unique_filename: true,
     overwrite: false,
-    resource_type: "image",
+    resource_type: resourceType,
     quality: "auto",
     fetch_format: "auto",
   });
 
-  if (!result.secure_url) throw new Error("Cloudinary não retornou URL para a imagem aprovada.");
+  if (!result.secure_url) throw new Error("Cloudinary não retornou URL para a mídia aprovada.");
   return result.secure_url;
+}
+
+// Mantido para compatibilidade com o fluxo de capa (1 imagem só, sem índice).
+export async function archiveApprovedImage(sourceUrl: string, slug: string): Promise<string> {
+  return archiveApprovedMedia(sourceUrl, slug, 0, "image");
 }
