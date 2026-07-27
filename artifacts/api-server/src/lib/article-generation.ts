@@ -285,7 +285,22 @@ function computeInsertionGaps(blockCount: number, itemCount: number): number[] {
 // inserção suficientes mesmo em artigos com poucos <h2>.
 export function interleaveImages(contentHtml: string, items: MediaItem[]): string {
   if (items.length === 0) return contentHtml;
-  const blocks = contentHtml.split(/(?=<h2>|<p>|<ul>)/i).filter((b) => b.trim().length > 0);
+
+  // <ul>/<ol> precisam entrar como um único bloco atômico — do contrário o
+  // split abaixo (que também corta em <p>) quebraria a lista ao meio, já que
+  // seus <li> quase sempre contêm <p> internos, inserindo mídia dentro da
+  // lista e corrompendo o HTML.
+  const listPlaceholders: string[] = [];
+  const withPlaceholders = contentHtml.replace(/<(ul|ol)>[\s\S]*?<\/\1>/gi, (match) => {
+    listPlaceholders.push(match);
+    return ` LIST${listPlaceholders.length - 1} `;
+  });
+
+  const blocks = withPlaceholders
+    .split(/(?=<h2>|<p>| LIST)/i)
+    .filter((b) => b.trim().length > 0)
+    .map((b) => b.replace(/ LIST(\d+) /g, (_m, i) => listPlaceholders[Number(i)]));
+
   const gaps = computeInsertionGaps(blocks.length, items.length);
 
   const out: string[] = [];
