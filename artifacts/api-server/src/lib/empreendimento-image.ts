@@ -38,9 +38,15 @@ export interface EmpreendimentoImageInput {
   fotosPdf: string[]; // fotos extraídas do PDF do diagnóstico (Cloudinary)
 }
 
+// Depois de usar a ferramenta de busca, a IA às vezes responde com uma frase
+// em prosa ("Não encontrei nenhuma publicação...") em vez do JSON pedido —
+// extrai o maior bloco {...} da resposta em vez de exigir que a mensagem
+// inteira seja JSON puro, pra não perder resultado real por causa de texto
+// em volta.
 function parseJson(text: string): any {
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
-  return JSON.parse(trimmed);
+  const match = trimmed.match(/\{[\s\S]*\}/);
+  return JSON.parse(match ? match[0] : trimmed);
 }
 
 function getText(message: Anthropic.Message): string {
@@ -70,10 +76,10 @@ async function searchInstagramPermalinks(handle: string, nome: string): Promise<
 
 Quero até 5 URLs de posts (formato https://www.instagram.com/p/CODIGO/ ou https://www.instagram.com/reel/CODIGO/) desse perfil específico que você realmente encontrou na busca — NUNCA invente uma URL plausível, só inclua links que a ferramenta de busca retornou de fato.
 
-RESPONDA APENAS EM JSON, sem markdown ao redor:
+Depois de pesquisar, sua ÚLTIMA mensagem deve conter SOMENTE o objeto JSON abaixo — nenhuma frase antes ou depois, mesmo se você não encontrar nada:
 {"permalinks": ["https://www.instagram.com/p/...", ...]}
 
-Se não encontrar nenhum, responda {"permalinks": []}`;
+Se não encontrar nenhum, responda exatamente {"permalinks": []}`;
 
   try {
     const message = await anthropic.messages.create({
@@ -211,7 +217,7 @@ Procure o perfil oficial do Instagram OU o site oficial desse estabelecimento es
 
 Só se não encontrar nenhum dos dois: procure uma imagem de fonte claramente oficial e específica desse estabelecimento (ex: página de turismo da prefeitura, matéria de notícia especificamente sobre esse local). NUNCA retorne um resultado genérico de busca de imagens (Google Imagens) como se fosse oficial — se não tiver confiança razoável de que a imagem é realmente desse local e de uma fonte com uso permitido, não retorne nenhuma.
 
-RESPONDA APENAS EM JSON, sem markdown ao redor:
+Depois de pesquisar, sua ÚLTIMA mensagem deve conter SOMENTE o objeto JSON abaixo — nenhuma frase antes ou depois, mesmo se você não encontrar nada:
 {
   "instagram": "@handle ou null",
   "site": "URL ou null",
