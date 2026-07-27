@@ -6,7 +6,7 @@ import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 import { useSiteSettings, parseHomeBlocks, parseHeroPool, parseHeroBanners, getOverlayStyle, type HeroBanner } from "@/hooks/use-site-settings";
 import { useSeo } from "@/hooks/use-seo";
-import { PostThumbnail } from "@/components/post-thumbnail";
+import { PostThumbnail, getPostThumbnailSource } from "@/components/post-thumbnail";
 
 // Overrides de pré-visualização via URL (?preview_hero=1&hh=400&ho=0.22&hs=light),
 // sem afetar as configurações reais salvas — só pra validar ajustes visuais
@@ -75,8 +75,13 @@ export default function Home() {
   const blocks = parseHomeBlocks(s.home_blocks);
   const heroPool = useMemo(() => parseHeroPool(s.hero_image_pool), [s.hero_image_pool]);
 
-  const { data: recentData } = useListPosts({ limit: 9 } as any);
-  const recentPosts = recentData?.posts || [];
+  // A home é uma vitrine: só destaca matérias que já têm foto própria válida.
+  // Textos sem mídia aprovada seguem acessíveis no blog, sem gerar card vazio
+  // ou uma paisagem genérica que não corresponde ao estabelecimento.
+  const { data: recentData } = useListPosts({ limit: 30 } as any);
+  const recentPosts = (recentData?.posts || [])
+    .filter((post: any) => Boolean(getPostThumbnailSource(post.coverImage, post.content)))
+    .slice(0, 9);
 
   const heroBanners = useMemo(() => {
     if (heroPreview?.demoBanners) return buildDemoBanners(heroPool, recentPosts[0]?.slug);

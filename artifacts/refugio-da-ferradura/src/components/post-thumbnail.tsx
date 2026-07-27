@@ -18,9 +18,14 @@ function firstImageInArticle(content?: string | null): string | null {
   return match?.[1] || null;
 }
 
+export function getPostThumbnailSource(src?: string | null, content?: string | null): string | null {
+  const candidate = isDirectImageUrl(src) ? src : firstImageInArticle(content);
+  return candidate && isDirectImageUrl(candidate) ? candidate : null;
+}
+
 export function PostThumbnail({ src, content, alt, className }: { src?: string | null; content?: string | null; alt: string; className?: string }) {
   const [failed, setFailed] = useState(false);
-  const imageSrc = !failed && (isDirectImageUrl(src) ? src : firstImageInArticle(content));
+  const imageSrc = !failed ? getPostThumbnailSource(src, content) : null;
 
   // Uma imagem genérica repetida fazia parecer que todos os lugares eram o
   // mesmo. Se ainda não existe foto própria, preservamos o card sem inventar
