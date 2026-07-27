@@ -33,7 +33,7 @@ function isVideoFile(file: Express.Multer.File) {
   return /^video\//.test(file.mimetype);
 }
 
-function uploadToCloudinary(buffer: Buffer, folder: string, resourceType: "image" | "video"): Promise<{ url: string; type: string }> {
+export function uploadToCloudinary(buffer: Buffer, folder: string, resourceType: "image" | "video"): Promise<{ url: string; type: string }> {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { folder, resource_type: resourceType },

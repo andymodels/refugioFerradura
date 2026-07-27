@@ -148,7 +148,10 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
 
         const verification = await verifyArticleAgainstSource(extraction.text, article);
         const images = await extractImagesFromSource(link);
-        const finalContent = interleaveImages(article.content, images, link, fonte.nome);
+        const finalContent = interleaveImages(
+          article.content,
+          images.map((url) => ({ url, creditLabel: fonte.nome, creditHref: link })),
+        );
         const tags = mapTags(article);
         const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
 

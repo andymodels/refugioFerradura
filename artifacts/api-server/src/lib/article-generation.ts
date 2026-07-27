@@ -148,13 +148,15 @@ export async function extractImagesFromSource(url: string): Promise<string[]> {
   }
 }
 
-// Intercala fotos da fonte entre os blocos <h2> do artigo, com crédito.
-export function interleaveImages(
-  contentHtml: string,
-  images: string[],
-  sourceUrl: string,
-  sourceName: string,
-): string {
+export interface InterleaveImage {
+  url: string;
+  // Se ausente, a imagem entra sem legenda de crédito (ex: foto enviada pelo próprio usuário).
+  creditLabel?: string;
+  creditHref?: string;
+}
+
+// Intercala fotos entre os blocos <h2> do artigo, com crédito quando informado.
+export function interleaveImages(contentHtml: string, images: InterleaveImage[]): string {
   if (images.length === 0) return contentHtml;
   const parts = contentHtml.split(/(?=<h2>)/i).filter((p) => p.trim().length > 0);
   const out: string[] = [];
@@ -162,9 +164,11 @@ export function interleaveImages(
   for (const part of parts) {
     out.push(part);
     if (imgIdx < images.length) {
-      out.push(
-        `\n<img class="rounded-lg" src="${images[imgIdx]}" alt="" style="width: 100%; max-width: 100%;">\n<p><em>Foto: <a href="${sourceUrl}" target="_blank" rel="noopener noreferrer">${sourceName}</a></em></p>\n`,
-      );
+      const img = images[imgIdx];
+      const credit = img.creditLabel
+        ? `\n<p><em>Foto: <a href="${img.creditHref}" target="_blank" rel="noopener noreferrer">${img.creditLabel}</a></em></p>\n`
+        : "\n";
+      out.push(`\n<img class="rounded-lg" src="${img.url}" alt="" style="width: 100%; max-width: 100%;">${credit}`);
       imgIdx++;
     }
   }

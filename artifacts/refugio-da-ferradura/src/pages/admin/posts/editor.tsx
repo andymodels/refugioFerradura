@@ -6,7 +6,7 @@ import { Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays } from "lucide-react";
+import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2 } from "lucide-react";
 
 const PREDEFINED_TAGS = [
   { id: "lugares", label: "Lugares", icon: MapPin },
@@ -47,6 +47,8 @@ export default function AdminPostEditor() {
   const [aiInstructions, setAiInstructions] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [aiPhotos, setAiPhotos] = useState<File[]>([]);
+  const [aiCreating, setAiCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -226,6 +228,40 @@ export default function AdminPostEditor() {
     }
   };
 
+  // Cola o link + fotos anexadas e já cria o post como rascunho (sem revisar o formulário antes).
+  const handleAIGenerateAndCreate = async () => {
+    if (!aiUrl.trim().startsWith("http")) {
+      toast({ title: "Informe uma URL de artigo válida", variant: "destructive" });
+      return;
+    }
+    setAiCreating(true);
+    setAiError(null);
+    try {
+      const formData = new FormData();
+      formData.append("url", aiUrl.trim());
+      formData.append("instructions", aiInstructions.trim());
+      aiPhotos.forEach((file) => formData.append("photos", file));
+
+      const res = await fetch("/api/ai/generate-and-create", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error || `Erro ${res.status}`);
+        return;
+      }
+      toast({ title: "Post criado como rascunho!" });
+      try { localStorage.removeItem(draftKey(postId)); } catch {}
+      setLocation(`/admin/posts/${data.id}/editar`);
+    } catch (e: any) {
+      setAiError("Erro de conexão ao tentar criar o post. Tente novamente.");
+    } finally {
+      setAiCreating(false);
+    }
+  };
+
   const onSubmit = async (data: any) => {
     setSaving(true);
     try {
@@ -339,6 +375,50 @@ export default function AdminPostEditor() {
               placeholder="Ex: foque nos restaurantes mencionados, use tom mais descontraído, destaque a vista para o mar..."
               className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none resize-none focus:border-white/20 transition-colors"
             />
+          </div>
+
+          <div className="border-t border-white/10 pt-3 space-y-2">
+            <label className="text-[10px] uppercase text-white/25 font-bold tracking-widest">
+              Fotos anexadas <span className="normal-case font-normal text-white/20">(opcional — usadas junto com as da fonte)</span>
+            </label>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-sm text-white/60 hover:text-white hover:border-white/20 cursor-pointer transition-colors">
+                <Paperclip className="w-3.5 h-3.5" />
+                Anexar fotos
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setAiPhotos((prev) => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {aiPhotos.map((file, i) => (
+                <span key={i} className="flex items-center gap-1.5 pl-2 pr-1 py-1 bg-white/5 border border-white/10 rounded-lg text-xs text-white/50">
+                  {file.name.length > 20 ? file.name.slice(0, 17) + "..." : file.name}
+                  <button
+                    type="button"
+                    onClick={() => setAiPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="text-white/30 hover:text-red-400"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleAIGenerateAndCreate}
+              disabled={aiCreating || aiLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
+            >
+              {aiCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus2 className="w-4 h-4" />}
+              {aiCreating ? "Criando post..." : "Gerar e Criar Post (rascunho)"}
+            </button>
           </div>
 
           {aiError && (
