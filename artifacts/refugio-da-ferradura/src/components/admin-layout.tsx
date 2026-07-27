@@ -23,7 +23,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Publicações", href: "/admin/posts", icon: FileText },
     { name: "Mídia", href: "/admin/media", icon: ImageIcon },
-    { name: "Fontes", href: "/admin/fontes", icon: Rss },
+    { name: "Canais Oficiais", href: "/admin/fontes", icon: Rss },
     { name: "Visual", href: "/admin/settings", icon: Settings },
   ];
 

@@ -44,6 +44,38 @@ export function buildInstagramHtml(handle?: string | null): string | null {
   return `<a href="https://instagram.com/${clean}" target="_blank" rel="noopener noreferrer">@${clean}</a>`;
 }
 
+export interface ServicoData {
+  instagram?: string | null;
+  site?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  endereco?: string | null;
+  plusCode?: string | null;
+}
+
+// Bloco "Serviço" construído de forma 100% determinística (sem passar por
+// IA) a partir dos dados oficiais cadastrados — usado pelo monitor de Canais
+// Oficiais, onde a matéria é curta e baseada só na legenda, então o contato
+// nunca deveria depender da IA "lembrar" de copiar os links certos.
+export function renderServicoBlock(data: ServicoData): string {
+  const items: string[] = [];
+  const instagramHtml = buildInstagramHtml(data.instagram);
+  if (instagramHtml) items.push(`<li><p><strong>Instagram:</strong> ${instagramHtml}</p></li>`);
+  if (data.site) {
+    items.push(`<li><p><strong>Site:</strong> <a href="${data.site}" target="_blank" rel="noopener noreferrer">${data.site}</a></p></li>`);
+  }
+  const phoneHtml = buildWhatsappHtml(data.telefone);
+  if (phoneHtml) items.push(`<li><p><strong>Telefone/WhatsApp:</strong> ${phoneHtml}</p></li>`);
+  const emailHtml = buildMailtoHtml(data.email);
+  if (emailHtml) items.push(`<li><p><strong>E-mail:</strong> ${emailHtml}</p></li>`);
+  if (data.endereco || data.plusCode) {
+    const mapsHtml = buildMapsHtml(data.endereco, data.plusCode, "Abrir rota no Google Maps");
+    items.push(`<li><p><strong>Endereço:</strong> ${data.endereco || data.plusCode} ${mapsHtml ? `— ${mapsHtml}` : ""}</p></li>`);
+  }
+  if (items.length === 0) return "";
+  return `<h2>Serviço</h2><ul>${items.join("")}</ul>`;
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

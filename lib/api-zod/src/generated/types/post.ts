@@ -5,6 +5,7 @@
  * Refúgio da Ferradura API
  * OpenAPI spec version: 0.2.0
  */
+import type { PostCoverImageDisplayMode } from "./postCoverImageDisplayMode";
 
 export interface Post {
   id: number;
@@ -17,7 +18,8 @@ export interface Post {
   content: string;
   /** @nullable */
   coverImage?: string | null;
-  coverImageDisplayMode?: 'cover' | 'natural';
+  /** How the cover image is shown inside the article */
+  coverImageDisplayMode?: PostCoverImageDisplayMode;
   /**
    * JSON array of image URLs
    * @nullable

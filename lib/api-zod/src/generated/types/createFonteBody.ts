@@ -11,4 +11,10 @@ export interface CreateFonteBody {
   url: string;
   tipo?: string;
   ativo?: boolean;
+  instagram?: string;
+  site?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+  tags?: string;
 }

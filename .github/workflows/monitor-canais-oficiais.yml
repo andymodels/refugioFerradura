@@ -1,0 +1,20 @@
+name: Monitorar canais oficiais do Instagram (3x/dia)
+
+on:
+  schedule:
+    # Minutos fora da hora cheia — GitHub recomenda evitar "0 * * * *" porque
+    # é quando o agendador fica mais sobrecarregado e pode atrasar/pular.
+    - cron: "23 10 * * *" # ~7h BRT
+    - cron: "28 15 * * *" # ~12h BRT
+    - cron: "25 22 * * *" # ~19h BRT
+  workflow_dispatch: {}
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint de monitoramento de canais oficiais
+        run: |
+          curl -fsS \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/monitor-canais-oficiais

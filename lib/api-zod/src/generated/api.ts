@@ -65,7 +65,10 @@ export const ListPostsResponse = zod.object({
       excerpt: zod.string().nullish(),
       content: zod.string(),
       coverImage: zod.string().nullish(),
-      coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+      coverImageDisplayMode: zod
+        .enum(["cover", "natural"])
+        .optional()
+        .describe("How the cover image is shown inside the article"),
       gallery: zod.string().nullish().describe("JSON array of image URLs"),
       videoEmbeds: zod
         .string()
@@ -94,7 +97,10 @@ export const ListPostsAdminResponse = zod.object({
       excerpt: zod.string().nullish(),
       content: zod.string(),
       coverImage: zod.string().nullish(),
-      coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+      coverImageDisplayMode: zod
+        .enum(["cover", "natural"])
+        .optional()
+        .describe("How the cover image is shown inside the article"),
       gallery: zod.string().nullish().describe("JSON array of image URLs"),
       videoEmbeds: zod
         .string()
@@ -125,7 +131,10 @@ export const GetPostResponse = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+  coverImageDisplayMode: zod
+    .enum(["cover", "natural"])
+    .optional()
+    .describe("How the cover image is shown inside the article"),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -153,7 +162,10 @@ export const GetPostAdminResponse = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+  coverImageDisplayMode: zod
+    .enum(["cover", "natural"])
+    .optional()
+    .describe("How the cover image is shown inside the article"),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -196,7 +208,10 @@ export const UpdatePostResponse = zod.object({
   excerpt: zod.string().nullish(),
   content: zod.string(),
   coverImage: zod.string().nullish(),
-  coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+  coverImageDisplayMode: zod
+    .enum(["cover", "natural"])
+    .optional()
+    .describe("How the cover image is shown inside the article"),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -247,6 +262,12 @@ export const ListFontesResponse = zod.object({
       ativo: zod.boolean(),
       ultimaVerificacao: zod.coerce.date().nullish(),
       criadoEm: zod.coerce.date(),
+      instagram: zod.string().nullish(),
+      site: zod.string().nullish(),
+      telefone: zod.string().nullish(),
+      email: zod.string().nullish(),
+      endereco: zod.string().nullish(),
+      tags: zod.string().nullish(),
     }),
   ),
   total: zod.number(),
@@ -260,6 +281,12 @@ export const CreateFonteBody = zod.object({
   url: zod.string(),
   tipo: zod.string().optional(),
   ativo: zod.boolean().optional(),
+  instagram: zod.string().optional(),
+  site: zod.string().optional(),
+  telefone: zod.string().optional(),
+  email: zod.string().optional(),
+  endereco: zod.string().optional(),
+  tags: zod.string().optional(),
 });
 
 /**
@@ -274,6 +301,12 @@ export const UpdateFonteBody = zod.object({
   url: zod.string().optional(),
   tipo: zod.string().optional(),
   ativo: zod.boolean().optional(),
+  instagram: zod.string().optional(),
+  site: zod.string().optional(),
+  telefone: zod.string().optional(),
+  email: zod.string().optional(),
+  endereco: zod.string().optional(),
+  tags: zod.string().optional(),
 });
 
 export const UpdateFonteResponse = zod.object({
@@ -284,6 +317,12 @@ export const UpdateFonteResponse = zod.object({
   ativo: zod.boolean(),
   ultimaVerificacao: zod.coerce.date().nullish(),
   criadoEm: zod.coerce.date(),
+  instagram: zod.string().nullish(),
+  site: zod.string().nullish(),
+  telefone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  endereco: zod.string().nullish(),
+  tags: zod.string().nullish(),
 });
 
 /**

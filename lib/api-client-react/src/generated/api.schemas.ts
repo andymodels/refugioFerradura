@@ -32,6 +32,17 @@ export interface LoginResponse {
   user: AdminUser;
 }
 
+/**
+ * How the cover image is shown inside the article
+ */
+export type PostCoverImageDisplayMode =
+  (typeof PostCoverImageDisplayMode)[keyof typeof PostCoverImageDisplayMode];
+
+export const PostCoverImageDisplayMode = {
+  cover: "cover",
+  natural: "natural",
+} as const;
+
 export interface Post {
   id: number;
   title: string;
@@ -43,7 +54,8 @@ export interface Post {
   content: string;
   /** @nullable */
   coverImage?: string | null;
-  coverImageDisplayMode?: 'cover' | 'natural';
+  /** How the cover image is shown inside the article */
+  coverImageDisplayMode?: PostCoverImageDisplayMode;
   /**
    * JSON array of image URLs
    * @nullable
@@ -71,6 +83,14 @@ export interface PostListResponse {
   total: number;
 }
 
+export type CreatePostBodyCoverImageDisplayMode =
+  (typeof CreatePostBodyCoverImageDisplayMode)[keyof typeof CreatePostBodyCoverImageDisplayMode];
+
+export const CreatePostBodyCoverImageDisplayMode = {
+  cover: "cover",
+  natural: "natural",
+} as const;
+
 export interface CreatePostBody {
   title: string;
   /** @nullable */
@@ -81,7 +101,7 @@ export interface CreatePostBody {
   content: string;
   /** @nullable */
   coverImage?: string | null;
-  coverImageDisplayMode?: 'cover' | 'natural';
+  coverImageDisplayMode?: CreatePostBodyCoverImageDisplayMode;
   /** @nullable */
   gallery?: string | null;
   /** @nullable */
@@ -93,6 +113,14 @@ export interface CreatePostBody {
   metaDescription?: string | null;
 }
 
+export type UpdatePostBodyCoverImageDisplayMode =
+  (typeof UpdatePostBodyCoverImageDisplayMode)[keyof typeof UpdatePostBodyCoverImageDisplayMode];
+
+export const UpdatePostBodyCoverImageDisplayMode = {
+  cover: "cover",
+  natural: "natural",
+} as const;
+
 export interface UpdatePostBody {
   title?: string;
   /** @nullable */
@@ -103,7 +131,7 @@ export interface UpdatePostBody {
   content?: string;
   /** @nullable */
   coverImage?: string | null;
-  coverImageDisplayMode?: 'cover' | 'natural';
+  coverImageDisplayMode?: UpdatePostBodyCoverImageDisplayMode;
   /** @nullable */
   gallery?: string | null;
   /** @nullable */
@@ -124,6 +152,18 @@ export interface Fonte {
   /** @nullable */
   ultimaVerificacao?: string | null;
   criadoEm: string;
+  /** @nullable */
+  instagram?: string | null;
+  /** @nullable */
+  site?: string | null;
+  /** @nullable */
+  telefone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  endereco?: string | null;
+  /** @nullable */
+  tags?: string | null;
 }
 
 export interface FonteListResponse {
@@ -136,6 +176,12 @@ export interface CreateFonteBody {
   url: string;
   tipo?: string;
   ativo?: boolean;
+  instagram?: string;
+  site?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+  tags?: string;
 }
 
 export interface UpdateFonteBody {
@@ -143,6 +189,12 @@ export interface UpdateFonteBody {
   url?: string;
   tipo?: string;
   ativo?: boolean;
+  instagram?: string;
+  site?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+  tags?: string;
 }
 
 export interface MediaUploadResponse {

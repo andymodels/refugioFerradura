@@ -571,6 +571,18 @@ components:
         criadoEm:
           type: string
           format: date-time
+        instagram:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        telefone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        endereco:
+          type: ["string", "null"]
+        tags:
+          type: ["string", "null"]
       required:
         - id
         - nome
@@ -603,6 +615,18 @@ components:
           type: string
         ativo:
           type: boolean
+        instagram:
+          type: string
+        site:
+          type: string
+        telefone:
+          type: string
+        email:
+          type: string
+        endereco:
+          type: string
+        tags:
+          type: string
       required:
         - nome
         - url
@@ -618,6 +642,18 @@ components:
           type: string
         ativo:
           type: boolean
+        instagram:
+          type: string
+        site:
+          type: string
+        telefone:
+          type: string
+        email:
+          type: string
+        endereco:
+          type: string
+        tags:
+          type: string
 
     MediaUploadResponse:
       type: object

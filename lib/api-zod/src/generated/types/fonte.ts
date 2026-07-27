@@ -15,4 +15,16 @@ export interface Fonte {
   /** @nullable */
   ultimaVerificacao?: Date | null;
   criadoEm: Date;
+  /** @nullable */
+  instagram?: string | null;
+  /** @nullable */
+  site?: string | null;
+  /** @nullable */
+  telefone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  endereco?: string | null;
+  /** @nullable */
+  tags?: string | null;
 }

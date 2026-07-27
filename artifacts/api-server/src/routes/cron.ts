@@ -6,20 +6,29 @@ import { eq, and, gte, asc, desc, sql } from "drizzle-orm";
 import {
   extractArticleContent,
   extractImagesFromSource,
+  extractFeaturedMedia,
   isImageUrlValid,
   interleaveImages,
   stripExistingMedia,
   generateFromText,
   verifyArticleAgainstSource,
   generateEmpreendimentoArticle,
+  generateChannelUpdateArticle,
   searchAndGenerateRegionalArticle,
   searchIllustrativePhotos,
   slugify,
   type RegionalSearchImage,
 } from "../lib/article-generation";
 import { resolveEmpreendimentoImage } from "../lib/empreendimento-image";
-import { vetAndArchiveFoundImages, getInstitutionalFallback } from "../lib/media-pipeline";
-import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink } from "../lib/contact-links";
+import {
+  vetAndArchiveFoundImages,
+  getInstitutionalFallback,
+  searchInstagramPermalinks,
+  buildCandidatesFromPermalinks,
+  vetCandidates,
+  archiveMediaItems,
+} from "../lib/media-pipeline";
+import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink, renderServicoBlock } from "../lib/contact-links";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -604,6 +613,171 @@ router.get("/backfill-tags", async (req, res): Promise<void> => {
   }
 
   res.json({ status: "ok", totalPosts: posts.length, updated });
+});
+
+// Monitora 1 canal oficial por chamada (mesmo padrão de "1 item por
+// invocação" das demais rotas), sempre o menos verificado recentemente.
+// Nunca reaproveita uma publicação já processada (dedup via
+// fontes_processadas.url, que tem UNIQUE constraint), nunca publica sem
+// mídia aprovada, e nunca inventa dado de contato — o bloco "Serviço" é
+// montado deterministicamente a partir do cadastro do canal, sem passar
+// pela IA.
+router.get("/monitor-canais-oficiais", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const expectedMigration = process.env.MIGRATION_SECRET;
+  const authHeader = req.headers.authorization;
+  const authorized =
+    (!!expected && authHeader === `Bearer ${expected}`) ||
+    (!!expectedMigration && authHeader === `Bearer ${expectedMigration}`);
+  if (!authorized) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const [fonte] = await db
+    .select()
+    .from(fontesTable)
+    .where(and(eq(fontesTable.tipo, "instagram_oficial"), eq(fontesTable.ativo, true)))
+    .orderBy(sql`${fontesTable.ultimaVerificacao} asc nulls first`)
+    .limit(1);
+
+  if (!fonte || !fonte.instagram) {
+    res.json({ status: "ok", message: "Nenhum canal oficial ativo cadastrado." });
+    return;
+  }
+
+  await db.update(fontesTable).set({ ultimaVerificacao: new Date() }).where(eq(fontesTable.id, fonte.id));
+
+  const log: Record<string, unknown> = { fonteId: fonte.id, nome: fonte.nome, instagram: fonte.instagram };
+
+  try {
+    const handle = fonte.instagram.replace(/^@/, "");
+    const permalinks = await searchInstagramPermalinks(handle, fonte.nome);
+    log.permalinksEncontrados = permalinks.length;
+
+    if (permalinks.length === 0) {
+      res.json({ status: "ok", log, message: "Nenhuma publicação encontrada." });
+      return;
+    }
+
+    // Dedup: nunca reprocessa um permalink já registrado pra essa fonte.
+    const already = await db
+      .select({ url: fontesProcessadasTable.url })
+      .from(fontesProcessadasTable)
+      .where(eq(fontesProcessadasTable.fonteId, fonte.id));
+    const alreadySet = new Set(already.map((r) => r.url));
+    const novos = permalinks.filter((p) => !alreadySet.has(p));
+
+    if (novos.length === 0) {
+      res.json({ status: "ok", log, message: "Nenhuma publicação nova (todas já processadas)." });
+      return;
+    }
+
+    const trigger = novos[0];
+    log.trigger = trigger;
+
+    // Pool de candidatos pra vetting visual: todas as publicações recentes
+    // encontradas (não só a nova), pra ter de onde tirar 3-5 mídias aprovadas.
+    const candidates = await buildCandidatesFromPermalinks(permalinks);
+    const { approved, rejected } = await vetCandidates(fonte.nome, candidates);
+    log.midiaAprovada = approved.length;
+    log.midiaRejeitada = rejected.map((r) => r.motivo);
+
+    if (approved.length === 0) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: trigger,
+        status: "falhou",
+        detalhe: "Nenhuma mídia aprovada na vetting visual",
+      });
+      logger.info(log, "[cron] Canal oficial sem mídia aprovada — não publicado");
+      res.json({ status: "ok", log, message: "Publicação encontrada, mas sem mídia aprovada — não publicado." });
+      return;
+    }
+
+    const triggerMedia = await extractFeaturedMedia(trigger);
+    if (!triggerMedia.caption) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: trigger,
+        status: "falhou",
+        detalhe: "Não foi possível ler a legenda da publicação",
+      });
+      res.json({ status: "ok", log, message: "Publicação sem legenda legível — não publicado." });
+      return;
+    }
+
+    const tags: string[] = fonte.tags ? JSON.parse(fonte.tags) : [];
+    const article = await generateChannelUpdateArticle({ nome: fonte.nome, caption: triggerMedia.caption, tags });
+
+    if (article.insuficiente || !article.title || !article.content) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: trigger,
+        status: "rascunho",
+        detalhe: article.motivo || "Legenda insuficiente para gerar matéria factual",
+      });
+      logger.info({ ...log, motivo: article.motivo }, "[cron] Canal oficial com legenda insuficiente — não publicado");
+      res.json({ status: "ok", log, message: "Legenda insuficiente para gerar matéria — não publicado." });
+      return;
+    }
+
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+    const mediaItems = await archiveMediaItems(candidates, approved, slug, "instagram_oficial");
+
+    if (mediaItems.length === 0) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: trigger,
+        status: "falhou",
+        detalhe: "Falha ao arquivar a mídia aprovada",
+      });
+      res.json({ status: "ok", log, message: "Falha ao arquivar mídia aprovada — não publicado." });
+      return;
+    }
+
+    const servicoBlock = renderServicoBlock({
+      instagram: fonte.instagram,
+      site: fonte.site,
+      telefone: fonte.telefone,
+      email: fonte.email,
+      endereco: fonte.endereco,
+    });
+    const finalContent = interleaveImages(article.content, mediaItems) + servicoBlock;
+    const computedTags = mapTags({ title: fonte.nome, content: `${tags.join(" ")} ${article.content}` }, ["empreendimentos", ...tags]);
+    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+
+    const [post] = await db
+      .insert(postsTable)
+      .values({
+        title: article.title,
+        subtitle: article.subtitle ?? null,
+        slug,
+        excerpt: article.excerpt ?? null,
+        content: finalContent,
+        coverImage: cover.urlArquivo,
+        coverImageDisplayMode: "natural",
+        coverImageMeta: JSON.stringify(cover),
+        mediaItems: JSON.stringify(mediaItems),
+        tags: JSON.stringify(computedTags),
+        status: "published",
+        metaDescription: article.metaDescription ?? null,
+      })
+      .returning();
+
+    await db.insert(fontesProcessadasTable).values({
+      fonteId: fonte.id,
+      url: trigger,
+      postId: post.id,
+      status: "sucesso",
+    });
+
+    logger.info({ ...log, postId: post.id, slug }, "[cron] Post de canal oficial publicado");
+    res.json({ status: "ok", log, post: { id: post.id, slug: post.slug, status: post.status } });
+  } catch (err: any) {
+    logger.error({ ...log, err }, "[cron] Falha ao monitorar canal oficial");
+    res.status(500).json({ error: "Erro ao monitorar canal oficial: " + err.message, log });
+  }
 });
 
 function significantWords(html: string): Set<string> {

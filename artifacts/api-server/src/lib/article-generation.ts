@@ -622,6 +622,60 @@ export async function generateEmpreendimentoArticle(
   return parseJsonResponse(getTextBlock(message));
 }
 
+export interface ChannelUpdateInput {
+  nome: string;
+  caption: string;
+  tags?: string[];
+}
+
+export interface ChannelUpdateArticle {
+  insuficiente?: boolean;
+  motivo?: string;
+  title?: string;
+  subtitle?: string;
+  excerpt?: string;
+  content?: string;
+  metaDescription?: string;
+}
+
+const CHANNEL_UPDATE_SYSTEM_PROMPT = `Você é um editor de conteúdo especialista em turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura, Buenos Aires e Guarapari - ES.
+
+REGRAS ABSOLUTAS:
+1. Baseie-se SOMENTE na legenda da publicação oficial fornecida e no nome do estabelecimento. NUNCA invente serviços, preços, datas, horários, estrutura ou características que não estejam na legenda.
+2. Não copie a legenda literalmente — escreva uma atualização jornalística curta com suas próprias palavras, explicando o que é mostrado, a experiência oferecida e para quem pode interessar.
+3. NÃO repita frases ou informações só pra preencher espaço.
+4. Sempre em Português do Brasil, tom editorial e factual, 2 a 4 parágrafos (nada de <h2>, só <p>).
+5. Se a legenda não trouxer informação suficiente pra escrever algo factual e útil (por exemplo, é só uma frase genérica ou hashtags), NÃO invente conteúdo — responda com o JSON de insuficiente.`;
+
+const CHANNEL_UPDATE_PROMPT = (input: ChannelUpdateInput) => `Publicação nova do perfil oficial de "${input.nome}" (Rota da Ferradura, Guarapari-ES):
+
+Legenda: "${input.caption}"
+
+Escreva uma atualização jornalística curta (2 a 4 parágrafos, só <p>, sem <h2>) sobre essa publicação pro blog do site Refúgio da Ferradura — indo além da legenda com suas próprias palavras, mas sem inventar nenhum fato que não esteja nela.
+
+Se a legenda não tiver informação suficiente pra isso, responda SOMENTE:
+{"insuficiente": true, "motivo": "..."}
+
+Caso contrário, responda APENAS EM JSON válido, sem markdown ao redor:
+{
+  "title": "Título curto baseado no que a publicação mostra",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 1 a 2 frases",
+  "content": "2 a 4 parágrafos em HTML, só <p>",
+  "metaDescription": "Até 160 caracteres para SEO"
+}`;
+
+export async function generateChannelUpdateArticle(input: ChannelUpdateInput): Promise<ChannelUpdateArticle> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 2048,
+    system: CHANNEL_UPDATE_SYSTEM_PROMPT,
+    messages: [{ role: "user", content: CHANNEL_UPDATE_PROMPT(input) }],
+  });
+  return parseJsonResponse(getTextBlock(message));
+}
+
 // Localidades oficiais que compõem a Rota da Ferradura, segundo o próprio
 // Diagnóstico Turístico e Econômico do Governo do ES (página "Localização
 // das Propriedades Visitadas").

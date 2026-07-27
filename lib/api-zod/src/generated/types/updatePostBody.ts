@@ -5,6 +5,7 @@
  * Refúgio da Ferradura API
  * OpenAPI spec version: 0.2.0
  */
+import type { UpdatePostBodyCoverImageDisplayMode } from "./updatePostBodyCoverImageDisplayMode";
 
 export interface UpdatePostBody {
   title?: string;
@@ -16,7 +17,7 @@ export interface UpdatePostBody {
   content?: string;
   /** @nullable */
   coverImage?: string | null;
-  coverImageDisplayMode?: 'cover' | 'natural';
+  coverImageDisplayMode?: UpdatePostBodyCoverImageDisplayMode;
   /** @nullable */
   gallery?: string | null;
   /** @nullable */
