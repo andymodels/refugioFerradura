@@ -33,6 +33,16 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+// Nenhuma mídia (institucional ou não) deve virar capa de mais de um post —
+// evita o cenário de várias matérias diferentes recebendo a mesma foto.
+async function isCoverAlreadyUsed(coverUrl: string, excludePostId?: number): Promise<boolean> {
+  const conditions = excludePostId
+    ? and(eq(postsTable.coverImage, coverUrl), sql`${postsTable.id} != ${excludePostId}`)
+    : eq(postsTable.coverImage, coverUrl);
+  const rows = await db.select({ id: postsTable.id }).from(postsTable).where(conditions).limit(1);
+  return rows.length > 0;
+}
+
 const AUTOMATION_INSTRUCTIONS =
   "Reescreva de forma 100% autoral, com ângulo de turismo regional para quem visita a Rota da Ferradura. " +
   "Nunca copie frases literais da fonte. Quando fizer sentido, cite o nome do negócio/estabelecimento mencionado na fonte.";
@@ -214,10 +224,20 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
           continue;
         }
 
+        const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+        if (cover && (await isCoverAlreadyUsed(cover.urlArquivo))) {
+          await db.insert(fontesProcessadasTable).values({
+            fonteId: fonte.id,
+            url: link,
+            status: "falhou",
+            detalhe: `Mídia já usada como capa em outro post — bloqueado por unicidade (${cover.urlArquivo})`,
+          });
+          continue;
+        }
+
         const verification = await verifyArticleAgainstSource(extraction.text, article);
         const finalContent = interleaveImages(article.content, mediaItems);
         const tags = mapTags(article);
-        const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
 
         const status = !verification.ok ? "draft" : AUTO_PUBLISH_STATUS;
 
@@ -543,9 +563,20 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
       return;
     }
 
+    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+    if (cover && (await isCoverAlreadyUsed(cover.urlArquivo))) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: article.sourceUrl,
+        status: "falhou",
+        detalhe: `Mídia já usada como capa em outro post — bloqueado por unicidade (${cover.urlArquivo})`,
+      });
+      res.json({ status: "ok", message: "Mídia já usada em outro post — bloqueado por unicidade." });
+      return;
+    }
+
     const finalContent = interleaveImages(article.content, mediaItems);
     const tags = mapTags(article);
-    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
 
     const [post] = await db
       .insert(postsTable)
@@ -871,6 +902,33 @@ router.get("/reconcile-media", async (req, res): Promise<void> => {
       slug: post.slug,
     });
     log.midiaAprovada = mediaItems.map((m) => ({ kind: m.kind, tipo: m.tipo, url: m.urlArquivo }));
+
+    // Nunca usa paisagem institucional pra um empreendimento específico —
+    // e, por segurança extra, bloqueia se alguma mídia escolhida já for a
+    // capa de outro post (nenhuma mídia de empreendimento deveria repetir).
+    const institucional = mediaItems.filter((m) => m.tipo === "institucional");
+    if (institucional.length > 0) {
+      res.status(422).json({
+        status: "invalid",
+        log: { ...log, motivo: "Pipeline retornou mídia institucional para um empreendimento específico — bloqueado" },
+      });
+      return;
+    }
+    if (mediaItems.length > 0) {
+      const urls = mediaItems.map((m) => m.urlArquivo);
+      const dupCheck = await db
+        .select({ id: postsTable.id, coverImage: postsTable.coverImage })
+        .from(postsTable)
+        .where(and(sql`${postsTable.coverImage} = ANY(${urls})`, sql`${postsTable.id} != ${postId}`));
+      if (dupCheck.length > 0) {
+        res.status(422).json({
+          status: "invalid",
+          log: { ...log, motivo: `Mídia já usada como capa em outro post (id ${dupCheck[0].id}) — bloqueado por unicidade` },
+        });
+        return;
+      }
+    }
+
     if (mediaItems.length > 0) {
       const stripped = stripExistingMedia(post.content);
       newContent = interleaveImages(stripped, mediaItems);

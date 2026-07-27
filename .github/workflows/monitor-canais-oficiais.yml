@@ -1,12 +1,12 @@
 name: Monitorar canais oficiais do Instagram (3x/dia)
 
 on:
-  schedule:
-    # Minutos fora da hora cheia — GitHub recomenda evitar "0 * * * *" porque
-    # é quando o agendador fica mais sobrecarregado e pode atrasar/pular.
-    - cron: "23 10 * * *" # ~7h BRT
-    - cron: "28 15 * * *" # ~12h BRT
-    - cron: "25 22 * * *" # ~19h BRT
+  # PAUSADO em 2026-07-27 após incidente de capa institucional duplicada na
+  # reconciliação global — só reativar o `schedule` depois de revisão manual.
+  # - schedule:
+  #     - cron: "23 10 * * *" # ~7h BRT
+  #     - cron: "28 15 * * *" # ~12h BRT
+  #     - cron: "25 22 * * *" # ~19h BRT
   workflow_dispatch: {}
 
 jobs:

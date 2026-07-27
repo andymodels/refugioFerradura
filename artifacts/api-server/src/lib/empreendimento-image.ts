@@ -1,18 +1,18 @@
 import type { MediaItem } from "./article-generation";
-import {
-  resolveInstagramMedia,
-  resolveSiteMedia,
-  searchOfficialChannel,
-  getInstitutionalFallback,
-} from "./media-pipeline";
+import { resolveInstagramMedia, resolveSiteMedia, searchOfficialChannel } from "./media-pipeline";
 import { logger } from "./logger";
 
 // Adaptador do pipeline único de mídia (media-pipeline.ts) pro formato de
 // dados da fila de empreendimentos (catálogo digitizado do Diagnóstico
 // Turístico e Econômico da Rota da Ferradura). O PDF é fonte de texto/dados,
 // nunca de mídia — suas fotos NUNCA entram como mídia editorial. Prioridade:
-// Instagram oficial > site oficial > busca de apoio (só pra achar canal) >
-// paisagens institucionais da Rota da Ferradura (nunca fica sem mídia).
+// Instagram oficial > site oficial > busca de apoio (só pra achar canal).
+//
+// IMPORTANTE: paisagem institucional da Rota NUNCA é usada aqui. Um post de
+// empreendimento específico (hotel/restaurante/pousada/atração) sem mídia
+// oficial aprovada deve ficar sem mídia nova (rascunho/pendente de revisão),
+// nunca ganhar a mesma foto genérica de vários empreendimentos diferentes —
+// isso já causou capas duplicadas incorretas numa reconciliação anterior.
 
 export interface EmpreendimentoImageInput {
   nome: string;
@@ -49,9 +49,6 @@ export async function resolveEmpreendimentoImage(input: EmpreendimentoImageInput
     if (items.length > 0) return items;
   }
 
-  const fallback = getInstitutionalFallback(3);
-  if (fallback.length === 0) {
-    logger.warn({ nome: input.nome }, "[empreendimento-image] Sem mídia oficial nem fallback institucional disponível");
-  }
-  return fallback;
+  logger.warn({ nome: input.nome }, "[empreendimento-image] Sem mídia oficial aprovada — post fica sem mídia nova (nunca usa fallback institucional aqui)");
+  return [];
 }
