@@ -241,7 +241,6 @@ router.post("/generate-from-url", async (req, res) => {
 
   try {
     let userContent: Anthropic.MessageParam["content"];
-    let temperature: number;
 
     if (isImage) {
       // Modo imagem: visão do Claude para analisar a foto
@@ -249,21 +248,17 @@ router.post("/generate-from-url", async (req, res) => {
         { type: "text", text: USER_PROMPT_IMAGE(input, extraInstructions || undefined) },
         { type: "image", source: { type: "url", url: input } },
       ];
-      temperature = 0.4;
     } else if (isTopicMode) {
       // Modo tema: usuário digitou um tópico curto — gerar artigo com conhecimento da IA
       userContent = USER_PROMPT_TOPIC(sourceText, extraInstructions || undefined);
-      temperature = 0.6;
     } else {
       // Modo fonte: texto longo colado pelo usuário ou extraído de URL — reescrever
       userContent = USER_PROMPT_TEXT(sourceText, extraInstructions || undefined);
-      temperature = 0.3;
     }
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 8192,
-      temperature,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
       tools: [ARTICLE_TOOL],
