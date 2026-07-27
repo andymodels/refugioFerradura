@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
+import { parseHTML } from "linkedom";
 
 const router: IRouter = Router();
 
@@ -14,10 +14,9 @@ const USER_AGENTS = [
 ];
 
 // Extrai meta tags Open Graph/Twitter como fallback para redes sociais
-function extractOGMeta(html: string, url: string): string {
+function extractOGMeta(html: string): string {
   try {
-    const dom = new JSDOM(html, { url });
-    const doc = dom.window.document;
+    const { document: doc } = parseHTML(html);
     const get = (prop: string) =>
       doc.querySelector(`meta[property="${prop}"]`)?.getAttribute("content") ||
       doc.querySelector(`meta[name="${prop}"]`)?.getAttribute("content") ||
@@ -90,8 +89,8 @@ async function extractArticleContent(
       }
 
       // Tenta Readability primeiro
-      const dom = new JSDOM(html, { url });
-      const reader = new Readability(dom.window.document);
+      const { document: parsedDoc } = parseHTML(html);
+      const reader = new Readability(parsedDoc as any);
       const article = reader.parse();
       const text = article?.textContent?.replace(/\s+/g, " ").trim() || "";
 
@@ -105,7 +104,7 @@ async function extractArticleContent(
       }
 
       // Fallback: Open Graph / Twitter meta tags (posts sociais, páginas de foto)
-      const ogText = extractOGMeta(html, url);
+      const ogText = extractOGMeta(html);
       if (ogText.length > 50 && !isBlockedContent(ogText)) {
         return { text: ogText.slice(0, 4000), blocked: false, isImage: false };
       }
