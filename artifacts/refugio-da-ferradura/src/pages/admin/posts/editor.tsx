@@ -6,7 +6,7 @@ import { Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2 } from "lucide-react";
+import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store } from "lucide-react";
 
 const PREDEFINED_TAGS = [
   { id: "lugares", label: "Lugares", icon: MapPin },
@@ -18,6 +18,7 @@ const PREDEFINED_TAGS = [
   { id: "cultura", label: "Cultura", icon: Palette },
   { id: "aventura", label: "Aventura", icon: Tent },
   { id: "eventos", label: "Eventos", icon: CalendarDays },
+  { id: "empreendimentos", label: "Empreendimentos / Serviços", icon: Store },
 ];
 
 function slugify(text: string): string {

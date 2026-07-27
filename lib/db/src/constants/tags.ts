@@ -50,4 +50,9 @@ export const CONTENT_TAGS: ContentTag[] = [
     label: "Eventos",
     keywords: ["evento", "festival", "programação", "agenda", "show"],
   },
+  {
+    id: "empreendimentos",
+    label: "Empreendimentos / Serviços",
+    keywords: ["empreendimento", "propriedade", "sítio", "proprietário", "serviço", "negócio"],
+  },
 ];

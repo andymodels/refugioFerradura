@@ -85,6 +85,28 @@ export async function setupDatabase(): Promise<void> {
     `);
 
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS "empreendimentos_fila" (
+        "id" serial PRIMARY KEY,
+        "ordem" integer NOT NULL UNIQUE,
+        "nome" text NOT NULL,
+        "regiao" text,
+        "proprietario" text,
+        "telefone" text,
+        "email" text,
+        "endereco" text,
+        "plus_code" text,
+        "instagram" text,
+        "site" text,
+        "caracteristicas" text,
+        "fotos" text,
+        "status" text NOT NULL DEFAULT 'pendente',
+        "post_id" integer REFERENCES "posts"("id"),
+        "criado_em" timestamptz NOT NULL DEFAULT now(),
+        "publicado_em" timestamptz
+      );
+    `);
+
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
         "sess" json NOT NULL,
