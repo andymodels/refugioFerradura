@@ -434,13 +434,20 @@ const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => `Escreva um artigo e
 
 Nome: ${data.nome}
 Região: ${data.regiao || "não informado"}
+Proprietário/Responsável: ${data.proprietario || "não informado"}
+Endereço: ${data.endereco || "não informado"}
+Telefone: ${data.telefone || "não informado"}
+E-mail: ${data.email || "não informado"}
+Localização (Plus Code): ${data.plusCode || "não informado"}
+Instagram: ${data.instagram || "não informado"}
+Site: ${data.site || "não informado"}
 Características/serviços oferecidos:
 ${data.caracteristicas.map((c) => `- ${c}`).join("\n")}
 
 Estruture o artigo em HTML com <h2>, <p>, <ul>, <li>:
 1. Comece apresentando o empreendimento e a região onde fica.
 2. Descreva as características/serviços de forma fluida e convidativa (pode agrupar em parágrafos ou lista).
-3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, os dados de contato/acesso que existirem entre estes (omita os que não existirem, não invente nenhum): endereço, telefone, e-mail, site, Instagram.
+3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone, e-mail, site, Instagram, proprietário) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
 
 RESPONDA APENAS EM JSON válido, sem markdown ao redor:
 {
