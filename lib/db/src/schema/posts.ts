@@ -11,6 +11,10 @@ export const postsTable = pgTable("posts", {
   content: text("content").notNull().default(""),
   coverImage: text("cover_image"),
   coverImageDisplayMode: text("cover_image_display_mode").notNull().default("cover"),
+  // JSON com a proveniência da imagem de capa: tipo de origem
+  // (instagram_oficial/site_oficial/pdf/licenciada), URL original, URL de
+  // destino do clique, crédito exibido, data de verificação e se é embed.
+  coverImageMeta: text("cover_image_meta"),
   gallery: text("gallery"),
   videoEmbeds: text("video_embeds"),
   tags: text("tags"),

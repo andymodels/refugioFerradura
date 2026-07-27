@@ -54,6 +54,49 @@ function isBlockedContent(text: string): boolean {
   return matches.length >= 2;
 }
 
+export interface PageFeaturedMedia {
+  imageUrl?: string;
+  caption?: string;
+}
+
+// Busca a imagem de destaque (og:image/twitter:image) e uma legenda curta
+// (título/descrição) de uma página pública — usado tanto pro site oficial de
+// um empreendimento quanto pra checar um post público do Instagram (que
+// expõe essas mesmas meta tags pra permitir preview em outras redes).
+export async function extractFeaturedMedia(url: string): Promise<PageFeaturedMedia> {
+  for (const userAgent of USER_AGENTS) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": userAgent,
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) continue;
+      const html = await response.text();
+      const { document: doc } = parseHTML(html);
+      const get = (prop: string) =>
+        doc.querySelector(`meta[property="${prop}"]`)?.getAttribute("content") ||
+        doc.querySelector(`meta[name="${prop}"]`)?.getAttribute("content") ||
+        "";
+
+      const rawImage = get("og:image:secure_url") || get("og:image") || get("twitter:image");
+      const imageUrl = rawImage ? new URL(rawImage, url).toString() : undefined;
+      const title = get("og:title") || get("twitter:title") || doc.title || "";
+      const description = get("og:description") || get("twitter:description") || "";
+      const caption = [title, description].filter(Boolean).join(" — ").trim() || undefined;
+
+      if (imageUrl && !isBlockedContent(caption || "")) {
+        return { imageUrl, caption };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return {};
+}
+
 export async function extractArticleContent(
   url: string,
 ): Promise<{ text: string; blocked: boolean; isImage: boolean }> {
@@ -167,13 +210,19 @@ export async function isImageUrlValid(url: string): Promise<boolean> {
 }
 
 export interface InterleaveImage {
-  url: string;
+  // Ausente quando `embedHtml` é usado no lugar de uma URL de imagem simples.
+  url?: string;
   // Se ausente, a imagem entra sem legenda de crédito (ex: foto enviada pelo próprio usuário).
   creditLabel?: string;
   creditHref?: string;
+  // Bloco HTML pronto pra incorporar em vez de um <img> simples — usado pro
+  // embed oficial de um post do Instagram (blockquote + widget), que já traz
+  // clique pro post/perfil original embutido pela própria Meta.
+  embedHtml?: string;
 }
 
-// Intercala fotos entre os blocos <h2> do artigo, com crédito quando informado.
+// Intercala fotos (ou embeds) entre os blocos <h2> do artigo, com crédito
+// visível quando informado.
 export function interleaveImages(contentHtml: string, images: InterleaveImage[]): string {
   if (images.length === 0) return contentHtml;
   const parts = contentHtml.split(/(?=<h2>)/i).filter((p) => p.trim().length > 0);
@@ -184,13 +233,28 @@ export function interleaveImages(contentHtml: string, images: InterleaveImage[])
     if (imgIdx < images.length) {
       const img = images[imgIdx];
       const credit = img.creditLabel
-        ? `\n<p><em>Foto: <a href="${img.creditHref}" target="_blank" rel="noopener noreferrer">${img.creditLabel}</a></em></p>\n`
+        ? img.creditHref
+          ? `\n<p><em>Foto: <a href="${img.creditHref}" target="_blank" rel="noopener noreferrer">${img.creditLabel}</a></em></p>\n`
+          : `\n<p><em>Foto: ${img.creditLabel}</em></p>\n`
         : "\n";
-      out.push(`\n<img class="rounded-lg" src="${img.url}" alt="" style="width: 100%; max-width: 100%;">${credit}`);
+      const media = img.embedHtml
+        ? `\n${img.embedHtml}\n`
+        : `\n<img class="rounded-lg" src="${img.url}" alt="" style="width: 100%; max-width: 100%;">${credit}`;
+      out.push(media);
       imgIdx++;
     }
   }
   return out.join("\n");
+}
+
+// Snippet oficial de embed do Instagram (blockquote + embed.js) — não exige
+// API/token, é o mesmo HTML gerado pelo botão "Incorporar" do próprio
+// Instagram. Renderiza o post real, com link de volta pro post/perfil.
+export function renderInstagramEmbed(permalink: string): string {
+  return `<blockquote class="instagram-media" data-instgrm-permalink="${permalink}" data-instgrm-version="14" style="background:#FFF; border:0; border-radius:3px; box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15); margin: 1px; max-width:540px; min-width:326px; padding:0; width:99.375%; width:-webkit-calc(100% - 2px); width:calc(100% - 2px);">
+  <a href="${permalink}" target="_blank" rel="noopener noreferrer">Ver esta publicação no Instagram</a>
+</blockquote>
+<script async src="//www.instagram.com/embed.js"></script>`;
 }
 
 export function slugify(text: string): string {

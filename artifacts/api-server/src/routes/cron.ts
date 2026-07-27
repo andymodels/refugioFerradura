@@ -17,6 +17,7 @@ import {
   type InterleaveImage,
   type RegionalSearchImage,
 } from "../lib/article-generation";
+import { resolveEmpreendimentoImage } from "../lib/empreendimento-image";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -325,12 +326,33 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       return;
     }
 
-    const finalContent = interleaveImages(article.content, fotos.map((url) => ({ url })));
+    // Prioridade de imagem: Instagram oficial > site oficial > busca de apoio
+    // (só pra achar canal oficial) > PDF do diagnóstico (com filtro de
+    // qualidade, sem upscale). O PDF é fonte de texto/dados, não de mídia —
+    // suas fotos já vêm pequenas/comprimidas, então só entram como último
+    // recurso.
+    const imageResolution = await resolveEmpreendimentoImage({
+      nome: item.nome,
+      regiao: item.regiao,
+      endereco: item.endereco,
+      plusCode: item.plusCode,
+      instagram: instagramOk ? item.instagram : null,
+      site: siteOk ? item.site : null,
+      fotosPdf: fotos,
+    });
+
+    const finalContent = imageResolution
+      ? interleaveImages(article.content, imageResolution.contentImages)
+      : article.content;
     const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
     const tags = mapTags(
       { title: item.nome, content: `${caracteristicas.join(" ")} ${article.content}` },
       ["empreendimentos"],
     );
+
+    // Sem nenhuma imagem aprovada por nenhuma das fontes, o post vira
+    // rascunho pra revisão manual em vez de publicar uma capa fraca.
+    const status = imageResolution ? "published" : "draft";
 
     const [post] = await db
       .insert(postsTable)
@@ -340,9 +362,10 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
         slug,
         excerpt: article.excerpt ?? null,
         content: finalContent,
-        coverImage: fotos[0] ?? null,
+        coverImage: imageResolution?.coverImageUrl ?? null,
+        coverImageMeta: imageResolution ? JSON.stringify(imageResolution.meta) : null,
         tags: JSON.stringify(tags),
-        status: "published",
+        status,
         metaDescription: article.metaDescription ?? null,
       })
       .returning();
@@ -352,7 +375,10 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       .set({ status: "publicado", postId: post.id, publicadoEm: new Date() })
       .where(eq(empreendimentosFilaTable.id, item.id));
 
-    logger.info({ postId: post.id, slug, empreendimento: item.nome }, "[cron] Post de empreendimento publicado");
+    logger.info(
+      { postId: post.id, slug, empreendimento: item.nome, status, imagemTipo: imageResolution?.meta.tipo ?? "nenhuma" },
+      "[cron] Post de empreendimento processado",
+    );
 
     res.json({ status: "ok", post: { id: post.id, slug: post.slug, status: post.status } });
   } catch (err: any) {
