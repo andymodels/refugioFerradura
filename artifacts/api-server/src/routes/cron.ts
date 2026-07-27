@@ -151,8 +151,20 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
           continue;
         }
 
-        const verification = await verifyArticleAgainstSource(extraction.text, article);
         const images = await extractImagesFromSource(link);
+
+        // Regra obrigatória: post de turismo sem foto não vale a pena publicar.
+        if (images.length === 0) {
+          await db.insert(fontesProcessadasTable).values({
+            fonteId: fonte.id,
+            url: link,
+            status: "falhou",
+            detalhe: "Nenhuma foto encontrada na fonte — post não vale sem imagem.",
+          });
+          continue;
+        }
+
+        const verification = await verifyArticleAgainstSource(extraction.text, article);
         const finalContent = interleaveImages(
           article.content,
           images.map((url) => ({ url, creditLabel: fonte.nome, creditHref: link })),
@@ -424,6 +436,20 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
       ...validatedImages.map((img) => ({ url: img.url, creditLabel: img.creditLabel, creditHref: img.pageUrl })),
       ...sourceImages.map((url) => ({ url, creditLabel: sourceName, creditHref: article.sourceUrl! })),
     ];
+
+    // Regra obrigatória: post de turismo sem foto não vale a pena publicar.
+    // Sem nenhuma imagem válida, registra como falha e não cria o post — a
+    // próxima execução tenta um tema diferente.
+    if (allImages.length === 0) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: article.sourceUrl,
+        status: "falhou",
+        detalhe: "Nenhuma foto válida encontrada — post não vale sem imagem.",
+      });
+      res.json({ status: "ok", message: "Conteúdo encontrado, mas sem foto válida — pulado." });
+      return;
+    }
 
     const finalContent = interleaveImages(article.content, allImages);
     const tags = mapTags(article);
