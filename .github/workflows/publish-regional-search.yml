@@ -1,0 +1,16 @@
+name: Publicar matéria de busca regional (1x/dia)
+
+on:
+  schedule:
+    - cron: "0 22 * * *" # 19h BRT — horário de maior engajamento
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar endpoint de busca regional
+        run: |
+          curl -fsS \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/publish-regional-search

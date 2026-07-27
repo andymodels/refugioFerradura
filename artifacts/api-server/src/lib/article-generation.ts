@@ -148,6 +148,24 @@ export async function extractImagesFromSource(url: string): Promise<string[]> {
   }
 }
 
+// Confere que uma URL de imagem "encontrada" pela IA numa busca realmente
+// existe e é mesmo uma imagem, antes de publicar — proteção contra a IA
+// citar uma URL plausível mas inválida/inventada.
+export async function isImageUrlValid(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { "User-Agent": USER_AGENTS[0], Range: "bytes=0-1024" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok && response.status !== 206) return false;
+    const contentType = response.headers.get("content-type") || "";
+    return contentType.startsWith("image/");
+  } catch {
+    return false;
+  }
+}
+
 export interface InterleaveImage {
   url: string;
   // Se ausente, a imagem entra sem legenda de crédito (ex: foto enviada pelo próprio usuário).
@@ -478,4 +496,93 @@ export async function generateEmpreendimentoArticle(
     messages: [{ role: "user", content: EMPREENDIMENTO_PROMPT(data) }],
   });
   return parseJsonResponse(getTextBlock(message));
+}
+
+// Localidades oficiais que compõem a Rota da Ferradura, segundo o próprio
+// Diagnóstico Turístico e Econômico do Governo do ES (página "Localização
+// das Propriedades Visitadas").
+export const ROTA_DA_FERRADURA_LOCALITIES = [
+  "Rota da Ferradura",
+  "Guarapari",
+  "Oratório",
+  "Buenos Aires",
+  "Barra do Limão",
+  "Boa Esperança",
+  "Arraial do Jabuti",
+  "Jabuti",
+  "São João do Jabuti",
+  "Cachoeirinha",
+];
+
+export interface RegionalSearchImage {
+  url: string;
+  pageUrl: string;
+  creditLabel: string;
+}
+
+export interface RegionalSearchArticle extends GeneratedArticle {
+  sourceUrl?: string | null;
+  images?: RegionalSearchImage[];
+}
+
+const REGIONAL_SEARCH_SYSTEM_PROMPT = `Você é um editor de conteúdo especialista em turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura, Guarapari - ES, e as localidades que a compõem.
+
+REGRAS ABSOLUTAS:
+1. Use a ferramenta de busca na web pra encontrar conteúdo REAL e ATUAL sobre a região. NUNCA invente uma fonte ou escreva sem antes ter pesquisado de verdade.
+2. Baseie o artigo EXCLUSIVAMENTE no que a pesquisa retornou. Não invente fatos, números, nomes, datas ou eventos que não estejam nos resultados da busca.
+3. Priorize conteúdo verdadeiramente atual: eventos futuros/próximos, notícias recentes. Evite reescrever algo genérico ou datado se encontrar algo mais atual.
+4. Sempre em Português do Brasil, tom editorial sofisticado e acolhedor, escrevendo com suas próprias palavras (nunca copie frases literais da fonte).
+5. "Refúgio da Ferradura" é um SITE DE TURISMO da região, não um estabelecimento físico.`;
+
+const REGIONAL_SEARCH_PROMPT = (excludeUrls: string[], recentTopics: string[]) => `Pesquise na internet conteúdo atual e real sobre a Rota da Ferradura (Guarapari-ES) e as localidades que a compõem: ${ROTA_DA_FERRADURA_LOCALITIES.join(", ")}.
+
+Pode ser sobre: um lugar/atrativo, uma curiosidade, uma paisagem, um restaurante, uma pousada, ou (com prioridade especial) um evento atualizado/próximo na região.
+
+IMPORTANTE — VARIE O TIPO DE CONTEÚDO, nunca repita o mesmo ângulo/categoria do post mais recente. Os últimos posts publicados por este pipeline foram:
+${recentTopics.length > 0 ? recentTopics.map((t) => `- ${t}`).join("\n") : "(nenhum ainda — é o primeiro)"}
+Escolha hoje um tipo de conteúdo DIFERENTE dos listados acima (se o último foi sobre um evento, hoje prefira um lugar/restaurante/curiosidade, e vice-versa).
+
+NÃO escreva sobre nenhuma destas fontes, já usadas em posts anteriores:
+${excludeUrls.length > 0 ? excludeUrls.join("\n") : "(nenhuma ainda)"}
+
+Depois de pesquisar e encontrar uma fonte real, confiável e relevante, escreva um artigo editorial para o site Refúgio da Ferradura baseado exclusivamente no que você encontrou.
+
+Além do texto, procure também 1 a 3 FOTOS reais e livres da região (paisagens, o lugar/evento em si) — podem vir de posts públicos em redes sociais (Instagram, Facebook), sites de notícia, sites da prefeitura, blogs de turismo etc. Pra cada foto, você precisa ter a URL direta do ARQUIVO de imagem (terminando em .jpg/.jpeg/.png/.webp, não o link da página/post) e a URL da página onde a encontrou, pra dar o crédito. Se não encontrar nenhuma foto com URL de arquivo direta e confiável, é melhor não incluir nenhuma do que inventar uma.
+
+RESPONDA, como sua ÚLTIMA mensagem (depois de concluir a pesquisa), APENAS EM JSON válido, sem markdown ao redor:
+{
+  "sourceUrl": "URL exata da página que você usou como fonte principal do texto",
+  "title": "Título atraente baseado no conteúdo real encontrado",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases fiéis ao conteúdo",
+  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li>",
+  "metaDescription": "Até 160 caracteres para SEO",
+  "tags": ["turismo"],
+  "images": [
+    { "url": "URL direta do arquivo de imagem", "pageUrl": "URL da página/post onde encontrou", "creditLabel": "nome da fonte/perfil pra dar crédito" }
+  ]
+}
+
+Se, mesmo pesquisando, você não encontrar nada real e atual sobre a região, responda apenas: {"error": "nada_encontrado"}`;
+
+export async function searchAndGenerateRegionalArticle(
+  excludeUrls: string[],
+  recentTopics: string[] = [],
+): Promise<RegionalSearchArticle> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 8192,
+    system: REGIONAL_SEARCH_SYSTEM_PROMPT,
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+    messages: [{ role: "user", content: REGIONAL_SEARCH_PROMPT(excludeUrls, recentTopics) }],
+  });
+
+  const textBlocks = message.content.filter(
+    (block): block is Anthropic.TextBlock => block.type === "text",
+  );
+  const lastTextBlock = textBlocks[textBlocks.length - 1];
+  if (!lastTextBlock) throw new Error("A IA não retornou texto após a pesquisa.");
+
+  return parseJsonResponse(lastTextBlock.text);
 }

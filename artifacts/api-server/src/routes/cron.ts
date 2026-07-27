@@ -2,15 +2,19 @@ import { Router, type IRouter } from "express";
 import { parseHTML } from "linkedom";
 import { db, fontesTable, fontesProcessadasTable, postsTable, empreendimentosFilaTable } from "@workspace/db";
 import { CONTENT_TAGS } from "@workspace/db/constants/tags";
-import { eq, and, gte, asc, sql } from "drizzle-orm";
+import { eq, and, gte, asc, desc, sql } from "drizzle-orm";
 import {
   extractArticleContent,
   extractImagesFromSource,
+  isImageUrlValid,
   interleaveImages,
   generateFromText,
   verifyArticleAgainstSource,
   generateEmpreendimentoArticle,
+  searchAndGenerateRegionalArticle,
   slugify,
+  type InterleaveImage,
+  type RegionalSearchImage,
 } from "../lib/article-generation";
 import { logger } from "../lib/logger";
 
@@ -306,6 +310,155 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       .set({ status: "falhou" })
       .where(eq(empreendimentosFilaTable.id, item.id));
     res.status(500).json({ error: "Erro ao publicar empreendimento: " + err.message });
+  }
+});
+
+const BUSCA_REGIONAL_FONTE_NOME = "Busca regional automática (web)";
+
+async function getOrCreateBuscaRegionalFonte() {
+  const [existing] = await db
+    .select()
+    .from(fontesTable)
+    .where(eq(fontesTable.nome, BUSCA_REGIONAL_FONTE_NOME))
+    .limit(1);
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(fontesTable)
+    .values({
+      nome: BUSCA_REGIONAL_FONTE_NOME,
+      url: "busca-web://rota-da-ferradura",
+      tipo: "busca_web",
+      ativo: true,
+    })
+    .returning();
+  return created;
+}
+
+// 1x/dia, chamado via GitHub Actions em horário de maior engajamento (19h BRT).
+// Pesquisa a web (em vez de vigiar um site fixo) por conteúdo atual sobre a
+// região — lugares, curiosidades, restaurantes, pousadas e, com prioridade,
+// eventos atualizados.
+router.get("/publish-regional-search", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const fonte = await getOrCreateBuscaRegionalFonte();
+
+  const startOfToday = new Date();
+  startOfToday.setUTCHours(0, 0, 0, 0);
+
+  const [alreadyPublishedToday] = await db
+    .select()
+    .from(fontesProcessadasTable)
+    .where(
+      and(
+        eq(fontesProcessadasTable.fonteId, fonte.id),
+        eq(fontesProcessadasTable.status, "sucesso"),
+        gte(fontesProcessadasTable.criadoEm, startOfToday),
+      ),
+    )
+    .limit(1);
+
+  if (alreadyPublishedToday) {
+    res.json({ status: "ok", message: "Já foi publicado um post de busca regional hoje." });
+    return;
+  }
+
+  const previouslyUsed = await db
+    .select({ url: fontesProcessadasTable.url })
+    .from(fontesProcessadasTable)
+    .where(eq(fontesProcessadasTable.fonteId, fonte.id));
+  const excludeUrls = previouslyUsed.map((r) => r.url);
+
+  const recentPosts = await db
+    .select({ title: postsTable.title, tags: postsTable.tags })
+    .from(fontesProcessadasTable)
+    .innerJoin(postsTable, eq(fontesProcessadasTable.postId, postsTable.id))
+    .where(eq(fontesProcessadasTable.fonteId, fonte.id))
+    .orderBy(desc(fontesProcessadasTable.criadoEm))
+    .limit(5);
+  const recentTopics = recentPosts.map((p) => p.title);
+
+  try {
+    const article = await searchAndGenerateRegionalArticle(excludeUrls, recentTopics);
+
+    if (article.error || !article.title || !article.content || !article.sourceUrl) {
+      res.json({ status: "ok", message: "Nada novo e relevante encontrado na busca hoje." });
+      return;
+    }
+
+    // Evita duplicar caso a IA repita uma fonte mesmo com a lista de exclusão.
+    const [existingUrl] = await db
+      .select()
+      .from(fontesProcessadasTable)
+      .where(eq(fontesProcessadasTable.url, article.sourceUrl))
+      .limit(1);
+    if (existingUrl) {
+      res.json({ status: "ok", message: "Fonte encontrada já havia sido usada antes." });
+      return;
+    }
+
+    // Fotos que a própria IA encontrou durante a busca (redes sociais, sites
+    // de notícia etc.) — valida que a URL realmente aponta pra uma imagem de
+    // verdade antes de usar, pra não arriscar link inventado/quebrado.
+    const foundImages = article.images ?? [];
+    const validatedImages = (
+      await Promise.all(
+        foundImages.map(async (img) => {
+          const ok = await isImageUrlValid(img.url);
+          return ok ? img : null;
+        }),
+      )
+    ).filter((img): img is RegionalSearchImage => img !== null);
+
+    // Complementa com fotos raspadas da própria página-fonte, se sobrar espaço.
+    const sourceImages = await extractImagesFromSource(article.sourceUrl);
+    const sourceName = new URL(article.sourceUrl).hostname.replace(/^www\./, "");
+
+    const allImages: InterleaveImage[] = [
+      ...validatedImages.map((img) => ({ url: img.url, creditLabel: img.creditLabel, creditHref: img.pageUrl })),
+      ...sourceImages.map((url) => ({ url, creditLabel: sourceName, creditHref: article.sourceUrl! })),
+    ];
+
+    const finalContent = interleaveImages(article.content, allImages);
+    const tags = mapTags(article);
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+
+    const [post] = await db
+      .insert(postsTable)
+      .values({
+        title: article.title,
+        subtitle: article.subtitle ?? null,
+        slug,
+        excerpt: article.excerpt ?? null,
+        content: finalContent,
+        coverImage: allImages[0]?.url ?? null,
+        tags: JSON.stringify(tags),
+        // Fase de validação: sempre rascunho, igual ao pipeline de fontes —
+        // troca pra "published" depois de confirmar a qualidade por 1-2 semanas.
+        status: "draft",
+        metaDescription: article.metaDescription ?? null,
+      })
+      .returning();
+
+    await db.insert(fontesProcessadasTable).values({
+      fonteId: fonte.id,
+      url: article.sourceUrl,
+      postId: post.id,
+      status: "sucesso",
+    });
+
+    logger.info({ postId: post.id, slug, sourceUrl: article.sourceUrl }, "[cron] Post de busca regional criado");
+
+    res.json({ status: "ok", post: { id: post.id, slug: post.slug, status: post.status } });
+  } catch (err: any) {
+    logger.error({ err }, "[cron] Falha na busca regional");
+    res.status(500).json({ error: "Erro na busca regional: " + err.message });
   }
 });
 
