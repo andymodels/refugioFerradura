@@ -430,7 +430,15 @@ REGRAS ABSOLUTAS:
 3. Sempre em Português do Brasil, tom acolhedor e profissional.
 4. O conteúdo é baseado num levantamento oficial (Diagnóstico Turístico e Econômico da Rota da Ferradura), não invente nada além do que foi listado.`;
 
-const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => `Escreva um artigo editorial apresentando o seguinte empreendimento da Rota da Ferradura para o site Refúgio da Ferradura:
+const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => {
+  const instagramHtml = data.instagram
+    ? `<a href="https://instagram.com/${data.instagram.replace(/^@/, "")}" target="_blank" rel="noopener noreferrer">@${data.instagram.replace(/^@/, "")}</a>`
+    : null;
+  const siteHtml = data.site && data.site.startsWith("http")
+    ? `<a href="${data.site}" target="_blank" rel="noopener noreferrer">${data.site}</a>`
+    : null;
+
+  return `Escreva um artigo editorial apresentando o seguinte empreendimento da Rota da Ferradura para o site Refúgio da Ferradura:
 
 Nome: ${data.nome}
 Região: ${data.regiao || "não informado"}
@@ -439,15 +447,15 @@ Endereço: ${data.endereco || "não informado"}
 Telefone: ${data.telefone || "não informado"}
 E-mail: ${data.email || "não informado"}
 Localização (Plus Code): ${data.plusCode || "não informado"}
-Instagram: ${data.instagram || "não informado"}
-Site: ${data.site || "não informado"}
+Instagram (HTML já pronto, use exatamente como está, não reescreva): ${instagramHtml || "não informado"}
+Site (HTML já pronto, use exatamente como está, não reescreva): ${siteHtml || "não informado"}
 Características/serviços oferecidos:
 ${data.caracteristicas.map((c) => `- ${c}`).join("\n")}
 
 Estruture o artigo em HTML com <h2>, <p>, <ul>, <li>:
 1. Comece apresentando o empreendimento e a região onde fica.
 2. Descreva as características/serviços de forma fluida e convidativa (pode agrupar em parágrafos ou lista).
-3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone, e-mail, site, Instagram, proprietário) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
+3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone, e-mail, site, Instagram, proprietário) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Para Instagram e Site, copie o HTML de link fornecido acima exatamente como está, sem modificar a URL. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
 
 RESPONDA APENAS EM JSON válido, sem markdown ao redor:
 {
@@ -457,6 +465,7 @@ RESPONDA APENAS EM JSON válido, sem markdown ao redor:
   "content": "Artigo completo em HTML, terminando com a seção Serviços",
   "metaDescription": "Até 160 caracteres para SEO"
 }`;
+};
 
 export async function generateEmpreendimentoArticle(
   data: EmpreendimentoData,
