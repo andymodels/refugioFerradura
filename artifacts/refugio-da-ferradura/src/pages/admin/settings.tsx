@@ -336,8 +336,8 @@ export default function AdminSettings() {
 
             <Card className="p-5 space-y-4">
               <h2 className="font-serif text-base font-semibold">Altura do Hero</h2>
-              <Field label="Altura (% da tela)">
-                <SliderInput value={settings.hero_height_vh} onChange={set("hero_height_vh")} min={50} max={100} step={5} unit="vh" />
+              <Field label="Altura (desktop)" hint="No mobile a altura se ajusta automaticamente (~300–320px).">
+                <SliderInput value={settings.hero_height_vh} onChange={set("hero_height_vh")} min={280} max={520} step={10} unit="px" />
               </Field>
             </Card>
 
@@ -354,7 +354,7 @@ export default function AdminSettings() {
                   ]}
                 />
               </Field>
-              <Field label="Intensidade do Escurecimento">
+              <Field label="Intensidade do Escurecimento" hint="Recomendado: 20–25%, pra manter a paisagem visível.">
                 <SliderInput
                   value={settings.hero_overlay_opacity}
                   onChange={set("hero_overlay_opacity")}

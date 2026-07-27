@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Sparkles } from "lucide-react";
 import { Layout } from "@/components/layout";
@@ -7,7 +7,7 @@ import { useListPosts } from "@workspace/api-client-react";
 import { useSiteSettings, parseHomeBlocks, parseHeroPool, getOverlayStyle } from "@/hooks/use-site-settings";
 import { useSeo } from "@/hooks/use-seo";
 
-// Overrides de pré-visualização via URL (?preview_hero=1&hh=58&ho=0.4&hs=light),
+// Overrides de pré-visualização via URL (?preview_hero=1&hh=400&ho=0.22&hs=light),
 // sem afetar as configurações reais salvas — só pra validar ajustes visuais
 // antes de aplicar de fato nas configurações do site.
 function useHeroPreviewOverrides() {
@@ -23,19 +23,33 @@ function useHeroPreviewOverrides() {
   }, []);
 }
 
+const HERO_ROTATE_MS = 6000;
+
+function useHeroCarousel(poolLength: number) {
+  const [index, setIndex] = useState(() => Math.floor(Math.random() * Math.max(poolLength, 1)));
+  useEffect(() => {
+    if (poolLength <= 1) return;
+    const id = setInterval(() => setIndex((i) => (i + 1) % poolLength), HERO_ROTATE_MS);
+    return () => clearInterval(id);
+  }, [poolLength]);
+  return poolLength > 0 ? index % poolLength : 0;
+}
+
 export default function Home() {
   const s = useSiteSettings();
   const heroPreview = useHeroPreviewOverrides();
-  const heroOpacity = parseFloat(heroPreview?.opacity ?? s.hero_overlay_opacity) || 0.4;
-  const heroHeight = parseInt(heroPreview?.height ?? s.hero_height_vh) || 85;
+  const heroOpacity = parseFloat(heroPreview?.opacity ?? s.hero_overlay_opacity) || 0.22;
+  const rawHeightDesktop = parseInt(heroPreview?.height ?? s.hero_height_vh);
+  // hero_height_vh guardava um valor de 50–100 (% da viewport); agora guarda pixels
+  // do desktop. Enquanto o painel não é resalvo, valores antigos (<200) ainda podem
+  // estar no banco — nesse caso caímos no novo padrão em vez de um hero de poucos px.
+  const heroHeightDesktop = !rawHeightDesktop || rawHeightDesktop < 200 ? 400 : rawHeightDesktop;
+  const heroHeightMobile = Math.max(300, Math.min(320, Math.round(heroHeightDesktop * 0.78)));
   const heroStyle = heroPreview?.style ?? s.hero_style;
   const blocks = parseHomeBlocks(s.home_blocks);
-  const heroPool = parseHeroPool(s.hero_image_pool);
-
-  const heroImage = useMemo(
-    () => heroPool[Math.floor(Math.random() * heroPool.length)],
-    [s.hero_image_pool]
-  );
+  const heroPool = useMemo(() => parseHeroPool(s.hero_image_pool), [s.hero_image_pool]);
+  const heroIndex = useHeroCarousel(heroPool.length);
+  const heroImage = heroPool[heroIndex];
 
   const { data: recentData } = useListPosts({ limit: 6 } as any);
   const recentPosts = recentData?.posts || [];
@@ -83,23 +97,30 @@ export default function Home() {
   return (
     <Layout>
       <section
-        className="relative flex items-center justify-center min-h-[420px] md:max-h-[640px]"
-        style={{ height: `${heroHeight}vh` }}
+        className="relative flex items-center justify-center overflow-hidden h-[var(--hero-h-mobile)] md:h-[var(--hero-h-desktop)]"
+        style={{
+          ["--hero-h-mobile" as any]: `${heroHeightMobile}px`,
+          ["--hero-h-desktop" as any]: `${heroHeightDesktop}px`,
+        }}
       >
         <div className="absolute inset-0 z-0">
-          <img
-            src={heroImage}
-            alt="Vista"
-            className="w-full h-full object-cover"
-            style={{ objectPosition: "center 40%" }}
-          />
+          {heroPool.map((url, idx) => (
+            <img
+              key={url}
+              src={url}
+              alt="Vista da Rota da Ferradura"
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
+                idx === heroIndex ? "opacity-100" : "opacity-0"
+              }`}
+              style={{ objectPosition: "center 40%" }}
+            />
+          ))}
           <div className="absolute inset-0" style={getOverlayStyle(heroStyle, heroOpacity)} />
-          {/* Leve esmaecimento na base, pra sugerir a seção seguinte já na primeira dobra */}
-          <div className="absolute inset-x-0 bottom-0 h-24 md:h-32 bg-gradient-to-t from-background/90 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-10 md:h-14 bg-gradient-to-t from-background/70 to-transparent" />
         </div>
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-          <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-6 block">Rota da Ferradura · Guarapari</span>
-          <h1 className="text-5xl md:text-7xl font-serif text-white mb-6">Explore a Rota</h1>
+          <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-4 block">Rota da Ferradura · Guarapari</span>
+          <h1 className="text-4xl md:text-6xl font-serif text-white mb-5">Explore a Rota</h1>
           <div className="flex justify-center gap-4">
             <Link href="/lugares"><Button size="lg">Explorar</Button></Link>
           </div>
@@ -107,7 +128,7 @@ export default function Home() {
       </section>
 
       {recentPosts.length > 0 && (
-        <section className="py-16 bg-background">
+        <section className="pt-6 pb-16 md:pt-8 md:pb-16 bg-background">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center gap-2 mb-8">
               <Sparkles className="w-5 h-5 text-primary" />

@@ -46,9 +46,12 @@ export interface SiteSettings {
 export const SETTINGS_DEFAULTS: SiteSettings = {
   hero_image_url: "",
   hero_image_pool: JSON.stringify(DEFAULT_HERO_POOL),
-  hero_overlay_opacity: "0.4",
-  hero_style: "gradient",
-  hero_height_vh: "85",
+  hero_overlay_opacity: "0.22",
+  hero_style: "light",
+  // Guarda pixels da altura do hero no desktop (não mais "vh" — nome do campo
+  // mantido pra não exigir migração de settings). Ver home.tsx para o cálculo
+  // da altura no mobile e o guard contra valores antigos no formato vh (50–100).
+  hero_height_vh: "400",
   header_style: "transparent",
   header_bg_color: "#0b0f0c",
   header_sticky: "true",
