@@ -6,6 +6,7 @@ import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 import { useSiteSettings, parseHomeBlocks, parseHeroPool, parseHeroBanners, getOverlayStyle, type HeroBanner } from "@/hooks/use-site-settings";
 import { useSeo } from "@/hooks/use-seo";
+import { PostThumbnail } from "@/components/post-thumbnail";
 
 // Overrides de pré-visualização via URL (?preview_hero=1&hh=400&ho=0.22&hs=light),
 // sem afetar as configurações reais salvas — só pra validar ajustes visuais
@@ -74,7 +75,7 @@ export default function Home() {
   const blocks = parseHomeBlocks(s.home_blocks);
   const heroPool = useMemo(() => parseHeroPool(s.hero_image_pool), [s.hero_image_pool]);
 
-  const { data: recentData } = useListPosts({ limit: 6 } as any);
+  const { data: recentData } = useListPosts({ limit: 9 } as any);
   const recentPosts = recentData?.posts || [];
 
   const heroBanners = useMemo(() => {
@@ -184,7 +185,7 @@ export default function Home() {
               {recentPosts.map((post: any) => (
                 <Link key={post.id} href={`/blog/${post.slug}`}>
                   <Card className="overflow-hidden hover:shadow-lg transition-all cursor-pointer">
-                    <img src={post.coverImage} className="aspect-video object-cover w-full" />
+                    <PostThumbnail src={post.coverImage} alt={post.title} className="aspect-video object-cover w-full" />
                     <div className="p-4">
                       <h3 className="font-serif font-bold text-lg mb-2">{post.title}</h3>
                       <p className="text-sm text-muted-foreground line-clamp-2">{post.excerpt}</p>
@@ -192,6 +193,9 @@ export default function Home() {
                   </Card>
                 </Link>
               ))}
+            </div>
+            <div className="mt-10 flex justify-center">
+              <Link href="/blog"><Button variant="outline">Ver todas as matérias</Button></Link>
             </div>
           </div>
         </section>

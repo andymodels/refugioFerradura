@@ -215,6 +215,9 @@ export interface InterleaveImage {
   // Se ausente, a imagem entra sem legenda de crédito (ex: foto enviada pelo próprio usuário).
   creditLabel?: string;
   creditHref?: string;
+  // Quando a foto vem de um canal oficial, a própria imagem leva o leitor à
+  // fonte. Assim preservamos crédito sem exibir o card visual do Instagram.
+  linkHref?: string;
   // Bloco HTML pronto pra incorporar em vez de um <img> simples — usado pro
   // embed oficial de um post do Instagram (blockquote + widget), que já traz
   // clique pro post/perfil original embutido pela própria Meta.
@@ -237,9 +240,10 @@ export function interleaveImages(contentHtml: string, images: InterleaveImage[])
           ? `\n<p><em>Foto: <a href="${img.creditHref}" target="_blank" rel="noopener noreferrer">${img.creditLabel}</a></em></p>\n`
           : `\n<p><em>Foto: ${img.creditLabel}</em></p>\n`
         : "\n";
+      const image = `<img class="rounded-lg" src="${img.url}" alt="" style="width: 100%; max-width: 100%;">`;
       const media = img.embedHtml
         ? `\n${img.embedHtml}\n`
-        : `\n<img class="rounded-lg" src="${img.url}" alt="" style="width: 100%; max-width: 100%;">${credit}`;
+        : `\n${img.linkHref ? `<a href="${img.linkHref}" target="_blank" rel="noopener noreferrer">${image}</a>` : image}${credit}`;
       out.push(media);
       imgIdx++;
     }

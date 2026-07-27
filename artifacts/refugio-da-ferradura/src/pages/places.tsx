@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, Input, cn } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
+import { PostThumbnail } from "@/components/post-thumbnail";
 
 const TAG_FILTERS = [
   { label: "Todos", value: "lugares" },
@@ -78,8 +79,8 @@ export default function Places() {
                 <Link key={post.id} href={`/blog/${post.slug}`} className="group block h-full">
                   <Card className="h-full flex flex-col border-border/50 hover:border-primary/30 hover:shadow-xl transition-all duration-300">
                     <div className="aspect-[4/3] overflow-hidden relative">
-                      <img
-                        src={post.coverImage || "https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=800&auto=format&fit=crop"}
+                      <PostThumbnail
+                        src={post.coverImage}
                         alt={post.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                       />

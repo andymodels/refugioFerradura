@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { extractFeaturedMedia, isImageUrlValid, renderInstagramEmbed, type InterleaveImage } from "./article-generation";
+import { extractFeaturedMedia, isImageUrlValid, type InterleaveImage } from "./article-generation";
 import { probeImageQuality } from "./image-quality";
 import { logger } from "./logger";
 
@@ -117,7 +117,11 @@ REJEITE uma foto se ela for:
 - sobre uma promoção ou lista de preços
 - sobre um evento com data/calendário já vencido
 - dominada por texto sobreposto em vez de uma foto real do lugar
-- um retrato de pessoa sem relação clara e direta com o ambiente do local
+- um retrato, selfie ou pessoa em primeiro plano que esconda o local
+
+PRIORIZE, nesta ordem: paisagem/vista, fachada, arquitetura, ambiente interno
+ou externo, jardim, mesas, pratos bem fotografados e detalhes que deixem o
+estabelecimento reconhecível. Escolha a melhor composição, nitidez e resolução.
 
 Responda APENAS EM JSON, sem markdown ao redor:
 {"chosenIndex": <número 0-based da melhor, ou null se nenhuma servir>, "motivo": "..."}
@@ -153,7 +157,8 @@ async function resolveInstagramSource(handle: string, nome: string): Promise<Res
   const candidates: InstagramCandidate[] = [];
   for (const permalink of permalinks) {
     const media = await extractFeaturedMedia(permalink);
-    if (media.imageUrl) {
+    const quality = media.imageUrl ? await probeImageQuality(media.imageUrl) : null;
+    if (media.imageUrl && quality?.ok && await isImageUrlValid(media.imageUrl)) {
       candidates.push({ permalink, imageUrl: media.imageUrl, caption: media.caption });
     }
   }
@@ -171,18 +176,18 @@ async function resolveInstagramSource(handle: string, nome: string): Promise<Res
       targetUrl: chosen.permalink,
       creditLabel: `Instagram @${cleanHandle}`,
       verificadoEm: new Date().toISOString(),
-      isEmbed: true,
+      isEmbed: false,
     },
-    // O embed oficial já mostra o link pro post/perfil original — não precisa
-    // de legenda de crédito adicional embaixo.
-    contentImages: [{ embedHtml: renderInstagramEmbed(chosen.permalink) }],
+    // Foto limpa e editorial: o crédito e o clique preservam a origem, sem
+    // mostrar a interface visual do Instagram dentro da matéria.
+    contentImages: [{ url: chosen.imageUrl, creditLabel: `Instagram oficial @${cleanHandle}`, creditHref: chosen.permalink, linkHref: chosen.permalink }],
   };
 }
 
 async function resolveSiteSource(site: string): Promise<ResolvedEmpreendimentoImage | null> {
   const media = await extractFeaturedMedia(site);
   if (!media.imageUrl) return null;
-  if (!(await isImageUrlValid(media.imageUrl))) return null;
+  if (!(await isImageUrlValid(media.imageUrl)) || !(await probeImageQuality(media.imageUrl))?.ok) return null;
 
   const hostname = new URL(site).hostname.replace(/^www\./, "");
   return {
@@ -195,7 +200,7 @@ async function resolveSiteSource(site: string): Promise<ResolvedEmpreendimentoIm
       verificadoEm: new Date().toISOString(),
       isEmbed: false,
     },
-    contentImages: [{ url: media.imageUrl, creditLabel: hostname, creditHref: site }],
+    contentImages: [{ url: media.imageUrl, creditLabel: hostname, creditHref: site, linkHref: site }],
   };
 }
 

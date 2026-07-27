@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSeo } from "@/hooks/use-seo";
+import { PostThumbnail } from "@/components/post-thumbnail";
 
 export default function Search() {
   const [query, setQuery] = useState("");
@@ -68,7 +69,7 @@ export default function Search() {
                     <Link key={post.id} href={`/blog/${post.slug}`}>
                       <Card className="flex gap-4 p-4 hover:border-primary/50 transition-all hover:shadow-md cursor-pointer group">
                         <div className="w-24 h-24 rounded-md overflow-hidden shrink-0 bg-muted">
-                          <img src={post.coverImage || ""} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          <PostThumbnail src={post.coverImage} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         </div>
                         <div className="flex flex-col justify-center min-w-0">
                           <div className="flex gap-1 mb-1 flex-wrap">

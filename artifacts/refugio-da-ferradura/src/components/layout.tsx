@@ -36,6 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const footerAddress = s.footer_address || "Rota da Ferradura, Buenos Aires\nGuarapari - ES";
   const footerTagline = s.footer_tagline || "Descubra a magia e tranquilidade da Rota da Ferradura em Guarapari, ES.";
   const footerCopyright = s.footer_copyright || `© ${new Date().getFullYear()} Refúgio da Ferradura. Todos os direitos reservados.`;
+  const instagramUrl = s.footer_instagram || "https://www.instagram.com/refugioferradura/";
 
   return (
     <div className="min-h-screen flex flex-col bg-background selection:bg-primary/20">
@@ -176,8 +177,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </li>
                 <li className="flex items-center gap-4 pt-4">
                   <a
-                    href={s.footer_instagram || "#"}
-                    target={s.footer_instagram ? "_blank" : undefined}
+                    href={instagramUrl}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 bg-white/5 rounded-full hover:bg-primary hover:text-white transition-colors"
                   >

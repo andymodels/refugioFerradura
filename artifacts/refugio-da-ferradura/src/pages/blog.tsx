@@ -6,6 +6,7 @@ import { Layout } from "@/components/layout";
 import { Card, cn } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
 import { useSeo } from "@/hooks/use-seo";
+import { PostThumbnail } from "@/components/post-thumbnail";
 
 const TAGS = [
   { label: "Todos", value: "" },
@@ -98,8 +99,8 @@ export default function Blog() {
               return (
                 <Link key={post.id} href={`/blog/${post.slug}`} className="group flex flex-col h-full">
                   <div className="aspect-[4/3] overflow-hidden rounded-lg mb-6 relative">
-                    <img
-                      src={post.coverImage || "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=800&auto=format&fit=crop"}
+                    <PostThumbnail
+                      src={post.coverImage}
                       alt={post.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
