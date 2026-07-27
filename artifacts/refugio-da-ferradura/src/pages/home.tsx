@@ -7,10 +7,28 @@ import { useListPosts } from "@workspace/api-client-react";
 import { useSiteSettings, parseHomeBlocks, parseHeroPool, getOverlayStyle } from "@/hooks/use-site-settings";
 import { useSeo } from "@/hooks/use-seo";
 
+// Overrides de pré-visualização via URL (?preview_hero=1&hh=58&ho=0.4&hs=light),
+// sem afetar as configurações reais salvas — só pra validar ajustes visuais
+// antes de aplicar de fato nas configurações do site.
+function useHeroPreviewOverrides() {
+  return useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("preview_hero") !== "1") return null;
+    return {
+      height: params.get("hh"),
+      opacity: params.get("ho"),
+      style: params.get("hs"),
+    };
+  }, []);
+}
+
 export default function Home() {
   const s = useSiteSettings();
-  const heroOpacity = parseFloat(s.hero_overlay_opacity) || 0.4;
-  const heroHeight = parseInt(s.hero_height_vh) || 85;
+  const heroPreview = useHeroPreviewOverrides();
+  const heroOpacity = parseFloat(heroPreview?.opacity ?? s.hero_overlay_opacity) || 0.4;
+  const heroHeight = parseInt(heroPreview?.height ?? s.hero_height_vh) || 85;
+  const heroStyle = heroPreview?.style ?? s.hero_style;
   const blocks = parseHomeBlocks(s.home_blocks);
   const heroPool = parseHeroPool(s.hero_image_pool);
 
@@ -64,10 +82,20 @@ export default function Home() {
 
   return (
     <Layout>
-      <section className="relative flex items-center justify-center min-h-[500px]" style={{ height: `${heroHeight}vh` }}>
+      <section
+        className="relative flex items-center justify-center min-h-[420px] md:max-h-[640px]"
+        style={{ height: `${heroHeight}vh` }}
+      >
         <div className="absolute inset-0 z-0">
-          <img src={heroImage} alt="Vista" className="w-full h-full object-cover" />
-          <div className="absolute inset-0" style={getOverlayStyle(s.hero_style, heroOpacity)} />
+          <img
+            src={heroImage}
+            alt="Vista"
+            className="w-full h-full object-cover"
+            style={{ objectPosition: "center 40%" }}
+          />
+          <div className="absolute inset-0" style={getOverlayStyle(heroStyle, heroOpacity)} />
+          {/* Leve esmaecimento na base, pra sugerir a seção seguinte já na primeira dobra */}
+          <div className="absolute inset-x-0 bottom-0 h-24 md:h-32 bg-gradient-to-t from-background/90 to-transparent" />
         </div>
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-6 block">Rota da Ferradura · Guarapari</span>

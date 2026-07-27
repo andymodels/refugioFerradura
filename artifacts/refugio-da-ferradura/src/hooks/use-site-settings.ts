@@ -105,5 +105,15 @@ export function getOverlayStyle(style: string, opacity: number): React.CSSProper
       background: `linear-gradient(to top, rgba(0,0,0,${Math.min(opacity + 0.3, 1)}) 0%, rgba(0,0,0,${opacity * 0.5}) 50%, rgba(0,0,0,${opacity}) 100%)`,
     };
   }
+  if (style === "light") {
+    // Escurecimento concentrado atrás do texto (que fica centralizado), bem
+    // suave nas bordas — mantém a paisagem viva nos cantos da foto.
+    const core = Math.min(opacity + 0.2, 0.85);
+    const mid = opacity * 0.45;
+    const edge = opacity * 0.12;
+    return {
+      background: `radial-gradient(ellipse 65% 55% at 50% 55%, rgba(0,0,0,${core}) 0%, rgba(0,0,0,${mid}) 55%, rgba(0,0,0,${edge}) 100%)`,
+    };
+  }
   return { background: `rgba(0,0,0,${opacity})` };
 }
