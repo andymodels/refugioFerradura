@@ -4,7 +4,7 @@ import { Sparkles } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
-import { useSiteSettings, parseHomeBlocks, parseHeroPool, getOverlayStyle } from "@/hooks/use-site-settings";
+import { useSiteSettings, parseHomeBlocks, parseHeroPool, parseHeroBanners, getOverlayStyle, type HeroBanner } from "@/hooks/use-site-settings";
 import { useSeo } from "@/hooks/use-seo";
 
 // Overrides de pré-visualização via URL (?preview_hero=1&hh=400&ho=0.22&hs=light),
@@ -19,8 +19,33 @@ function useHeroPreviewOverrides() {
       height: params.get("hh"),
       opacity: params.get("ho"),
       style: params.get("hs"),
+      demoBanners: params.get("pb") === "1",
     };
   }, []);
+}
+
+// Demo client-side dos 3 tipos de banner (não grava nada no banco) — só pra
+// validar visualmente antes de configurar de verdade no admin.
+function buildDemoBanners(pool: string[], firstRecentPostSlug?: string): HeroBanner[] {
+  return [
+    { id: "demo-1", image: pool[0] ?? "", title: "", subtitle: "", buttonText: "", buttonLink: "" },
+    {
+      id: "demo-2",
+      image: pool[1] ?? pool[0] ?? "",
+      title: "Explore a Rota",
+      subtitle: "Rota da Ferradura · Guarapari",
+      buttonText: "",
+      buttonLink: "",
+    },
+    {
+      id: "demo-3",
+      image: pool[2] ?? pool[0] ?? "",
+      title: "Confira a matéria mais recente",
+      subtitle: "Novidades na Rota",
+      buttonText: "Ler matéria",
+      buttonLink: firstRecentPostSlug ? `/blog/${firstRecentPostSlug}` : "",
+    },
+  ];
 }
 
 const HERO_ROTATE_MS = 6000;
@@ -48,11 +73,18 @@ export default function Home() {
   const heroStyle = heroPreview?.style ?? s.hero_style;
   const blocks = parseHomeBlocks(s.home_blocks);
   const heroPool = useMemo(() => parseHeroPool(s.hero_image_pool), [s.hero_image_pool]);
-  const heroIndex = useHeroCarousel(heroPool.length);
-  const heroImage = heroPool[heroIndex];
 
   const { data: recentData } = useListPosts({ limit: 6 } as any);
   const recentPosts = recentData?.posts || [];
+
+  const heroBanners = useMemo(() => {
+    if (heroPreview?.demoBanners) return buildDemoBanners(heroPool, recentPosts[0]?.slug);
+    return parseHeroBanners(s.hero_banners, heroPool);
+  }, [heroPreview?.demoBanners, s.hero_banners, heroPool, recentPosts[0]?.slug]);
+  const heroIndex = useHeroCarousel(heroBanners.length);
+  const activeBanner = heroBanners[heroIndex];
+  const heroImage = activeBanner?.image;
+  const isInternalLink = (href: string) => href.startsWith("/");
 
   useSeo({
     title: "Explore a Rota da Ferradura · Guarapari, ES",
@@ -104,10 +136,10 @@ export default function Home() {
         }}
       >
         <div className="absolute inset-0 z-0">
-          {heroPool.map((url, idx) => (
+          {heroBanners.map((banner, idx) => (
             <img
-              key={url}
-              src={url}
+              key={banner.id}
+              src={banner.image}
               alt="Vista da Rota da Ferradura"
               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
                 idx === heroIndex ? "opacity-100" : "opacity-0"
@@ -118,13 +150,27 @@ export default function Home() {
           <div className="absolute inset-0" style={getOverlayStyle(heroStyle, heroOpacity)} />
           <div className="absolute inset-x-0 bottom-0 h-10 md:h-14 bg-gradient-to-t from-background/70 to-transparent" />
         </div>
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-          <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-4 block">Rota da Ferradura · Guarapari</span>
-          <h1 className="text-4xl md:text-6xl font-serif text-white mb-5">Explore a Rota</h1>
-          <div className="flex justify-center gap-4">
-            <Link href="/lugares"><Button size="lg">Explorar</Button></Link>
+        {activeBanner && (activeBanner.title || activeBanner.subtitle || (activeBanner.buttonText && activeBanner.buttonLink)) && (
+          <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
+            {activeBanner.subtitle && (
+              <span className="text-white/80 uppercase tracking-[0.2em] text-sm font-medium mb-4 block">{activeBanner.subtitle}</span>
+            )}
+            {activeBanner.title && (
+              <h1 className="text-4xl md:text-6xl font-serif text-white mb-5">{activeBanner.title}</h1>
+            )}
+            {activeBanner.buttonText && activeBanner.buttonLink && (
+              <div className="flex justify-center gap-4">
+                {isInternalLink(activeBanner.buttonLink) ? (
+                  <Link href={activeBanner.buttonLink}><Button size="lg">{activeBanner.buttonText}</Button></Link>
+                ) : (
+                  <a href={activeBanner.buttonLink} target="_blank" rel="noopener noreferrer">
+                    <Button size="lg">{activeBanner.buttonText}</Button>
+                  </a>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </section>
 
       {recentPosts.length > 0 && (

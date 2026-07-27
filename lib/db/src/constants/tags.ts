@@ -18,12 +18,18 @@ export const CONTENT_TAGS: ContentTag[] = [
   {
     id: "gastronomia",
     label: "Gastronomia",
-    keywords: ["restaurante", "cervejaria", "prato", "receita", "sabor", "culinária", "comida", "gastronomia", "self-service", "cardápio"],
+    keywords: [
+      "restaurante", "cervejaria", "prato", "receita", "sabor", "culinária", "comida", "gastronomia",
+      "self-service", "cardápio", "lanchonete", "café", "bar", "bebida", "serviço gastronômico",
+    ],
   },
   {
     id: "hospedagem",
     label: "Hospedagem",
-    keywords: ["pousada", "hotel", "chalé", "hospedagem", "diária", "reserva"],
+    keywords: [
+      "pousada", "hotel", "chalé", "hospedagem", "diária", "reserva",
+      "hostel", "sítio", "aluguel", "temporada",
+    ],
   },
   {
     id: "natureza",

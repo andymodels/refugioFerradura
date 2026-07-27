@@ -41,6 +41,8 @@ export interface SiteSettings {
   section_spacing: string;
   // Content Blocks
   home_blocks: string;
+  // Hero banners (slides configuráveis, ver HeroBanner)
+  hero_banners: string;
 }
 
 export const SETTINGS_DEFAULTS: SiteSettings = {
@@ -64,6 +66,7 @@ export const SETTINGS_DEFAULTS: SiteSettings = {
   footer_facebook: "",
   section_spacing: "normal",
   home_blocks: "[]",
+  hero_banners: "[]",
 };
 
 export function useSiteSettings(): SiteSettings {
@@ -82,6 +85,37 @@ export function parseHeroPool(raw: string): string[] {
   } catch {
     return DEFAULT_HERO_POOL;
   }
+}
+
+export interface HeroBanner {
+  id: string;
+  image: string;
+  // Todos opcionais: um slide pode ser só uma foto institucional, sem
+  // nenhum texto ou botão em cima.
+  title: string;
+  subtitle: string;
+  buttonText: string;
+  buttonLink: string;
+}
+
+// Se não houver banners configurados no admin, cada foto do pool vira um
+// slide só-imagem — assim o carrossel nunca fica vazio antes da primeira
+// configuração manual.
+export function parseHeroBanners(raw: string, fallbackImages: string[]): HeroBanner[] {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {
+    // ignora e cai no fallback
+  }
+  return fallbackImages.map((image, idx) => ({
+    id: `pool-${idx}`,
+    image,
+    title: "",
+    subtitle: "",
+    buttonText: "",
+    buttonLink: "",
+  }));
 }
 
 export interface HomeBlock {

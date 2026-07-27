@@ -62,22 +62,40 @@ async function findLinksOnPage(pageUrl: string): Promise<string[]> {
   }
 }
 
-function mapTags(article: { title?: string; content?: string; tags?: string[] }): string[] {
+// Todo post do site é, por definição, sobre um lugar e uma experiência da
+// Rota da Ferradura — por isso essas duas tags são obrigatórias em toda
+// publicação, senão as páginas /lugares e /experiencias ficam vazias.
+const ALWAYS_TAGS = ["lugares", "experiencias"];
+// Categorias com regra explícita de conteúdo (garantidas quando a palavra-chave
+// aparece, independente de ranking — não é só "nuance" como as demais tags).
+const CONDITIONAL_TAGS = ["gastronomia", "hospedagem"];
+
+const TAG_KEYWORDS = new Map(CONTENT_TAGS.map((t) => [t.id, t.keywords]));
+const VALID_TAG_IDS = new Set(CONTENT_TAGS.map((t) => t.id));
+
+function mapTags(article: { title?: string; content?: string; tags?: string[] }, forceTags: string[] = []): string[] {
   const text = `${article.title ?? ""} ${article.content ?? ""}`.toLowerCase();
-  const scored = CONTENT_TAGS.map((tag) => ({
-    id: tag.id,
-    score: tag.keywords.filter((kw) => text.includes(kw.toLowerCase())).length,
-  })).filter((t) => t.score > 0);
+  const matchesKeywords = (id: string) => (TAG_KEYWORDS.get(id) ?? []).some((kw) => text.includes(kw.toLowerCase()));
 
-  scored.sort((a, b) => b.score - a.score);
-  const mapped = scored.slice(0, 4).map((t) => t.id);
+  const conditional = CONDITIONAL_TAGS.filter(matchesKeywords);
+  const guaranteed = new Set([...ALWAYS_TAGS, ...forceTags, ...conditional]);
 
-  if (mapped.length > 0) return mapped;
+  // Tags extras de nuance (natureza, eventos, cultura, aventura, turismo...),
+  // por pontuação de palavra-chave — não são obrigatórias, só enriquecem.
+  const scored = CONTENT_TAGS
+    .filter((tag) => !guaranteed.has(tag.id))
+    .map((tag) => ({ id: tag.id, score: tag.keywords.filter((kw) => text.includes(kw.toLowerCase())).length }))
+    .filter((t) => t.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((t) => t.id);
 
-  // fallback: usa as tags que a própria IA sugeriu, filtradas contra a taxonomia
-  const validIds = new Set(CONTENT_TAGS.map((t) => t.id));
-  const suggested = (article.tags ?? []).map((t) => t.toLowerCase()).filter((t) => validIds.has(t));
-  return suggested.length > 0 ? suggested : ["turismo"];
+  const suggested = (article.tags ?? [])
+    .map((t) => t.toLowerCase())
+    .filter((t) => VALID_TAG_IDS.has(t) && !guaranteed.has(t));
+
+  const extra = [...new Set([...scored, ...suggested])].slice(0, 2);
+
+  return [...ALWAYS_TAGS, ...forceTags, ...conditional, ...extra];
 }
 
 // Vercel Cron Jobs invocam essa rota com GET.
@@ -309,6 +327,10 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
 
     const finalContent = interleaveImages(article.content, fotos.map((url) => ({ url })));
     const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+    const tags = mapTags(
+      { title: item.nome, content: `${caracteristicas.join(" ")} ${article.content}` },
+      ["empreendimentos"],
+    );
 
     const [post] = await db
       .insert(postsTable)
@@ -319,7 +341,7 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
         excerpt: article.excerpt ?? null,
         content: finalContent,
         coverImage: fotos[0] ?? null,
-        tags: JSON.stringify(["empreendimentos"]),
+        tags: JSON.stringify(tags),
         status: "published",
         metaDescription: article.metaDescription ?? null,
       })
@@ -520,6 +542,38 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
     logger.error({ err }, "[cron] Falha na busca regional");
     res.status(500).json({ error: "Erro na busca regional: " + err.message });
   }
+});
+
+// Rotina de correção — aplica a regra de tags obrigatórias/condicionais aos
+// posts publicados antes dessa regra existir. Idempotente: só acrescenta
+// tags que faltam (lugares, experiencias, gastronomia/hospedagem quando o
+// conteúdo bate com a palavra-chave), nunca remove tags já existentes.
+router.get("/backfill-tags", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const posts = await db
+    .select({ id: postsTable.id, title: postsTable.title, content: postsTable.content, tags: postsTable.tags })
+    .from(postsTable);
+
+  let updated = 0;
+  for (const post of posts) {
+    const existingTags: string[] = post.tags ? JSON.parse(post.tags) : [];
+    const forceTags = existingTags.includes("empreendimentos") ? ["empreendimentos"] : [];
+    const computed = mapTags({ title: post.title ?? undefined, content: post.content ?? undefined }, forceTags);
+    const merged = [...new Set([...existingTags, ...computed])];
+
+    if (merged.length > existingTags.length) {
+      await db.update(postsTable).set({ tags: JSON.stringify(merged) }).where(eq(postsTable.id, post.id));
+      updated++;
+    }
+  }
+
+  res.json({ status: "ok", totalPosts: posts.length, updated });
 });
 
 export default router;

@@ -7,7 +7,7 @@ import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { SiteSettings, SETTINGS_DEFAULTS, HomeBlock, parseHomeBlocks, parseHeroPool, getOverlayStyle } from "@/hooks/use-site-settings";
+import { SiteSettings, SETTINGS_DEFAULTS, HomeBlock, HeroBanner, parseHomeBlocks, parseHeroPool, parseHeroBanners, getOverlayStyle } from "@/hooks/use-site-settings";
 
 type Tab = "hero" | "header" | "footer" | "blocks";
 
@@ -121,6 +121,17 @@ function newBlock(): HomeBlock {
   };
 }
 
+function newBanner(image = ""): HeroBanner {
+  return {
+    id: Date.now().toString(),
+    image,
+    title: "",
+    subtitle: "",
+    buttonText: "",
+    buttonLink: "",
+  };
+}
+
 export default function AdminSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -128,6 +139,7 @@ export default function AdminSettings() {
   const [settings, setSettings] = useState<SiteSettings>(SETTINGS_DEFAULTS);
   const [blocks, setBlocks] = useState<HomeBlock[]>([]);
   const [heroPool, setHeroPool] = useState<string[]>([]);
+  const [heroBanners, setHeroBanners] = useState<HeroBanner[]>([]);
   const [newHeroUrl, setNewHeroUrl] = useState("");
   const [previewPoolIdx, setPreviewPoolIdx] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -140,7 +152,9 @@ export default function AdminSettings() {
         const s = { ...SETTINGS_DEFAULTS, ...data.settings };
         setSettings(s);
         setBlocks(parseHomeBlocks(s.home_blocks));
-        setHeroPool(parseHeroPool(s.hero_image_pool));
+        const pool = parseHeroPool(s.hero_image_pool);
+        setHeroPool(pool);
+        setHeroBanners(parseHeroBanners(s.hero_banners, pool));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -157,6 +171,7 @@ export default function AdminSettings() {
         ...settings,
         home_blocks: JSON.stringify(blocks),
         hero_image_pool: JSON.stringify(heroPool),
+        hero_banners: JSON.stringify(heroBanners),
       };
       const res = await fetch("/api/settings", {
         method: "PUT",
@@ -184,6 +199,18 @@ export default function AdminSettings() {
 
   const updateBlock = (idx: number, field: keyof HomeBlock, value: string) => {
     setBlocks((prev) => prev.map((b, i) => i === idx ? { ...b, [field]: value } : b));
+  };
+
+  const moveBanner = (idx: number, dir: -1 | 1) => {
+    const arr = [...heroBanners];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= arr.length) return;
+    [arr[idx], arr[swap]] = [arr[swap], arr[idx]];
+    setHeroBanners(arr);
+  };
+
+  const updateBanner = (idx: number, field: keyof HeroBanner, value: string) => {
+    setHeroBanners((prev) => prev.map((b, i) => i === idx ? { ...b, [field]: value } : b));
   };
 
   if (loading) {
@@ -363,6 +390,87 @@ export default function AdminSettings() {
                 />
                 <p className="text-xs text-muted-foreground text-right mt-1">{Math.round(heroOpacity * 100)}%</p>
               </Field>
+            </Card>
+
+            {/* Banners / Slides configuráveis */}
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-base font-semibold">Banners / Slides</h2>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setHeroBanners((prev) => [...prev, newBanner(heroPool[0] ?? "")])}
+                  className="flex items-center gap-1.5 text-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar banner
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Cada slide do carrossel pode ser só uma foto institucional, ou ter título/subtítulo/botão.
+                Deixe os campos de texto vazios pra exibir só a imagem.
+              </p>
+
+              {heroBanners.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">Nenhum banner configurado — adicione fotos acima primeiro.</p>
+              ) : (
+                <div className="space-y-4">
+                  {heroBanners.map((banner, idx) => (
+                    <div key={banner.id} className="rounded-lg border border-border p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {banner.image && (
+                            <img src={banner.image} alt="" className="w-14 h-9 object-cover rounded border border-border" />
+                          )}
+                          <span className="text-xs font-semibold text-muted-foreground">Banner {idx + 1}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveBanner(idx, -1)}
+                            disabled={idx === 0}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveBanner(idx, 1)}
+                            disabled={idx === heroBanners.length - 1}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setHeroBanners((prev) => prev.filter((_, i) => i !== idx))}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <Field label="Imagem (URL)">
+                        <TextInput value={banner.image} onChange={(v) => updateBanner(idx, "image", v)} placeholder="https://..." />
+                      </Field>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Field label="Título (opcional)">
+                          <TextInput value={banner.title} onChange={(v) => updateBanner(idx, "title", v)} placeholder="Ex: Explore a Rota" />
+                        </Field>
+                        <Field label="Subtítulo (opcional)">
+                          <TextInput value={banner.subtitle} onChange={(v) => updateBanner(idx, "subtitle", v)} placeholder="Ex: Rota da Ferradura · Guarapari" />
+                        </Field>
+                        <Field label="Texto do botão (opcional)">
+                          <TextInput value={banner.buttonText} onChange={(v) => updateBanner(idx, "buttonText", v)} placeholder="Ex: Explorar" />
+                        </Field>
+                        <Field label="Link do botão (opcional)" hint="Post, página ou URL externa">
+                          <TextInput value={banner.buttonLink} onChange={(v) => updateBanner(idx, "buttonLink", v)} placeholder="/blog/meu-post ou https://..." />
+                        </Field>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           </div>
 
