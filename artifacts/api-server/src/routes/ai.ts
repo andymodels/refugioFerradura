@@ -140,7 +140,15 @@ PASSO 2 — GERAÇÃO DO ARTIGO:
 Reescreva como artigo editorial para o site Refúgio da Ferradura, baseando-se EXCLUSIVAMENTE nos fatos do conteúdo-fonte.
 NÃO adicione informações, atrações, preços ou detalhes que não estejam no conteúdo original.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima, dentro dos limites do conteúdo-fonte):\n${instructions}` : ""}
 
-Use a ferramenta "generate_article" para responder — no caso de fora de escopo, preencha somente "error" e "message"; caso contrário, preencha os campos do artigo e deixe "error"/"message" vazios.
+RESPONDA APENAS EM JSON válido, sem markdown ao redor:
+{
+  "title": "Título atraente baseado no conteúdo real",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases fiéis ao conteúdo",
+  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li>",
+  "metaDescription": "Até 160 caracteres para SEO",
+  "tags": ["turismo"]
+}
 
 CONTEÚDO-FONTE:
 ${sourceText}`;
@@ -160,7 +168,15 @@ PASSO 2 — GERAÇÃO DO ARTIGO:
 Crie um artigo editorial completo, informativo e envolvente sobre o tema. Use seu conhecimento sobre a região da Rota da Ferradura, Guarapari e o Espírito Santo.
 Escreva com tom acolhedor e sofisticado, adequado a um guia de turismo premium.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima):\n${instructions}` : ""}
 
-Use a ferramenta "generate_article" para responder — no caso de fora de escopo, preencha somente "error" e "message"; caso contrário, preencha os campos do artigo, rico em detalhes e informações úteis para o visitante, e deixe "error"/"message" vazios.`;
+RESPONDA APENAS EM JSON válido, sem markdown ao redor:
+{
+  "title": "Título atraente sobre o tema",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases que capturam a essência do artigo",
+  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li> — rico em detalhes e informações úteis para o visitante",
+  "metaDescription": "Até 160 caracteres para SEO",
+  "tags": ["turismo"]
+}`;
 
 const USER_PROMPT_IMAGE = (imageUrl: string, instructions?: string) => `Analise a imagem abaixo e siga este fluxo obrigatório:
 
@@ -174,42 +190,20 @@ PASSO 2 — GERAÇÃO DO ARTIGO:
 Descreva o que você vê na imagem com detalhes — elementos visuais, cores, ambiente, sensações transmitidas — e use isso para criar um artigo editorial rico e envolvente para o site Refúgio da Ferradura.
 NÃO invente locais ou nomes específicos que não sejam claramente identificáveis na imagem.${instructions ? `\n\nINSTRUÇÕES ESPECÍFICAS DO EDITOR (prioridade máxima):\n${instructions}` : ""}
 
-Use a ferramenta "generate_article" para responder — no caso de fora de escopo, preencha somente "error" e "message"; caso contrário, preencha os campos do artigo, baseado no que é visível na imagem, e deixe "error"/"message" vazios.`;
+RESPONDA APENAS EM JSON válido, sem markdown ao redor:
+{
+  "title": "Título atraente inspirado na imagem",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases que capturam a essência da imagem",
+  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li> — baseado no que é visível na imagem",
+  "metaDescription": "Até 160 caracteres para SEO",
+  "tags": ["turismo"]
+}`;
 
-const ARTICLE_TOOL: Anthropic.Tool = {
-  name: "generate_article",
-  description:
-    "Registra o artigo gerado para o site Refúgio da Ferradura, ou um erro de fora de escopo.",
-  input_schema: {
-    type: "object",
-    properties: {
-      error: {
-        type: "string",
-        enum: ["fora_de_escopo"],
-        description:
-          "Preencha apenas se o conteúdo/tema/imagem não for relacionado à Rota da Ferradura, Buenos Aires, Guarapari ou Espírito Santo.",
-      },
-      message: {
-        type: "string",
-        description: "Mensagem de erro amigável em português, obrigatória se 'error' for preenchido.",
-      },
-      title: { type: "string", description: "Título atraente do artigo." },
-      subtitle: { type: "string", description: "Subtítulo complementar." },
-      excerpt: { type: "string", description: "Resumo de 2 a 3 frases fiéis ao conteúdo." },
-      content: {
-        type: "string",
-        description: "Artigo completo em HTML usando apenas <h2>, <p>, <ul>, <li>.",
-      },
-      metaDescription: { type: "string", description: "Até 160 caracteres para SEO." },
-      tags: {
-        type: "array",
-        items: { type: "string" },
-        description: "Tags do artigo, ex: [\"turismo\"].",
-      },
-    },
-    required: [],
-  },
-};
+function parseArticleJson(text: string): unknown {
+  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  return JSON.parse(trimmed);
+}
 
 router.post("/generate-from-url", async (req, res) => {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -261,20 +255,18 @@ router.post("/generate-from-url", async (req, res) => {
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userContent }],
-      tools: [ARTICLE_TOOL],
-      tool_choice: { type: "tool", name: "generate_article" },
     });
 
-    const toolUse = message.content.find(
-      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
+    const textBlock = message.content.find(
+      (block): block is Anthropic.TextBlock => block.type === "text",
     );
 
-    if (!toolUse) {
-      res.status(500).json({ error: "A IA não retornou um artigo estruturado." });
+    if (!textBlock) {
+      res.status(500).json({ error: "A IA não retornou um artigo." });
       return;
     }
 
-    res.json(toolUse.input);
+    res.json(parseArticleJson(textBlock.text));
   } catch (e: any) {
     res.status(500).json({ error: "Erro na geração com IA: " + e.message });
   }
