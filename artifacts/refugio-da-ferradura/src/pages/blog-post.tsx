@@ -8,6 +8,40 @@ function stripLeadingH1(html: string): string {
   return html.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "").trim();
 }
 
+function instagramEmbedUrl(url: string): string | null {
+  const match = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
+  return match ? `https://www.instagram.com/${match[1]}/${match[2]}/embed/` : null;
+}
+
+// Compatibility layer for articles saved before the editor learned to turn
+// standalone Instagram links into embeds. It also makes rendering resilient
+// if a browser pasted a link as normal rich text instead of an iframe.
+function renderInstagramEmbeds(html: string): string {
+  if (typeof document === "undefined" || !/instagram\.com\/(p|reel|tv)\//i.test(html)) return html;
+
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  holder.querySelectorAll("p").forEach((paragraph) => {
+    const anchor = paragraph.querySelector("a[href]");
+    const text = paragraph.textContent?.trim() || "";
+    const sourceUrl = anchor?.getAttribute("href") || text;
+    const isOnlyLink = anchor ? text === (anchor.textContent?.trim() || "") : true;
+    const embedUrl = isOnlyLink ? instagramEmbedUrl(sourceUrl) : null;
+    if (!embedUrl) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "video-embed-wrap";
+    wrapper.style.width = "100%";
+    wrapper.innerHTML = `<iframe data-video-embed data-embed-type="instagram" class="video-embed-instagram" src="${embedUrl}" frameborder="0" scrolling="no" allowtransparency="true" style="width:100%;min-height:540px;border-radius:12px"></iframe>`;
+    paragraph.replaceWith(wrapper);
+  });
+  return holder.innerHTML;
+}
+
+function isInstagramPostUrl(url?: string | null) {
+  return !!url && /instagram\.com\/(p|reel|tv)\//i.test(url);
+}
+
 function buildJsonLd(post: {
   title: string;
   subtitle?: string | null;
@@ -154,7 +188,7 @@ export default function BlogPost() {
     );
   }
 
-  const cleanedContent = stripLeadingH1(post!.content || "");
+  const cleanedContent = renderInstagramEmbeds(stripLeadingH1(post!.content || ""));
 
   return (
     <Layout>
@@ -206,7 +240,7 @@ export default function BlogPost() {
         )}
 
         {/* Cover image */}
-        {post.coverImage && (
+        {post.coverImage && !isInstagramPostUrl(post.coverImage) && (
           <div
             className={
               post.coverImageDisplayMode === "natural"
