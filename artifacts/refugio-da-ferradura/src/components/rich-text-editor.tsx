@@ -141,6 +141,36 @@ function toInstagramEmbedUrl(url: string): string | null {
   return `https://www.instagram.com/${m[1]}/${m[2]}/embed/`;
 }
 
+// Converts a paragraph containing only an Instagram post/reel URL into the
+// editor's native embed node. This intentionally runs after paste as well:
+// Safari and the editor may turn a plain pasted URL into a link only after the
+// initial clipboard transform has already happened.
+function normalizeInstagramEmbeds(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+
+  div.querySelectorAll('p').forEach((paragraph) => {
+    const anchor = paragraph.querySelector('a[href]');
+    const text = paragraph.textContent?.trim() || '';
+    const linkText = anchor?.textContent?.trim() || '';
+    const isOnlyLink = anchor ? text === linkText : true;
+    const sourceUrl = anchor?.getAttribute('href') || text;
+    const embedUrl = isOnlyLink ? toInstagramEmbedUrl(sourceUrl) : null;
+    if (!embedUrl) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('data-video-embed', '');
+    iframe.setAttribute('data-embed-type', 'instagram');
+    iframe.setAttribute('src', embedUrl);
+    iframe.setAttribute('frameborder', '0');
+    iframe.setAttribute('scrolling', 'no');
+    iframe.setAttribute('allowtransparency', 'true');
+    paragraph.replaceWith(iframe);
+  });
+
+  return div.innerHTML;
+}
+
 function isInstagramUrl(url: string): boolean {
   return /instagram\.com\/(p|reel|tv)\//i.test(url);
 }
@@ -818,6 +848,7 @@ interface RichTextEditorProps {
 
 export function RichTextEditor({ value, onChange, className }: RichTextEditorProps) {
   const editorOutputRef = useRef<string>(value);
+  const normalizingInstagramRef = useRef(false);
 
   const editor = useEditor({
     extensions: [
@@ -886,6 +917,15 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
+      const normalized = normalizingInstagramRef.current ? html : normalizeInstagramEmbeds(html);
+      if (normalized !== html) {
+        normalizingInstagramRef.current = true;
+        editor.commands.setContent(normalized, false);
+        normalizingInstagramRef.current = false;
+        editorOutputRef.current = normalized;
+        onChange(normalized);
+        return;
+      }
       editorOutputRef.current = html;
       onChange(html);
     },
