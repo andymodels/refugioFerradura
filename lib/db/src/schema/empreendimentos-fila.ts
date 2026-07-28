@@ -21,6 +21,14 @@ export const empreendimentosFilaTable = pgTable("empreendimentos_fila", {
   postId: integer("post_id").references(() => postsTable.id),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
   publicadoEm: timestamp("publicado_em", { withTimezone: true }),
+  // Mensagem do último erro transitório (limite de uso da IA, timeout,
+  // indisponibilidade) — o item NUNCA é descartado por isso, só volta pra
+  // "pendente" e registra aqui o motivo, pra ficar visível sem travar a fila.
+  ultimoErro: text("ultimo_erro"),
+  // Quando um erro trouxer uma data de retorno conhecida (ex: limite de uso
+  // da API que só libera numa data específica), evita reprocessar o mesmo
+  // item a cada execução até essa data — barato, sem custo de IA.
+  pausadoAte: timestamp("pausado_ate", { withTimezone: true }),
 });
 
 export const insertEmpreendimentoFilaSchema = createInsertSchema(empreendimentosFilaTable).omit({

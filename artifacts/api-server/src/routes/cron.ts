@@ -307,6 +307,27 @@ async function isLinkReachable(url: string): Promise<boolean> {
 // Publica exatamente 1 item da fila de empreendimentos por execução.
 // O GitHub Actions chama esta rota a cada hora, das 7h às 19h (BRT).
 // Encerra sozinho quando a fila acabar.
+// Erros de API (limite de uso, sobrecarga, timeout, rede) nunca devem
+// descartar um empreendimento da fila — o item volta pra "pendente" e o
+// motivo fica registrado em `ultimoErro`. Só um erro de CONTEÚDO (a IA
+// respondeu mas o resultado não presta) é tratado como "falhou" de fato,
+// e isso já acontece inline, fora daqui, antes de qualquer exceção.
+function classifyTransientError(err: any): { message: string; pausadoAte: Date | null } {
+  const message = String(err?.message ?? err ?? "Erro desconhecido").slice(0, 500);
+
+  // A Anthropic retorna essa frase exata quando um limite de gasto/uso
+  // mensal é atingido, com a data/hora UTC em que volta a funcionar —
+  // aproveita isso pra não tentar de novo (e gastar mais um request) até lá.
+  const match = message.match(/(\d{4}-\d{2}-\d{2})\s+at\s+(\d{2}:\d{2})\s*UTC/i);
+  let pausadoAte: Date | null = null;
+  if (match) {
+    const parsed = new Date(`${match[1]}T${match[2]}:00Z`);
+    if (!isNaN(parsed.getTime())) pausadoAte = parsed;
+  }
+
+  return { message, pausadoAte };
+}
+
 router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
   const expected = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization;
@@ -322,10 +343,17 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       sql`SELECT pg_advisory_xact_lock(hashtext('refugio_ferradura'), hashtext('publish_next_empreendimento'))`,
     );
 
+    // Pula itens pausados por um erro transitório com data de retorno
+    // conhecida (ex: limite de uso da IA) — evita gastar outro request à toa.
     const [nextItem] = await tx
       .select()
       .from(empreendimentosFilaTable)
-      .where(eq(empreendimentosFilaTable.status, "pendente"))
+      .where(
+        and(
+          eq(empreendimentosFilaTable.status, "pendente"),
+          sql`(${empreendimentosFilaTable.pausadoAte} IS NULL OR ${empreendimentosFilaTable.pausadoAte} < now())`,
+        ),
+      )
       .orderBy(asc(empreendimentosFilaTable.ordem))
       .limit(1);
 
@@ -461,17 +489,24 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       queueStatus,
     });
   } catch (err: any) {
-    logger.error({ err, item: item.nome }, "[cron] Falha ao publicar empreendimento");
+    const { message, pausadoAte } = classifyTransientError(err);
+    logger.error(
+      { err, item: item.nome, pausadoAte },
+      "[cron] Erro transitório ao publicar empreendimento — item volta pra pendente, fila não avança",
+    );
+    // Nunca descarta o empreendimento por um erro de API/rede/limite — só
+    // registra o motivo e devolve pra fila, pro próprio ordem ser retomado
+    // na próxima execução (nenhum outro item avança na frente dele).
     await db
       .update(empreendimentosFilaTable)
-      .set({ status: "falhou" })
+      .set({ status: "pendente", ultimoErro: message, pausadoAte })
       .where(
         and(
           eq(empreendimentosFilaTable.id, item.id),
           eq(empreendimentosFilaTable.status, "processando"),
         ),
       );
-    res.status(500).json({ error: "Erro ao publicar empreendimento: " + err.message });
+    res.status(500).json({ error: "Erro transitório ao publicar empreendimento (item devolvido pra fila): " + message, pausadoAte });
   }
 });
 
