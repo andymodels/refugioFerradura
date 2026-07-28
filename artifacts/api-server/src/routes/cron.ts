@@ -330,8 +330,12 @@ function classifyTransientError(err: any): { message: string; pausadoAte: Date |
 
 router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
   const expected = process.env.CRON_SECRET;
+  const expectedMigration = process.env.MIGRATION_SECRET;
   const authHeader = req.headers.authorization;
-  if (!expected || authHeader !== `Bearer ${expected}`) {
+  const authorized =
+    (!!expected && authHeader === `Bearer ${expected}`) ||
+    (!!expectedMigration && authHeader === `Bearer ${expectedMigration}`);
+  if (!authorized) {
     res.status(401).json({ error: "Não autorizado" });
     return;
   }
