@@ -107,6 +107,11 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
   );
 }
 
+// Fotos editoriais de Instagram/site oficial (mediaPipeline / reconciliação)
+// chegam como <figure class="instagram-editorial-photo"><a href="ORIGEM">
+// <img></a></figure> — sem esses dois atributos capturados aqui, abrir e
+// salvar o post no editor perde silenciosamente o link de clique e o hover
+// "Instagram oficial" (o <img> é reconhecido, mas a moldura ao redor não).
 const ResizableImage = TiptapImage.extend({
   addAttributes() {
     return {
@@ -120,10 +125,37 @@ const ResizableImage = TiptapImage.extend({
         renderHTML: (attrs) =>
           attrs.width ? { width: attrs.width, style: `width:${attrs.width}px;max-width:100%` } : {},
       },
+      editorialHref: {
+        default: null,
+        parseHTML: (el) => el.closest('figure.instagram-editorial-photo')?.querySelector('a[href]')?.getAttribute('href') || null,
+        renderHTML: () => ({}),
+      },
+      editorialAriaLabel: {
+        default: null,
+        parseHTML: (el) => el.closest('figure.instagram-editorial-photo')?.querySelector('a[href]')?.getAttribute('aria-label') || null,
+        renderHTML: () => ({}),
+      },
     };
   },
-  renderHTML({ HTMLAttributes }) {
-    return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
+  renderHTML({ HTMLAttributes, node }) {
+    const img = ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
+    if (node.attrs.editorialHref) {
+      return [
+        'figure',
+        { class: 'instagram-editorial-photo' },
+        [
+          'a',
+          {
+            href: node.attrs.editorialHref,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            'aria-label': node.attrs.editorialAriaLabel || 'Ver origem oficial',
+          },
+          img,
+        ],
+      ] as any;
+    }
+    return img as any;
   },
   addNodeView() {
     return ReactNodeViewRenderer(ResizableImageView);
@@ -364,6 +396,17 @@ const VideoEmbed = Node.create({
         renderHTML: (attrs) => ({ 'data-align': attrs.align || 'left' }),
         parseHTML: (el) => (el as HTMLElement).getAttribute('data-align') || 'left',
       },
+      // Vídeo real editorial (mediaPipeline / reconciliação), sem faixa
+      // branca do Instagram — <figure class="instagram-editorial-video">
+      // <video>...</video><a class="instagram-editorial-video-badge">...
+      // Sem capturar isso aqui, abrir e salvar o post no editor apaga o
+      // vídeo inteiro (a tag <video> sem data-video-embed não batia com
+      // nenhuma regra de parseHTML) e perde o link/hover "Instagram oficial".
+      editorialBadgeHref: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).closest('figure.instagram-editorial-video')?.querySelector('a[href]')?.getAttribute('href') || null,
+        renderHTML: () => ({}),
+      },
     };
   },
 
@@ -371,15 +414,34 @@ const VideoEmbed = Node.create({
     return [
       { tag: 'video[data-video-embed]' },
       { tag: 'iframe[data-video-embed]' },
+      { tag: 'figure.instagram-editorial-video video' },
     ];
   },
 
-  renderHTML({ HTMLAttributes }) {
+  renderHTML({ HTMLAttributes, node }) {
     const attrs = HTMLAttributes as Record<string, string>;
     const embedType = attrs['data-embed-type'] || 'video';
     const src = attrs.src || '';
     const w = attrs['data-width'];
     const align = attrs['data-align'] || 'left';
+
+    if (node.attrs.editorialBadgeHref) {
+      return [
+        'figure',
+        { class: 'instagram-editorial-video' },
+        ['video', { controls: '', playsinline: '', preload: 'metadata', src }],
+        [
+          'a',
+          {
+            class: 'instagram-editorial-video-badge',
+            href: node.attrs.editorialBadgeHref as string,
+            target: '_blank',
+            rel: 'noopener noreferrer',
+          },
+          'Instagram oficial ↗',
+        ],
+      ] as any;
+    }
 
     let wrapStyle = w ? `width:${w}px;max-width:100%` : 'width:100%';
     if (w) {
