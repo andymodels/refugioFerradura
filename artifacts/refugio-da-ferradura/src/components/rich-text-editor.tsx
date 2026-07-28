@@ -860,6 +860,27 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
           span.innerHTML = el.innerHTML;
           el.parentNode?.replaceChild(span, el);
         });
+
+        // A full article copied from ChatGPT arrives as HTML links. When an
+        // Instagram post or reel occupies its own paragraph, convert it to the
+        // existing embed node before Tiptap inserts the pasted content.
+        // This keeps the ordinary paste workflow fast: no toolbar action or
+        // separate import box is needed for each item of media.
+        div.querySelectorAll('p').forEach((paragraph) => {
+          const anchor = paragraph.querySelector('a[href]');
+          const onlyLink = anchor && paragraph.textContent?.trim() === anchor.textContent?.trim();
+          const embedUrl = onlyLink ? toInstagramEmbedUrl(anchor.getAttribute('href') || '') : null;
+          if (!embedUrl) return;
+
+          const iframe = document.createElement('iframe');
+          iframe.setAttribute('data-video-embed', '');
+          iframe.setAttribute('data-embed-type', 'instagram');
+          iframe.setAttribute('src', embedUrl);
+          iframe.setAttribute('frameborder', '0');
+          iframe.setAttribute('scrolling', 'no');
+          iframe.setAttribute('allowtransparency', 'true');
+          paragraph.replaceWith(iframe);
+        });
         return div.innerHTML;
       },
     },
