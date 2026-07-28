@@ -8,9 +8,15 @@ function stripLeadingH1(html: string): string {
   return html.replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "").trim();
 }
 
-function instagramEmbedUrl(url: string): string | null {
-  const match = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
-  return match ? `https://www.instagram.com/${match[1]}/${match[2]}/embed/` : null;
+function instagramEmbedUrl(_url: string): string | null {
+  // Disabled on purpose: the official Instagram embed iframe always shows
+  // Instagram's own white header/footer chrome, which cannot be removed
+  // with CSS. This makes renderInstagramEmbeds() below a no-op (plain
+  // Instagram links stay as plain links instead of becoming an iframe).
+  // Re-enable by restoring the regex match once a real media-archiving
+  // pipeline (downloads the photo/video instead of embedding Instagram's
+  // UI) exists.
+  return null;
 }
 
 // Compatibility layer for articles saved before the editor learned to turn

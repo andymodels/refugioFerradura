@@ -135,11 +135,16 @@ const ResizableImage = TiptapImage.extend({
 
 // ─── Direct Video / Instagram Embed Node ─────────────────────────────────────
 
-function toInstagramEmbedUrl(url: string): string | null {
-  // Matches: /p/CODE, /reel/CODE, /tv/CODE  (with optional trailing slash / query)
-  const m = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
-  if (!m) return null;
-  return `https://www.instagram.com/${m[1]}/${m[2]}/embed/`;
+function toInstagramEmbedUrl(_url: string): string | null {
+  // Disabled on purpose: the official Instagram embed iframe always shows
+  // Instagram's own white header/footer chrome, which cannot be removed
+  // with CSS from here. Every call site below (paste transform, paste
+  // handler, onUpdate normalizer, and the "add video" toolbar button) treats
+  // a null return as "not an Instagram embed", so returning null here is a
+  // single switch that turns the whole auto-embed feature off. Re-enable by
+  // restoring the regex match once a real media-archiving pipeline (that
+  // downloads the photo/video instead of embedding Instagram's UI) exists.
+  return null;
 }
 
 // Converts a paragraph containing only an Instagram post/reel URL into the
@@ -958,7 +963,10 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     if (isInstagramUrl(url)) {
       const embedSrc = toInstagramEmbedUrl(url);
       if (!embedSrc) {
-        alert('Link do Instagram inválido. Use um link de post, reel ou vídeo do Instagram.');
+        alert(
+          'Links do Instagram não são inseridos como embed (a faixa branca do Instagram não pode ser removida). ' +
+            'Baixe a foto/vídeo e suba o arquivo diretamente.',
+        );
         return;
       }
       (editor.chain().focus() as any).insertContent({
