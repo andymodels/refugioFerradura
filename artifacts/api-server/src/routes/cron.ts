@@ -304,9 +304,9 @@ async function isLinkReachable(url: string): Promise<boolean> {
   }
 }
 
-// Publica 1 item da fila de empreendimentos (catálogo do PDF do diagnóstico
-// oficial). Chamado 3x/dia via GitHub Actions (Vercel Free só permite cron
-// 1x/dia). Encerra sozinho quando a fila acabar.
+// Publica exatamente 1 item da fila de empreendimentos por execução.
+// O GitHub Actions chama esta rota a cada hora, das 7h às 19h (BRT).
+// Encerra sozinho quando a fila acabar.
 router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
   const expected = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization;
@@ -315,12 +315,35 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
     return;
   }
 
-  const [item] = await db
-    .select()
-    .from(empreendimentosFilaTable)
-    .where(eq(empreendimentosFilaTable.status, "pendente"))
-    .orderBy(asc(empreendimentosFilaTable.ordem))
-    .limit(1);
+  // Serializa a escolha e marca o item antes das chamadas externas. Duas
+  // execuções nunca conseguem reivindicar o mesmo empreendimento.
+  const item = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext('refugio_ferradura'), hashtext('publish_next_empreendimento'))`,
+    );
+
+    const [nextItem] = await tx
+      .select()
+      .from(empreendimentosFilaTable)
+      .where(eq(empreendimentosFilaTable.status, "pendente"))
+      .orderBy(asc(empreendimentosFilaTable.ordem))
+      .limit(1);
+
+    if (!nextItem) return undefined;
+
+    const [claimedItem] = await tx
+      .update(empreendimentosFilaTable)
+      .set({ status: "processando" })
+      .where(
+        and(
+          eq(empreendimentosFilaTable.id, nextItem.id),
+          eq(empreendimentosFilaTable.status, "pendente"),
+        ),
+      )
+      .returning();
+
+    return claimedItem;
+  });
 
   if (!item) {
     res.json({ status: "ok", message: "Fila de empreendimentos vazia — nada a publicar." });
@@ -328,11 +351,12 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
   }
 
   try {
-    // Confere se os links ainda funcionam antes de incluir no post.
-    const [instagramOk, siteOk] = await Promise.all([
-      item.instagram ? isLinkReachable(`https://instagram.com/${item.instagram.replace(/^@/, "")}`) : Promise.resolve(false),
-      item.site && item.site.startsWith("http") ? isLinkReachable(item.site) : Promise.resolve(false),
-    ]);
+    // O Instagram pode bloquear verificações anônimas mesmo quando o perfil é
+    // público. O resolvedor especializado deve tentar o canal cadastrado.
+    const siteOk =
+      item.site && item.site.startsWith("http")
+        ? await isLinkReachable(item.site)
+        : false;
 
     const caracteristicas: string[] = item.caracteristicas ? JSON.parse(item.caracteristicas) : [];
 
@@ -344,7 +368,7 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       email: item.email,
       endereco: item.endereco,
       plusCode: item.plusCode,
-      instagram: instagramOk ? item.instagram : null,
+      instagram: item.instagram,
       site: siteOk ? item.site : null,
       caracteristicas,
     });
@@ -353,22 +377,27 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       await db
         .update(empreendimentosFilaTable)
         .set({ status: "falhou" })
-        .where(eq(empreendimentosFilaTable.id, item.id));
+        .where(
+          and(
+            eq(empreendimentosFilaTable.id, item.id),
+            eq(empreendimentosFilaTable.status, "processando"),
+          ),
+        );
       res.status(500).json({ error: "Falha ao gerar o artigo do empreendimento." });
       return;
     }
 
     const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
 
-    // Pipeline único de mídia: Instagram oficial > site oficial > busca de
-    // apoio (só pra achar canal) > paisagens institucionais da Rota da
-    // Ferradura. O PDF do diagnóstico é fonte de texto/dados, nunca de mídia.
+    // Pipeline único de mídia: Instagram oficial > site oficial > pesquisa
+    // apenas para localizar outro canal oficial. PDF e paisagem institucional
+    // genérica nunca entram em post de empreendimento.
     const mediaItems = await resolveEmpreendimentoImage({
       nome: item.nome,
       regiao: item.regiao,
       endereco: item.endereco,
       plusCode: item.plusCode,
-      instagram: instagramOk ? item.instagram : null,
+      instagram: item.instagram,
       site: siteOk ? item.site : null,
       slug,
     });
@@ -379,10 +408,11 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
       ["empreendimentos"],
     );
 
-    // Sem nenhuma mídia aprovada (nem o fallback institucional funcionou), o
-    // post vira rascunho pra revisão manual em vez de publicar sem mídia.
+    // Sem mídia oficial aprovada, preserva o texto como rascunho e libera a
+    // fila para continuar no próximo horário.
     const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
-    const status = mediaItems.length > 0 ? "published" : "draft";
+    const postStatus = mediaItems.length > 0 ? "published" : "draft";
+    const queueStatus = mediaItems.length > 0 ? "publicado" : "rascunho";
 
     const [post] = await db
       .insert(postsTable)
@@ -397,28 +427,50 @@ router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
         coverImageMeta: cover ? JSON.stringify(cover) : null,
         mediaItems: mediaItems.length > 0 ? JSON.stringify(mediaItems) : null,
         tags: JSON.stringify(tags),
-        status,
+        status: postStatus,
         metaDescription: article.metaDescription ?? null,
       })
       .returning();
 
     await db
       .update(empreendimentosFilaTable)
-      .set({ status: "publicado", postId: post.id, publicadoEm: new Date() })
-      .where(eq(empreendimentosFilaTable.id, item.id));
+      .set({ status: queueStatus, postId: post.id, publicadoEm: new Date() })
+      .where(
+        and(
+          eq(empreendimentosFilaTable.id, item.id),
+          eq(empreendimentosFilaTable.status, "processando"),
+        ),
+      );
 
     logger.info(
-      { postId: post.id, slug, empreendimento: item.nome, status, totalMidia: mediaItems.length, tipos: mediaItems.map((m) => m.tipo) },
+      {
+        postId: post.id,
+        slug,
+        empreendimento: item.nome,
+        postStatus,
+        queueStatus,
+        totalMidia: mediaItems.length,
+        tipos: mediaItems.map((m) => m.tipo),
+      },
       "[cron] Post de empreendimento processado",
     );
 
-    res.json({ status: "ok", post: { id: post.id, slug: post.slug, status: post.status } });
+    res.json({
+      status: "ok",
+      post: { id: post.id, slug: post.slug, status: post.status },
+      queueStatus,
+    });
   } catch (err: any) {
     logger.error({ err, item: item.nome }, "[cron] Falha ao publicar empreendimento");
     await db
       .update(empreendimentosFilaTable)
       .set({ status: "falhou" })
-      .where(eq(empreendimentosFilaTable.id, item.id));
+      .where(
+        and(
+          eq(empreendimentosFilaTable.id, item.id),
+          eq(empreendimentosFilaTable.status, "processando"),
+        ),
+      );
     res.status(500).json({ error: "Erro ao publicar empreendimento: " + err.message });
   }
 });

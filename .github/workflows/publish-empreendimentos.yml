@@ -1,20 +1,24 @@
-name: Publicar empreendimento da fila (3x/dia)
+name: Publicar próximo empreendimento (1x/hora, 7h-19h BRT)
 
 on:
   schedule:
-    # Minutos fora da hora cheia — GitHub recomenda evitar "0 * * * *" porque
-    # é quando o agendador fica mais sobrecarregado e pode atrasar/pular.
-    - cron: "7 10 * * *" # ~7h BRT
-    - cron: "12 15 * * *" # ~12h BRT
-    - cron: "9 22 * * *" # ~19h BRT
+    # 10h17–22h17 UTC = 7h17–19h17 no horário de Brasília.
+    # Cada execução processa exatamente um item da fila.
+    - cron: "17 10-22 * * *"
   workflow_dispatch: {}
+
+concurrency:
+  group: publish-next-empreendimento
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Chamar endpoint de publicação
+      - name: Publicar exatamente um item da fila
         run: |
-          curl -fsS \
+          curl --fail --show-error --silent \
+            --max-time 300 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://refugioferradura.com.br/api/cron/publish-next-empreendimento

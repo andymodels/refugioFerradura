@@ -1,10 +1,8 @@
-name: Publicar matéria de busca regional (1x/dia)
+name: Publicar matéria de busca regional (pausado — somente manual)
 
+# Pausado enquanto a fila do diagnóstico é concluída. Mantemos o disparo
+# manual para testes controlados, sem publicação automática concorrente.
 on:
-  schedule:
-    # Minuto fora da hora cheia — GitHub recomenda evitar "0 * * * *" porque
-    # é quando o agendador fica mais sobrecarregado e pode atrasar/pular.
-    - cron: "14 22 * * *" # ~19h BRT — horário de maior engajamento
   workflow_dispatch: {}
 
 jobs:
