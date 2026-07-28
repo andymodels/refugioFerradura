@@ -90,6 +90,16 @@ function isInstagramPostUrl(url: string) {
   return /instagram\.com\/(p|reel|tv)\//i.test(url);
 }
 
+function isPublishableImageUrl(url: string) {
+  if (!url || isInstagramPostUrl(url)) return false;
+  try {
+    const parsed = new URL(url);
+    return /res\.cloudinary\.com$/i.test(parsed.hostname) || /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(parsed.pathname + parsed.search);
+  } catch {
+    return false;
+  }
+}
+
 function formatInlineMarkdown(value: string) {
   let html = escapeHtml(value);
   html = html.replace(
@@ -418,6 +428,10 @@ export default function AdminPostEditor() {
       // Strip plain text for auto-filling SEO fields
       const plainText = normalizedContent.replace(/<[^>]*>/gm, "").replace(/\s+/g, " ").trim();
       const directCoverImage = isInstagramPostUrl(data.coverImage || "") ? "" : (data.coverImage || "");
+      // Regra editorial: sem uma foto real para o card/capa, não publica.
+      // Um link de Instagram incorporado continua dentro do texto, mas não é
+      // uma imagem de capa disponível para a vitrine do site.
+      const status = isPublishableImageUrl(directCoverImage) ? (data.status || "draft") : "draft";
 
       const payload = {
         title: data.title,
@@ -426,7 +440,7 @@ export default function AdminPostEditor() {
         excerpt: data.excerpt || plainText.substring(0, 160),
         metaDescription: data.metaDescription || plainText.substring(0, 150),
         slug: data.slug || slugify(data.title || "post") + "-" + Date.now(),
-        status: data.status || "draft",
+        status,
         coverImage: directCoverImage,
         coverImageDisplayMode: directCoverImage ? data.coverImageDisplayMode || "natural" : "cover",
         tags: JSON.stringify(data.tags || []),
@@ -451,7 +465,11 @@ export default function AdminPostEditor() {
 
       // Clear local draft on successful save
       try { localStorage.removeItem(draftKey(postId)); } catch {}
-      toast({ title: postId ? "Post atualizado!" : "Post criado!" });
+      toast({
+        title: status === "draft" && data.status === "published"
+          ? "Post salvo como rascunho: inclua uma imagem de capa válida antes de publicar."
+          : postId ? "Post atualizado!" : "Post criado!",
+      });
       setLocation("/admin/posts");
     } catch (e: any) {
       toast({ title: e.message || "Erro ao salvar", variant: "destructive" });
