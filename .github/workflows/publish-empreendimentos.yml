@@ -1,10 +1,8 @@
-name: Publicar próximo empreendimento (1x/hora, 7h-19h BRT)
+name: Publicar próximo empreendimento (somente manual)
 
 on:
-  schedule:
-    # 10h17–22h17 UTC = 7h17–19h17 no horário de Brasília.
-    # Cada execução processa exatamente um item da fila.
-    - cron: "17 10-22 * * *"
+  # A fila automática chama Claude para redigir e avaliar mídia. Mantemos
+  # somente o disparo manual até existir um fluxo local aprovado.
   workflow_dispatch: {}
 
 concurrency:

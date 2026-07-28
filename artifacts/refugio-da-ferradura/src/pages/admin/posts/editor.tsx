@@ -49,6 +49,47 @@ function toInstagramEmbedUrl(url: string) {
   return match ? `https://www.instagram.com/${match[1]}/${match[2]}/embed/` : null;
 }
 
+// Garantia final antes de gravar: mesmo se o navegador colar o link como um
+// hyperlink comum, uma linha que contenha apenas um post/reel do Instagram é
+// salva como embed. Assim o artigo publicado não depende do comportamento de
+// clipboard de cada navegador.
+function normalizeInstagramEmbedsForSave(html: string) {
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+
+  holder.querySelectorAll("p").forEach((paragraph) => {
+    const anchor = paragraph.querySelector("a[href]");
+    const text = paragraph.textContent?.trim() || "";
+    const sourceUrl = anchor?.getAttribute("href") || text;
+    const isOnlyLink = anchor ? text === (anchor.textContent?.trim() || "") : true;
+    const embedUrl = isOnlyLink ? toInstagramEmbedUrl(sourceUrl) : null;
+    if (!embedUrl) return;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "video-embed-wrap";
+    wrapper.style.width = "100%";
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("data-video-embed", "");
+    iframe.setAttribute("data-embed-type", "instagram");
+    iframe.setAttribute("class", "video-embed-instagram");
+    iframe.setAttribute("src", embedUrl);
+    iframe.setAttribute("frameborder", "0");
+    iframe.setAttribute("scrolling", "no");
+    iframe.setAttribute("allowtransparency", "true");
+    iframe.style.width = "100%";
+    iframe.style.minHeight = "540px";
+    iframe.style.borderRadius = "12px";
+    wrapper.appendChild(iframe);
+    paragraph.replaceWith(wrapper);
+  });
+
+  return holder.innerHTML;
+}
+
+function isInstagramPostUrl(url: string) {
+  return /instagram\.com\/(p|reel|tv)\//i.test(url);
+}
+
 function formatInlineMarkdown(value: string) {
   let html = escapeHtml(value);
   html = html.replace(
@@ -373,19 +414,21 @@ export default function AdminPostEditor() {
   const onSubmit = async (data: any) => {
     setSaving(true);
     try {
+      const normalizedContent = normalizeInstagramEmbedsForSave(data.content || "");
       // Strip plain text for auto-filling SEO fields
-      const plainText = (data.content || "").replace(/<[^>]*>/gm, "").replace(/\s+/g, " ").trim();
+      const plainText = normalizedContent.replace(/<[^>]*>/gm, "").replace(/\s+/g, " ").trim();
+      const directCoverImage = isInstagramPostUrl(data.coverImage || "") ? "" : (data.coverImage || "");
 
       const payload = {
         title: data.title,
         subtitle: data.subtitle || "",
-        content: data.content || "",
+        content: normalizedContent,
         excerpt: data.excerpt || plainText.substring(0, 160),
         metaDescription: data.metaDescription || plainText.substring(0, 150),
         slug: data.slug || slugify(data.title || "post") + "-" + Date.now(),
         status: data.status || "draft",
-        coverImage: data.coverImage || "",
-        coverImageDisplayMode: data.coverImage ? data.coverImageDisplayMode || "natural" : "cover",
+        coverImage: directCoverImage,
+        coverImageDisplayMode: directCoverImage ? data.coverImageDisplayMode || "natural" : "cover",
         tags: JSON.stringify(data.tags || []),
       };
 
@@ -458,117 +501,15 @@ export default function AdminPostEditor() {
           </Button>
         </div>
 
-        {/* AI Generation Panel */}
-        <div className="bg-[#111] border border-white/10 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-orange-400 text-xs font-bold uppercase tracking-widest">
-            <Sparkles className="w-3.5 h-3.5" />
-            Gerar com IA
-          </div>
-          <p className="text-white/40 text-[11px]">
-            Digite um <span className="text-white/60">tema ou tópico</span> (ex: "bares da Rota da Ferradura"), cole uma URL de artigo, um link de foto (.jpg/.png) ou o próprio texto copiado — a IA gera o artigo automaticamente.
-          </p>
-          <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-2 bg-black/50 border border-white/10 rounded-lg px-3 py-2">
-              <LinkIcon className="w-3.5 h-3.5 text-white/30 shrink-0" />
-              <input
-                type="text"
-                value={aiUrl}
-                onChange={(e) => { setAiUrl(e.target.value); setAiError(null); }}
-                onKeyDown={(e) => e.key === "Enter" && handleAIGeneration()}
-                placeholder="tema, https://artigo.com, https://foto.jpg ou cole o texto aqui"
-                className="bg-transparent outline-none w-full text-sm text-white placeholder:text-white/20"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleAIGeneration}
-              disabled={aiLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
-            >
-              {aiLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              {aiLoading ? "Gerando..." : "Gerar"}
-            </button>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase text-white/25 font-bold tracking-widest">
-              Instruções adicionais <span className="normal-case font-normal text-white/20">(opcional)</span>
-            </label>
-            <textarea
-              value={aiInstructions}
-              onChange={(e) => setAiInstructions(e.target.value)}
-              rows={2}
-              placeholder="Ex: foque nos restaurantes mencionados, use tom mais descontraído, destaque a vista para o mar..."
-              className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none resize-none focus:border-white/20 transition-colors"
-            />
-          </div>
-
-          <div className="border-t border-white/10 pt-3 space-y-2">
-            <label className="text-[10px] uppercase text-white/25 font-bold tracking-widest">
-              Fotos anexadas <span className="normal-case font-normal text-white/20">(opcional — usadas junto com as da fonte)</span>
-            </label>
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex items-center gap-2 px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-sm text-white/60 hover:text-white hover:border-white/20 cursor-pointer transition-colors">
-                <Paperclip className="w-3.5 h-3.5" />
-                Anexar fotos
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    setAiPhotos((prev) => [...prev, ...files]);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              {aiPhotos.map((file, i) => (
-                <span key={i} className="flex items-center gap-1.5 pl-2 pr-1 py-1 bg-white/5 border border-white/10 rounded-lg text-xs text-white/50">
-                  {file.name.length > 20 ? file.name.slice(0, 17) + "..." : file.name}
-                  <button
-                    type="button"
-                    onClick={() => setAiPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="text-white/30 hover:text-red-400"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleAIGenerateAndCreate}
-              disabled={aiCreating || aiLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/15 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-semibold transition-colors"
-            >
-              {aiCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FilePlus2 className="w-4 h-4" />}
-              {aiCreating ? "Criando post..." : "Gerar e Criar Post (rascunho)"}
-            </button>
-          </div>
-
-          {aiError && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-300 leading-relaxed">
-              <span className="font-semibold block mb-2">⚠ Erro na geração</span>
-              {aiError.split("\n\n").map((paragraph, i) => (
-                <p key={i} className={i > 0 ? "mt-2" : ""}>{paragraph}</p>
-              ))}
-            </div>
-          )}
-        </div>
-
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Cover image — full width, right below AI panel */}
+          {/* A capa aceita apenas uma imagem direta. Links de posts/reels do
+              Instagram devem ficar no artigo, onde viram embed. */}
           <div className="lg:col-span-3 space-y-1">
-            <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Imagem de capa (URL)</label>
+            <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">Imagem de capa (opcional — URL direta .jpg/.png)</label>
             <input
               {...register("coverImage")}
-              placeholder="https://... cole aqui o link da imagem de capa"
+              placeholder="Deixe vazio para links do Instagram; eles entram como mídia dentro do artigo"
               className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
             />
           </div>
