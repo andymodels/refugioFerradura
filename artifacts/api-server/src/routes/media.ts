@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
+import { extractFeaturedMedia } from "../lib/article-generation";
+import { archiveApprovedMedia } from "../lib/media-library";
 
 const router: IRouter = Router();
 
@@ -111,6 +113,48 @@ router.post("/media/upload", upload.array("file", 10), async (req, res): Promise
     res.json({ images: results, ...results[0] });
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao enviar para Cloudinary: " + e.message });
+  }
+});
+
+// Arquiva uma publicação ou Reel no acervo do próprio Refúgio. O post usa a
+// URL do Cloudinary, não o cartão incorporado do Instagram.
+router.post("/media/import-instagram", async (req, res): Promise<void> => {
+  const session = (req as any).session;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const sourceUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  let parsed: URL;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch {
+    res.status(400).json({ error: "Cole uma URL válida de publicação ou Reel do Instagram." });
+    return;
+  }
+
+  const isInstagram = /(^|\.)instagram\.com$/i.test(parsed.hostname);
+  const isPublication = /^\/(p|reel|tv)\/[\w-]+/i.test(parsed.pathname);
+  if (!isInstagram || !isPublication) {
+    res.status(400).json({ error: "Use o link de um post ou Reel do Instagram (instagram.com/p/... ou instagram.com/reel/...)." });
+    return;
+  }
+
+  try {
+    const media = await extractFeaturedMedia(sourceUrl);
+    const mediaUrl = media.videoUrl || media.imageUrl;
+    const type: "image" | "video" = media.videoUrl ? "video" : "image";
+    if (!mediaUrl) {
+      res.status(422).json({ error: "O Instagram não liberou o arquivo desta publicação agora. Tente novamente em alguns minutos ou envie o arquivo manualmente." });
+      return;
+    }
+
+    const code = parsed.pathname.split("/").filter(Boolean).at(-1) || "instagram";
+    const url = await archiveApprovedMedia(mediaUrl, `instagram-${code}-${Date.now()}`, 0, type);
+    res.json({ url, filename: `${code}.${type === "video" ? "mp4" : "jpg"}`, type, sourceUrl });
+  } catch (e: any) {
+    res.status(502).json({ error: "Não foi possível arquivar esta mídia do Instagram: " + (e?.message || "erro desconhecido") });
   }
 });
 

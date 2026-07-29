@@ -1,7 +1,7 @@
 import React, { useCallback, useState, useEffect } from "react";
 import { UploadCloud, Image as ImageIcon, Video, Check, Copy, Loader2, Film, Trash2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
-import { Card, Button } from "@/components/ui-elements";
+import { Card, Button, Input } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import { useDropzone } from "react-dropzone";
 
@@ -37,6 +37,8 @@ export default function AdminMedia() {
   }, []);
 
   const [uploading, setUploading] = useState(false);
+  const [instagramUrl, setInstagramUrl] = useState("");
+  const [importingInstagram, setImportingInstagram] = useState(false);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -65,6 +67,29 @@ export default function AdminMedia() {
       setUploading(false);
     }
   }, [toast]);
+
+  const importInstagram = async () => {
+    const url = instagramUrl.trim();
+    if (!url) return;
+    setImportingInstagram(true);
+    try {
+      const res = await fetch("/api/media/import-instagram", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao importar mídia");
+      setInstagramUrl("");
+      await loadMedia();
+      toast({ title: data.type === "video" ? "Vídeo arquivado no Cloudinary" : "Foto arquivada no Cloudinary" });
+    } catch (e: any) {
+      toast({ title: "Não foi possível importar", description: e.message, variant: "destructive" });
+    } finally {
+      setImportingInstagram(false);
+    }
+  };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -122,6 +147,24 @@ export default function AdminMedia() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-1 space-y-4">
+          <Card className="p-6">
+            <h3 className="font-medium text-foreground mb-2">Importar do Instagram</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Cole o link de uma foto ou Reel. O arquivo é copiado para o Cloudinary e não depende mais do Instagram.
+            </p>
+            <div className="space-y-2">
+              <Input
+                value={instagramUrl}
+                onChange={(e) => setInstagramUrl(e.target.value)}
+                placeholder="https://www.instagram.com/p/.../"
+                disabled={importingInstagram}
+              />
+              <Button className="w-full" onClick={importInstagram} disabled={!instagramUrl.trim()} isLoading={importingInstagram}>
+                Arquivar foto ou vídeo
+              </Button>
+            </div>
+          </Card>
+
           <Card className="p-6">
             <h3 className="font-medium text-foreground mb-4">Enviar arquivo</h3>
 
