@@ -20,7 +20,7 @@ import {
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
   Undo, Redo, Minus, Code, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal,
-  ChevronLeft, ChevronRight, Plus, Trash2, Eraser, Upload, Video, Loader2,
+  ChevronLeft, ChevronRight, Plus, Trash2, Eraser, Upload, Video, Loader2, Instagram,
 } from 'lucide-react';
 import { cn } from './ui-elements';
 
@@ -1083,6 +1083,54 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
   const addEditorialPhoto = useCallback(() => photoInputRef.current?.click(), []);
   const addEditorialVideo = useCallback(() => videoInputRef.current?.click(), []);
 
+  // Insere (ou troca) uma foto/vídeo editorial só colando o link do post/reel
+  // do Instagram — o servidor baixa e arquiva no Cloudinary, sem precisar
+  // baixar o arquivo na máquina do usuário primeiro.
+  const [importingInstagram, setImportingInstagram] = useState(false);
+  const addFromInstagramLink = useCallback(async () => {
+    if (!editor) return;
+    const url = (window.prompt('Cole o link do post ou Reel do Instagram:') || '').trim();
+    if (!url) return;
+    setImportingInstagram(true);
+    try {
+      const res = await fetch('/api/media/import-instagram', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Falha ao importar (HTTP ${res.status})`);
+
+      if (data.type === 'video') {
+        (editor.chain().focus() as any).insertContent({
+          type: 'videoEmbed',
+          attrs: {
+            src: cappedCloudinaryUrl(data.url),
+            poster: cloudinaryVideoPoster(data.url),
+            editorial: true,
+            editorialBadgeHref: data.sourceUrl,
+          },
+        }).run();
+      } else {
+        editor.chain().focus().insertContent({
+          type: 'image',
+          attrs: {
+            src: cappedCloudinaryUrl(data.url),
+            alt: '',
+            editorial: true,
+            editorialHref: data.sourceUrl,
+            editorialAriaLabel: 'Ver origem oficial',
+          },
+        }).run();
+      }
+    } catch (err) {
+      alert('Não consegui importar essa mídia: ' + (err as Error).message);
+    } finally {
+      setImportingInstagram(false);
+    }
+  }, [editor]);
+
   const handlePhotoSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -1307,6 +1355,15 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         />
         <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelected} />
         <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoSelected} />
+
+        {/* Cola o link do post/reel do Instagram e o próprio servidor baixa
+            e arquiva no Cloudinary — sem precisar baixar o arquivo antes. */}
+        <ToolbarButton
+          onClick={addFromInstagramLink}
+          disabled={importingInstagram}
+          icon={importingInstagram ? <Loader2 className="w-4 h-4 animate-spin" /> : <Instagram className="w-4 h-4" />}
+          title="Inserir foto/vídeo colando o link do Instagram (sem precisar baixar o arquivo)"
+        />
 
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} icon={<Minus className="w-4 h-4" />} title="Linha Horizontal" />
       </div>
