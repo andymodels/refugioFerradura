@@ -141,8 +141,23 @@ router.post("/media/import-instagram", async (req, res): Promise<void> => {
     return;
   }
 
+  const isReel = /^\/reel\//i.test(parsed.pathname);
+
   try {
     const media = await extractFeaturedMedia(sourceUrl);
+    // Reels são vídeo por definição. extractFeaturedMedia só acha og:video
+    // quando o Instagram libera a página sem exigir login — o que falha com
+    // frequência num fetch comum de servidor (sem sessão de navegador
+    // autenticada). Se isso acontecer, NUNCA arquivar a capa como se fosse a
+    // publicação (viraria uma foto estática silenciosamente errada) — melhor
+    // avisar e deixar o vídeo ser enviado manualmente.
+    if (isReel && !media.videoUrl) {
+      res.status(422).json({
+        error: "Não consegui extrair o vídeo deste Reel agora (o Instagram bloqueou o acesso sem login). Tente novamente em alguns minutos ou envie o arquivo de vídeo manualmente pelo botão de upload.",
+      });
+      return;
+    }
+
     const mediaUrl = media.videoUrl || media.imageUrl;
     const type: "image" | "video" = media.videoUrl ? "video" : "image";
     if (!mediaUrl) {
