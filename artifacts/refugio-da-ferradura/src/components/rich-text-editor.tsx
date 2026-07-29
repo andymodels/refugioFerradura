@@ -407,6 +407,13 @@ const VideoEmbed = Node.create({
         parseHTML: (el) => (el as HTMLElement).closest('figure.instagram-editorial-video')?.querySelector('a[href]')?.getAttribute('href') || null,
         renderHTML: () => ({}),
       },
+      // Frame estático mostrado antes do play — sem isso o vídeo aparece com
+      // tela preta até o usuário clicar.
+      poster: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).getAttribute('poster') || null,
+        renderHTML: () => ({}),
+      },
     };
   },
 
@@ -426,10 +433,12 @@ const VideoEmbed = Node.create({
     const align = attrs['data-align'] || 'left';
 
     if (node.attrs.editorialBadgeHref) {
+      const videoAttrs: Record<string, string> = { controls: '', playsinline: '', preload: 'metadata', src };
+      if (node.attrs.poster) videoAttrs.poster = node.attrs.poster as string;
       return [
         'figure',
         { class: 'instagram-editorial-video' },
-        ['video', { controls: '', playsinline: '', preload: 'metadata', src }],
+        ['video', videoAttrs],
         [
           'a',
           {
