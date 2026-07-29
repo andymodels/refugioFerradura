@@ -20,7 +20,7 @@ import {
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
   Undo, Redo, Minus, Code, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal,
-  ChevronLeft, ChevronRight, Plus, Trash2, Eraser,
+  ChevronLeft, ChevronRight, Plus, Trash2, Eraser, Upload, Video, Loader2,
 } from 'lucide-react';
 import { cn } from './ui-elements';
 
@@ -125,6 +125,15 @@ const ResizableImage = TiptapImage.extend({
         renderHTML: (attrs) =>
           attrs.width ? { width: attrs.width, style: `width:${attrs.width}px;max-width:100%` } : {},
       },
+      // true pra qualquer imagem enviada pelo botão "Foto editorial" (com ou
+      // sem origem do Instagram) e pra qualquer foto já vinda do pipeline —
+      // controla só o estilo (máx. 640px, alinhado à esquerda, sem crédito
+      // visível), independente de ter link de clique ou não.
+      editorial: {
+        default: false,
+        parseHTML: (el) => !!el.closest('figure.instagram-editorial-photo'),
+        renderHTML: () => ({}),
+      },
       editorialHref: {
         default: null,
         parseHTML: (el) => el.closest('figure.instagram-editorial-photo')?.querySelector('a[href]')?.getAttribute('href') || null,
@@ -139,6 +148,7 @@ const ResizableImage = TiptapImage.extend({
   },
   renderHTML({ HTMLAttributes, node }) {
     const img = ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
+    if (!node.attrs.editorial) return img as any;
     if (node.attrs.editorialHref) {
       return [
         'figure',
@@ -155,7 +165,9 @@ const ResizableImage = TiptapImage.extend({
         ],
       ] as any;
     }
-    return img as any;
+    // Upload direto, sem origem — mesmo tratamento visual (640px, esquerda),
+    // sem link de clique nem badge (não existe origem oficial pra apontar).
+    return ['figure', { class: 'instagram-editorial-photo' }, img] as any;
   },
   addNodeView() {
     return ReactNodeViewRenderer(ResizableImageView);
@@ -402,6 +414,14 @@ const VideoEmbed = Node.create({
       // Sem capturar isso aqui, abrir e salvar o post no editor apaga o
       // vídeo inteiro (a tag <video> sem data-video-embed não batia com
       // nenhuma regra de parseHTML) e perde o link/hover "Instagram oficial".
+      // true pra qualquer vídeo enviado pelo botão "Vídeo editorial" (com ou
+      // sem origem do Instagram) — controla o estilo (máx. 640px, esquerda,
+      // sem crédito visível), independente de ter link de clique ou não.
+      editorial: {
+        default: false,
+        parseHTML: (el) => !!(el as HTMLElement).closest('figure.instagram-editorial-video'),
+        renderHTML: () => ({}),
+      },
       editorialBadgeHref: {
         default: null,
         parseHTML: (el) => (el as HTMLElement).closest('figure.instagram-editorial-video')?.querySelector('a[href]')?.getAttribute('href') || null,
@@ -432,14 +452,14 @@ const VideoEmbed = Node.create({
     const w = attrs['data-width'];
     const align = attrs['data-align'] || 'left';
 
-    if (node.attrs.editorialBadgeHref) {
+    if (node.attrs.editorial) {
       const videoAttrs: Record<string, string> = { controls: '', playsinline: '', preload: 'metadata', src };
       if (node.attrs.poster) videoAttrs.poster = node.attrs.poster as string;
-      return [
-        'figure',
-        { class: 'instagram-editorial-video' },
-        ['video', videoAttrs],
-        [
+      const figureChildren: any[] = ['figure', { class: 'instagram-editorial-video' }, ['video', videoAttrs]];
+      // Upload direto, sem origem — mesmo tratamento visual, sem badge de
+      // clique (não existe origem oficial pra apontar).
+      if (node.attrs.editorialBadgeHref) {
+        figureChildren.push([
           'a',
           {
             class: 'instagram-editorial-video-badge',
@@ -448,8 +468,9 @@ const VideoEmbed = Node.create({
             rel: 'noopener noreferrer',
           },
           'Instagram oficial ↗',
-        ],
-      ] as any;
+        ]);
+      }
+      return figureChildren as any;
     }
 
     let wrapStyle = w ? `width:${w}px;max-width:100%` : 'width:100%';
@@ -1027,6 +1048,97 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     if (url) editor.chain().focus().setImage({ src: url } as any).run();
   }, [editor]);
 
+  // Upload direto de arquivo (foto/vídeo próprios, não precisam vir do
+  // Instagram) — sempre disponível, além do fluxo por link.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingKind, setUploadingKind] = useState<'photo' | 'video' | null>(null);
+
+  async function uploadMediaFile(file: File): Promise<string> {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch('/api/media/upload', { method: 'POST', body: form });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.error || `Falha no upload (HTTP ${res.status})`);
+    }
+    const data = await res.json();
+    return data.url as string;
+  }
+
+  // Aplica o limite de 640px na maior dimensão via transformação do
+  // Cloudinary (sem corte, sem upscale) — mesmo padrão usado no resto do site.
+  function cappedCloudinaryUrl(url: string): string {
+    return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
+  }
+
+  // Frame estático gerado pelo próprio Cloudinary a partir do vídeo (1s de
+  // duração), sem precisar enviar uma imagem de capa separada.
+  function cloudinaryVideoPoster(url: string): string {
+    return url
+      .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
+      .replace(/\.\w+(\?.*)?$/, '.jpg');
+  }
+
+  const addEditorialPhoto = useCallback(() => photoInputRef.current?.click(), []);
+  const addEditorialVideo = useCallback(() => videoInputRef.current?.click(), []);
+
+  const handlePhotoSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editor) return;
+    setUploadingKind('photo');
+    try {
+      const url = await uploadMediaFile(file);
+      const sourceUrl = (window.prompt('Link do post/perfil oficial do Instagram (opcional — deixe em branco se for uma foto própria):') || '').trim();
+      editor.chain().focus().insertContent({
+        type: 'image',
+        attrs: {
+          src: cappedCloudinaryUrl(url),
+          alt: '',
+          editorial: true,
+          editorialHref: sourceUrl || null,
+          editorialAriaLabel: sourceUrl ? 'Ver origem oficial' : null,
+        },
+      }).run();
+    } catch (err) {
+      alert('Erro ao enviar a foto: ' + (err as Error).message);
+    } finally {
+      setUploadingKind(null);
+    }
+  }, [editor]);
+
+  const handleVideoSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editor) return;
+    if (file.size > 4 * 1024 * 1024) {
+      alert(
+        `Vídeo muito grande (${Math.round(file.size / 1024 / 1024)}MB). ` +
+          'Comprima pra no máximo uns 4MB antes de enviar (limite do servidor de upload).',
+      );
+      return;
+    }
+    setUploadingKind('video');
+    try {
+      const url = await uploadMediaFile(file);
+      const sourceUrl = (window.prompt('Link do post/reel oficial do Instagram (opcional — deixe em branco se for um vídeo próprio):') || '').trim();
+      (editor.chain().focus() as any).insertContent({
+        type: 'videoEmbed',
+        attrs: {
+          src: cappedCloudinaryUrl(url),
+          poster: cloudinaryVideoPoster(url),
+          editorial: true,
+          editorialBadgeHref: sourceUrl || null,
+        },
+      }).run();
+    } catch (err) {
+      alert('Erro ao enviar o vídeo: ' + (err as Error).message);
+    } finally {
+      setUploadingKind(null);
+    }
+  }, [editor]);
+
   const addVideo = useCallback(() => {
     if (!editor) return;
     const url = window.prompt('Cole o link do vídeo (YouTube, Instagram Reels, Cloudinary ou MP4 direto):');
@@ -1176,6 +1288,26 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={addImageGrid} icon={<LayoutGrid className="w-4 h-4" />} title="Grade 2 imagens lado a lado" />
         <ToolbarButton onClick={addImageCarousel} icon={<GalleryHorizontal className="w-4 h-4" />} title="Carrossel de fotos" />
         <ToolbarButton onClick={addVideo} icon={<YoutubeIcon className="w-4 h-4" />} title="Inserir vídeo (YouTube ou link direto)" />
+        <Divider />
+
+        {/* Upload direto de arquivo — foto/vídeo próprios ou baixados do
+            Instagram, com link de origem opcional. Máx. 640px aplicado
+            automaticamente via Cloudinary, sem crédito visível (só hover). */}
+        <ToolbarButton
+          onClick={addEditorialPhoto}
+          disabled={uploadingKind !== null}
+          icon={uploadingKind === 'photo' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+          title="Enviar foto editorial (arquivo, máx. 640px, com origem opcional do Instagram)"
+        />
+        <ToolbarButton
+          onClick={addEditorialVideo}
+          disabled={uploadingKind !== null}
+          icon={uploadingKind === 'video' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
+          title="Enviar vídeo editorial (arquivo, máx. ~4MB, com origem opcional do Instagram)"
+        />
+        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelected} />
+        <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoSelected} />
+
         <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} icon={<Minus className="w-4 h-4" />} title="Linha Horizontal" />
       </div>
 
