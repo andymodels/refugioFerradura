@@ -6,7 +6,7 @@ import { Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store, ClipboardPaste } from "lucide-react";
+import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store, ClipboardPaste, Archive } from "lucide-react";
 
 const PREDEFINED_TAGS = [
   { id: "lugares", label: "Lugares", icon: MapPin },
@@ -88,6 +88,63 @@ function normalizeInstagramEmbedsForSave(html: string) {
 
 function isInstagramPostUrl(url: string) {
   return /instagram\.com\/(p|reel|tv)\//i.test(url);
+}
+
+function instagramPermalink(url: string) {
+  const match = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
+  return match ? `https://www.instagram.com/${match[1]}/${match[2]}/` : null;
+}
+
+async function archiveInstagramEmbeds(html: string) {
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  const frames = Array.from(holder.querySelectorAll<HTMLIFrameElement>('iframe[data-embed-type="instagram"]'));
+  if (!frames.length) return { html, count: 0 };
+
+  for (const frame of frames) {
+    const sourceUrl = instagramPermalink(frame.src);
+    if (!sourceUrl) throw new Error("Um dos links do Instagram é inválido.");
+    const response = await fetch("/api/media/import-instagram", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: sourceUrl }),
+    });
+    const media = await response.json();
+    if (!response.ok) throw new Error(media.error || "Não foi possível arquivar uma mídia.");
+
+    const figure = document.createElement("figure");
+    const link = document.createElement("a");
+    link.href = sourceUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    if (media.type === "video") {
+      figure.className = "instagram-editorial-video";
+      const video = document.createElement("video");
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.src = media.url;
+      figure.appendChild(video);
+      const badge = document.createElement("a");
+      badge.className = "instagram-editorial-video-badge";
+      badge.href = sourceUrl;
+      badge.target = "_blank";
+      badge.rel = "noopener noreferrer";
+      badge.textContent = "Instagram oficial ↗";
+      figure.appendChild(badge);
+    } else {
+      figure.className = "instagram-editorial-photo";
+      const image = document.createElement("img");
+      image.src = media.url;
+      image.alt = "";
+      image.loading = "lazy";
+      link.appendChild(image);
+      figure.appendChild(link);
+    }
+    frame.closest(".video-embed-wrap")?.replaceWith(figure);
+  }
+  return { html: holder.innerHTML, count: frames.length };
 }
 
 function formatInlineMarkdown(value: string) {
@@ -177,6 +234,7 @@ export default function AdminPostEditor() {
   const [aiPhotos, setAiPhotos] = useState<File[]>([]);
   const [aiCreating, setAiCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [archivingMedia, setArchivingMedia] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
 
   const { register, handleSubmit, setValue, control, watch, reset, getValues } = useForm({
@@ -196,6 +254,20 @@ export default function AdminPostEditor() {
 
   const currentStatus = watch("status");
   const selectedTags = (watch("tags") as string[]) || [];
+
+  const archiveArticleMedia = async () => {
+    setArchivingMedia(true);
+    try {
+      const result = await archiveInstagramEmbeds(getValues("content") || "");
+      if (!result.count) throw new Error("Não há links do Instagram para arquivar neste artigo.");
+      setValue("content", result.html, { shouldDirty: true });
+      toast({ title: `${result.count} mídia(s) arquivada(s) no Cloudinary` });
+    } catch (error: any) {
+      toast({ title: "A mídia não foi arquivada", description: error.message, variant: "destructive" });
+    } finally {
+      setArchivingMedia(false);
+    }
+  };
 
   const toggleTag = (id: string) => {
     const next = selectedTags.includes(id)
@@ -487,7 +559,7 @@ export default function AdminPostEditor() {
             Colar artigo pronto
           </div>
           <p className="text-white/50 text-[11px] leading-relaxed">
-            Cole aqui o texto criado no ChatGPT. Títulos, negrito, links, listas e URLs de posts ou reels do Instagram em linhas separadas são convertidos automaticamente. Os links do Instagram aparecem incorporados entre os textos, sem baixar arquivos.
+            Cole o artigo e, em seguida, arquive as mídias. Os links de posts e Reels viram arquivos locais no Cloudinary, sem o cartão branco do Instagram.
           </p>
           <Textarea
             value={articleImport}
@@ -496,9 +568,14 @@ export default function AdminPostEditor() {
             placeholder={'# Título do artigo\n\nTexto de abertura.\n\nhttps://www.instagram.com/p/.../\n\nMais texto...'}
             className="bg-black/40 border-white/10 text-sm placeholder:text-white/20"
           />
-          <Button type="button" onClick={handleArticleImport} className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white">
-            <ClipboardPaste className="w-4 h-4" /> Importar para o editor
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={handleArticleImport} className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white">
+              <ClipboardPaste className="w-4 h-4" /> Importar para o editor
+            </Button>
+            <Button type="button" onClick={archiveArticleMedia} isLoading={archivingMedia} className="flex items-center gap-2">
+              <Archive className="w-4 h-4" /> Arquivar mídias no Cloudinary
+            </Button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
