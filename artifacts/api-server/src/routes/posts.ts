@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, postsTable } from "@workspace/db";
+import { db, postsTable, empreendimentosFilaTable } from "@workspace/db";
 import { eq, ilike, or, and, sql, desc } from "drizzle-orm";
 import {
   ListPostsQueryParams,
@@ -148,6 +148,15 @@ router.delete("/posts/admin/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Um post publicado pelo pipeline de empreendimentos fica referenciado por
+  // empreendimentos_fila.post_id. Sem soltar esse vínculo antes, o delete
+  // falha com violação de chave estrangeira (e o admin só vê "Erro ao
+  // excluir", sem explicação). Deletar um post significa que o empreendimento
+  // não deve mais ser tratado como publicado — solta a referência.
+  await db
+    .update(empreendimentosFilaTable)
+    .set({ postId: null })
+    .where(eq(empreendimentosFilaTable.postId, params.data.id));
   await db.delete(postsTable).where(eq(postsTable.id, params.data.id));
   res.sendStatus(204);
 });
