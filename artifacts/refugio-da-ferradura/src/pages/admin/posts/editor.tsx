@@ -178,6 +178,7 @@ export default function AdminPostEditor() {
   const [aiCreating, setAiCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [pendingLocalDraft, setPendingLocalDraft] = useState<Record<string, any> | null>(null);
 
   const { register, handleSubmit, setValue, control, watch, reset, getValues } = useForm({
     defaultValues: {
@@ -264,53 +265,49 @@ export default function AdminPostEditor() {
           // setting existed. Automated publishing never passes through here.
           coverImageDisplayMode: post.coverImage ? "natural" : "cover",
         };
-        // Check if there's a local draft with more recent edits
+        // Server content always wins by default — a stale local draft must never
+        // silently overwrite newer edits saved by someone else (or by an earlier
+        // session). If a differing draft exists, offer it as an opt-in choice
+        // instead of applying it automatically.
+        reset(serverData);
         try {
           const raw = localStorage.getItem(draftKey(postId));
           if (raw) {
             const draft = JSON.parse(raw);
-            // If draft has meaningful content different from server, restore it
             if ((draft.title || draft.content) &&
                 (draft.title !== serverData.title || draft.content !== serverData.content)) {
-              reset(draft);
+              setPendingLocalDraft(draft);
               setDraftRestored(true);
-              return;
+            } else {
+              localStorage.removeItem(draftKey(postId));
             }
           }
         } catch {}
-        reset(serverData);
       })
       .catch(() => {
         toast({ title: "Erro ao carregar post", variant: "destructive" });
       });
   }, [postId, reset]);
 
+  // Dismisses the "local draft available" offer — server content (already
+  // loaded into the form) is kept as-is, and the stale draft is deleted so it
+  // stops being offered on every future visit to this post.
   const discardDraft = () => {
     try { localStorage.removeItem(draftKey(postId)); } catch {}
     setDraftRestored(false);
-    // Reload from server
-    if (postId) {
-      fetch(`/api/posts/admin/${postId}`, { credentials: "include" })
-        .then((r) => r.json())
-        .then((post) => {
-          if (!post.error) {
-            reset({
-              title: post.title || "",
-              subtitle: post.subtitle || "",
-              content: post.content || "",
-              excerpt: post.excerpt || "",
-              metaDescription: post.metaDescription || "",
-              slug: post.slug || "",
-              status: post.status || "draft",
-              tags: post.tags ? JSON.parse(post.tags) : [],
-              coverImage: post.coverImage || "",
-              coverImageDisplayMode: post.coverImage ? "natural" : "cover",
-            });
-          }
-        });
-    } else {
+    setPendingLocalDraft(null);
+    if (!postId) {
       reset({ title: "", subtitle: "", content: "", excerpt: "", metaDescription: "", slug: "", status: "draft", tags: [], coverImage: "", coverImageDisplayMode: "natural" });
     }
+  };
+
+  // Explicit opt-in: the admin decided the local draft (unsaved edits from a
+  // previous session on this device) should replace what's currently loaded.
+  const applyLocalDraft = () => {
+    if (!pendingLocalDraft) return;
+    reset(pendingLocalDraft);
+    setDraftRestored(false);
+    setPendingLocalDraft(null);
   };
 
   // AI generation from URL or text
@@ -464,19 +461,30 @@ export default function AdminPostEditor() {
     <AdminLayout>
       <div className="p-6 space-y-6 bg-[#0a0a0a] min-h-screen text-white">
 
-        {/* Draft restored banner */}
+        {/* Local draft available banner — never applied automatically, to avoid
+            a stale browser draft silently overwriting newer content saved by
+            someone else (or by an earlier session on the same post). */}
         {draftRestored && (
           <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3 text-sm text-amber-300">
             <span>
-              <span className="font-semibold">Rascunho recuperado</span> — suas edições anteriores foram restauradas automaticamente.
+              <span className="font-semibold">Rascunho local encontrado</span> — há edições não salvas deste navegador, diferentes do que está publicado. O conteúdo atual do servidor está carregado.
             </span>
-            <button
-              type="button"
-              onClick={discardDraft}
-              className="ml-4 text-amber-400 hover:text-amber-200 underline text-xs whitespace-nowrap transition-colors"
-            >
-              Descartar e recarregar
-            </button>
+            <span className="ml-4 flex items-center gap-3 whitespace-nowrap">
+              <button
+                type="button"
+                onClick={applyLocalDraft}
+                className="text-amber-400 hover:text-amber-200 underline text-xs transition-colors"
+              >
+                Usar rascunho local
+              </button>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="text-amber-400 hover:text-amber-200 underline text-xs transition-colors"
+              >
+                Descartar
+              </button>
+            </span>
           </div>
         )}
 
