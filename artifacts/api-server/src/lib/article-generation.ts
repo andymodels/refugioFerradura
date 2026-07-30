@@ -59,6 +59,7 @@ export interface PageFeaturedMedia {
   imageUrl?: string;
   videoUrl?: string;
   caption?: string;
+  canonicalUrl?: string;
 }
 
 // Busca a imagem/vídeo de destaque (og:image/og:video/twitter:image) e uma
@@ -93,9 +94,13 @@ export async function extractFeaturedMedia(url: string): Promise<PageFeaturedMed
       const title = get("og:title") || get("twitter:title") || doc.title || "";
       const description = get("og:description") || get("twitter:description") || "";
       const caption = [title, description].filter(Boolean).join(" — ").trim() || undefined;
+      // Instagram aceita /p/CODE/ e /reel/CODE/ como sinônimos pro mesmo
+      // post — a URL canônica (og:url) é que revela se é de fato um vídeo,
+      // independente de qual caminho a pessoa colou.
+      const canonicalUrl = get("og:url") || undefined;
 
       if ((imageUrl || videoUrl) && !isBlockedContent(caption || "")) {
-        return { imageUrl, videoUrl, caption };
+        return { imageUrl, videoUrl, caption, canonicalUrl };
       }
     } catch {
       continue;

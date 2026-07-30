@@ -4,6 +4,7 @@ import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
 import { extractFeaturedMedia } from "../lib/article-generation";
 import { archiveApprovedMedia } from "../lib/media-library";
+import { fetchInstagramMedia } from "../lib/instagram-media";
 
 const router: IRouter = Router();
 
@@ -141,33 +142,50 @@ router.post("/media/import-instagram", async (req, res): Promise<void> => {
     return;
   }
 
-  const isReel = /^\/reel\//i.test(parsed.pathname);
+  const code = parsed.pathname.split("/").filter(Boolean).at(-1) || "instagram";
 
   try {
-    const media = await extractFeaturedMedia(sourceUrl);
-    // Reels são vídeo por definição. extractFeaturedMedia só acha og:video
-    // quando o Instagram libera a página sem exigir login — o que falha com
-    // frequência num fetch comum de servidor (sem sessão de navegador
-    // autenticada). Se isso acontecer, NUNCA arquivar a capa como se fosse a
-    // publicação (viraria uma foto estática silenciosamente errada) — melhor
-    // avisar e deixar o vídeo ser enviado manualmente.
-    if (isReel && !media.videoUrl) {
+    // Método principal: consulta a mesma API interna que o app do Instagram
+    // usa pra exibir o post — devolve o vídeo real (não uma capa estática) e
+    // a foto na resolução original (não o recorte quadrado de preview), sem
+    // exigir login. Ver lib/instagram-media.ts pro porquê disso ser
+    // necessário em vez de ler as meta tags og:image/og:video da página.
+    const media = await fetchInstagramMedia(sourceUrl).catch(() => null);
+    const chosen = media?.items?.[0];
+
+    if (chosen) {
+      const url = await archiveApprovedMedia(chosen.url, `instagram-${code}-${Date.now()}`, 0, chosen.type);
+      res.json({ url, filename: `${code}.${chosen.type === "video" ? "mp4" : "jpg"}`, type: chosen.type, sourceUrl });
+      return;
+    }
+
+    // Fallback: se a API interna do Instagram mudar ou bloquear, tenta pelas
+    // meta tags og:image/og:video da página. Nunca usa a capa/thumbnail de
+    // um vídeo como se fosse a publicação — melhor avisar e pedir upload
+    // manual do que arquivar silenciosamente a mídia errada. A publicação é
+    // um vídeo de verdade quando a própria URL canônica do Instagram
+    // (og:url) aponta pra /reel/ — não dá pra confiar na URL que a pessoa
+    // colou, já que o Instagram aceita /p/ e /reel/ como sinônimos pro mesmo
+    // conteúdo.
+    const fallback = await extractFeaturedMedia(sourceUrl);
+    const canonicalIsReel = /\/reel\//i.test(fallback.canonicalUrl || "");
+
+    if (canonicalIsReel && !fallback.videoUrl) {
       res.status(422).json({
-        error: "Não consegui extrair o vídeo deste Reel agora (o Instagram bloqueou o acesso sem login). Tente novamente em alguns minutos ou envie o arquivo de vídeo manualmente pelo botão de upload.",
+        error: "Não consegui extrair o vídeo deste Reel agora (o Instagram bloqueou o acesso). Tente novamente em alguns minutos ou envie o arquivo de vídeo manualmente pelo botão de upload.",
       });
       return;
     }
 
-    const mediaUrl = media.videoUrl || media.imageUrl;
-    const type: "image" | "video" = media.videoUrl ? "video" : "image";
-    if (!mediaUrl) {
+    const fallbackUrl = fallback.videoUrl || fallback.imageUrl;
+    const fallbackType: "image" | "video" = fallback.videoUrl ? "video" : "image";
+    if (!fallbackUrl) {
       res.status(422).json({ error: "O Instagram não liberou o arquivo desta publicação agora. Tente novamente em alguns minutos ou envie o arquivo manualmente." });
       return;
     }
 
-    const code = parsed.pathname.split("/").filter(Boolean).at(-1) || "instagram";
-    const url = await archiveApprovedMedia(mediaUrl, `instagram-${code}-${Date.now()}`, 0, type);
-    res.json({ url, filename: `${code}.${type === "video" ? "mp4" : "jpg"}`, type, sourceUrl });
+    const url = await archiveApprovedMedia(fallbackUrl, `instagram-${code}-${Date.now()}`, 0, fallbackType);
+    res.json({ url, filename: `${code}.${fallbackType === "video" ? "mp4" : "jpg"}`, type: fallbackType, sourceUrl });
   } catch (e: any) {
     res.status(502).json({ error: "Não foi possível arquivar esta mídia do Instagram: " + (e?.message || "erro desconhecido") });
   }
