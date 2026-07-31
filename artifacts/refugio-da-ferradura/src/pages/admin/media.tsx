@@ -4,6 +4,7 @@ import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button, Input } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import { useDropzone } from "react-dropzone";
+import { compressImageFile } from "@/lib/image-compression";
 
 interface MediaItem {
   url: string;
@@ -44,15 +45,22 @@ export default function AdminMedia() {
     if (acceptedFiles.length === 0) return;
     setUploading(true);
     try {
+      const compressedFiles = await Promise.all(acceptedFiles.map((file) => compressImageFile(file)));
       const formData = new FormData();
-      acceptedFiles.forEach((file) => formData.append("file", file));
+      compressedFiles.forEach((file) => formData.append("file", file));
       const res = await fetch("/api/media/upload", {
         method: "POST",
         credentials: "include",
         body: formData,
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        if (res.status === 413) {
+          throw new Error("Arquivo grande demais para a hospedagem (máx. ~4MB), mesmo depois de comprimido.");
+        }
+        throw new Error(data?.error || `Erro no upload (HTTP ${res.status})`);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro no upload");
       const uploaded: MediaItem[] = data.images || [{ url: data.url, filename: data.filename, type: data.type || "image" }];
       const videoCount = uploaded.filter((u) => u.type === "video").length;
       const imageCount = uploaded.length - videoCount;

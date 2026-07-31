@@ -23,6 +23,7 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Eraser, Upload, Video, Loader2, Instagram,
 } from 'lucide-react';
 import { cn } from './ui-elements';
+import { compressImageFile } from '@/lib/image-compression';
 
 // ─── FontSize extension ────────────────────────────────────────────────────────
 const FontSize = Extension.create({
@@ -1079,6 +1080,9 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     const res = await fetch('/api/media/upload', { method: 'POST', body: form });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
+      if (res.status === 413) {
+        throw new Error('Arquivo grande demais para a hospedagem (máx. ~4MB). Tente uma foto/vídeo menor.');
+      }
       throw new Error(body?.error || `Falha no upload (HTTP ${res.status})`);
     }
     const data = await res.json();
@@ -1156,7 +1160,8 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     if (!file || !editor) return;
     setUploadingKind('photo');
     try {
-      const url = await uploadMediaFile(file);
+      const compressed = await compressImageFile(file);
+      const url = await uploadMediaFile(compressed);
       const sourceUrl = (window.prompt('Link do post/perfil oficial do Instagram (opcional — deixe em branco se for uma foto própria):') || '').trim();
       editor.chain().focus().insertContent({
         type: 'image',
