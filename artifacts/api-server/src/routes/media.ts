@@ -17,9 +17,17 @@ cloudinary.config({
 const ALLOWED_IMAGE = /jpeg|jpg|png|gif|webp|svg/;
 const ALLOWED_VIDEO = /mp4|webm|mov|avi|mkv|m4v/;
 
+// A Vercel rejeita o corpo da requisição acima de ~4,5MB antes mesmo dela
+// chegar aqui (limite fixo da plataforma pra funções serverless Node.js,
+// não configurável por código) — testado empiricamente: 4MB passa, 4,5MB
+// já volta FUNCTION_PAYLOAD_TOO_LARGE. Configurar o multer pra 100MB só
+// engana quem lê o código; o teto real é este. Não afeta vídeos inseridos
+// por link (Cloudinary, YouTube, MP4 direto) — só upload de arquivo.
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB (vídeos pequenos)
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req, file, cb) => {
     const ext = file.originalname.toLowerCase().split(".").pop() || "";
     const isImage = ALLOWED_IMAGE.test(ext) && /^image\//.test(file.mimetype);
@@ -96,7 +104,17 @@ router.get("/media/list", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/media/upload", upload.array("file", 10), async (req, res): Promise<void> => {
+router.post("/media/upload", (req, res, next) => {
+  // Checa a sessão ANTES do multer processar o arquivo — sem isso qualquer
+  // pessoa (sem estar logada) conseguia subir arquivo pro Cloudinary do site,
+  // sem limite de uso.
+  const session = (req as any).session;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  next();
+}, upload.array("file", 10), async (req, res): Promise<void> => {
   const files = req.files as Express.Multer.File[];
   if (!files || files.length === 0) {
     res.status(400).json({ error: "Nenhum arquivo enviado" });

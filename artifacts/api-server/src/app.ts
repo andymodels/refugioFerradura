@@ -63,6 +63,15 @@ app.use(
   }),
 );
 
+// A Vercel injeta Cache-Control/ETag por padrão nas respostas das funções
+// serverless, mesmo pra rotas dinâmicas como esta API. Isso deixa brecha pra
+// navegador/CDN reaproveitar uma resposta antiga em vez de buscar os dados
+// atuais — exatamente o sintoma de "salvei no admin, mas ao recarregar volta
+// o conteúdo antigo". Nenhuma resposta da API deve ser cacheada.
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use("/api", router);
 
 if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {

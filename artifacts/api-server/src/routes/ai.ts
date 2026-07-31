@@ -26,6 +26,14 @@ const upload = multer({
 });
 
 router.post("/generate-from-url", async (req, res) => {
+  // Chama a API paga da Anthropic — sem essa checagem, qualquer pessoa sem
+  // login conseguia gerar artigos (e gastar créditos) à vontade.
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
   const input: string = (req.body.url || "").trim();
   const extraInstructions: string = (req.body.instructions || "").trim();
 
