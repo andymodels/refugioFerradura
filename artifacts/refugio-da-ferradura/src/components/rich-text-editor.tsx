@@ -57,6 +57,10 @@ const FontSize = Extension.create({
 function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const startRef = useRef<{ x: number; w: number } | null>(null);
+  // Mesmo motivo do vídeo: só re-renderiza local durante o arraste, sem
+  // gerar uma transação do ProseMirror (e a serialização do artigo inteiro
+  // que vem junto) a cada pixel — commit único no mouseup.
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
 
   const onMouseDownHandle = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -69,18 +73,22 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
       if (!startRef.current) return;
       const delta = me.clientX - startRef.current.x;
       const newW = Math.max(80, Math.round(startRef.current.w + delta));
-      updateAttributes({ width: newW });
+      setDragWidth(newW);
     };
     const onUp = () => {
       startRef.current = null;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      setDragWidth((finalWidth) => {
+        if (finalWidth !== null) updateAttributes({ width: finalWidth });
+        return null;
+      });
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }, [node.attrs.width, updateAttributes]);
 
-  const widthVal = node.attrs.width;
+  const widthVal = dragWidth ?? node.attrs.width;
   const style: React.CSSProperties = widthVal
     ? { width: widthVal, maxWidth: '100%', display: 'block' }
     : { maxWidth: '100%', display: 'block' };
@@ -250,6 +258,13 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
   const isInsta = embedType === 'instagram';
   const wrapperRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<{ x: number; w: number } | null>(null);
+  // Enquanto arrasta, só atualiza este estado local (re-render leve, sem
+  // tocar o documento do editor). updateAttributes só é chamado 1x no
+  // mouseup — chamá-lo a cada pixel disparava uma transação do ProseMirror
+  // por movimento, e cada uma serializa o artigo inteiro de novo (onUpdate),
+  // travando a tela durante o arraste.
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const displayWidth = dragWidth ?? width;
 
   const onMouseDownHandle = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -262,12 +277,16 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
       if (!startRef.current) return;
       const delta = me.clientX - startRef.current.x;
       const newW = Math.max(200, Math.round(startRef.current.w + delta));
-      updateAttributes({ width: newW });
+      setDragWidth(newW);
     };
     const onUp = () => {
       startRef.current = null;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      setDragWidth((finalWidth) => {
+        if (finalWidth !== null) updateAttributes({ width: finalWidth });
+        return null;
+      });
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -313,12 +332,12 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
               <AlignRight className="w-3.5 h-3.5" />
             </button>
           </div>
-          {width && (
+          {displayWidth && (
             <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
-              {width}px — arraste a borda direita para redimensionar
+              {displayWidth}px — arraste a borda direita para redimensionar
             </span>
           )}
-          {!width && (
+          {!displayWidth && (
             <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded">
               Largura total — arraste a borda direita para definir uma largura
             </span>
@@ -326,7 +345,7 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
         </div>
       )}
 
-      <div ref={wrapperRef} style={alignWrapperStyle(align ?? 'left', width)} className="relative">
+      <div ref={wrapperRef} style={alignWrapperStyle(align ?? 'left', displayWidth)} className="relative">
         <div className={cn(
           'relative rounded-xl overflow-hidden',
           isInsta ? 'bg-white' : 'bg-black',
