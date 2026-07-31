@@ -44,48 +44,6 @@ function escapeHtml(value: string) {
   })[char] || char);
 }
 
-function toInstagramEmbedUrl(url: string) {
-  const match = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
-  return match ? `https://www.instagram.com/${match[1]}/${match[2]}/embed/` : null;
-}
-
-// Garantia final antes de gravar: mesmo se o navegador colar o link como um
-// hyperlink comum, uma linha que contenha apenas um post/reel do Instagram é
-// salva como embed. Assim o artigo publicado não depende do comportamento de
-// clipboard de cada navegador.
-function normalizeInstagramEmbedsForSave(html: string) {
-  const holder = document.createElement("div");
-  holder.innerHTML = html;
-
-  holder.querySelectorAll("p").forEach((paragraph) => {
-    const anchor = paragraph.querySelector("a[href]");
-    const text = paragraph.textContent?.trim() || "";
-    const sourceUrl = anchor?.getAttribute("href") || text;
-    const isOnlyLink = anchor ? text === (anchor.textContent?.trim() || "") : true;
-    const embedUrl = isOnlyLink ? toInstagramEmbedUrl(sourceUrl) : null;
-    if (!embedUrl) return;
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "video-embed-wrap";
-    wrapper.style.width = "100%";
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("data-video-embed", "");
-    iframe.setAttribute("data-embed-type", "instagram");
-    iframe.setAttribute("class", "video-embed-instagram");
-    iframe.setAttribute("src", embedUrl);
-    iframe.setAttribute("frameborder", "0");
-    iframe.setAttribute("scrolling", "no");
-    iframe.setAttribute("allowtransparency", "true");
-    iframe.style.width = "100%";
-    iframe.style.minHeight = "540px";
-    iframe.style.borderRadius = "12px";
-    wrapper.appendChild(iframe);
-    paragraph.replaceWith(wrapper);
-  });
-
-  return holder.innerHTML;
-}
-
 function isInstagramPostUrl(url: string) {
   return /instagram\.com\/(p|reel|tv)\//i.test(url);
 }
@@ -185,13 +143,6 @@ function importArticleText(source: string) {
     }
     if (!title && /^#\s+/.test(line)) {
       title = line.replace(/^#\s+/, "").trim();
-      continue;
-    }
-    const instagramEmbed = toInstagramEmbedUrl(line);
-    if (instagramEmbed) {
-      flushParagraph();
-      flushList();
-      blocks.push(`<div class="video-embed-wrap" style="width:100%"><iframe data-video-embed data-embed-type="instagram" class="video-embed-instagram" src="${instagramEmbed}" frameborder="0" scrolling="no" allowtransparency="true" style="width:100%;min-height:540px;border-radius:12px"></iframe></div>`);
       continue;
     }
     if (/^##\s+/.test(line)) {
@@ -483,7 +434,11 @@ export default function AdminPostEditor() {
   const onSubmit = async (data: any) => {
     setSaving(true);
     try {
-      const normalizedContent = normalizeInstagramEmbedsForSave(data.content || "");
+      // Não reconverte link do Instagram em iframe branco aqui — esse embed
+      // foi desativado de propósito (ver rich-text-editor.tsx); mídia real do
+      // Instagram entra pelo botão dedicado, que já baixa e arquiva no
+      // Cloudinary como foto/vídeo nativo.
+      const normalizedContent = data.content || "";
       // Strip plain text for auto-filling SEO fields
       const plainText = normalizedContent.replace(/<[^>]*>/gm, "").replace(/\s+/g, " ").trim();
       const directCoverImage = isInstagramPostUrl(data.coverImage || "") ? "" : (data.coverImage || "");
