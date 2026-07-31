@@ -242,6 +242,24 @@ function isDirectVideoUrl(url: string): boolean {
   );
 }
 
+// Nível do módulo (não só dentro de RichTextEditor) porque a grade e o
+// carrossel de imagens também precisam fazer upload de arquivo, não só
+// aceitar URL colada.
+async function uploadMediaFile(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/media/upload', { method: 'POST', body: form });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (res.status === 413) {
+      throw new Error('Arquivo grande demais para a hospedagem (máx. ~4MB). Tente uma foto/vídeo menor.');
+    }
+    throw new Error(body?.error || `Falha no upload (HTTP ${res.status})`);
+  }
+  const data = await res.json();
+  return data.url as string;
+}
+
 type VideoAlign = 'left' | 'center' | 'right';
 
 function alignWrapperStyle(align: VideoAlign, width: number | null): React.CSSProperties {
@@ -554,14 +572,27 @@ function parseGridData(raw: string | null | undefined): GridData {
 
 function ImageGridView({ node, updateAttributes, selected }: NodeViewProps) {
   const data = parseGridData(node.attrs.images as string);
+  const fileInputRefs = useRef<Record<1 | 2, HTMLInputElement | null>>({ 1: null, 2: null });
+  const [uploadingSlot, setUploadingSlot] = useState<1 | 2 | null>(null);
 
-  const promptUrl = (slot: 1 | 2) => {
-    const current = slot === 1 ? data.src1 : data.src2;
-    const url = window.prompt(`URL da imagem ${slot}:`, current || '');
-    if (url === null) return;
+  const setSlotSrc = (slot: 1 | 2, url: string) => {
     const next: GridData = { ...data };
     if (slot === 1) next.src1 = url; else next.src2 = url;
     updateAttributes({ images: JSON.stringify(next) });
+  };
+
+  const onFileSelected = async (slot: 1 | 2, file: File | undefined) => {
+    if (!file) return;
+    setUploadingSlot(slot);
+    try {
+      const compressed = await compressImageFile(file);
+      const url = await uploadMediaFile(compressed);
+      setSlotSrc(slot, url);
+    } catch (err) {
+      alert('Erro ao enviar a foto: ' + (err as Error).message);
+    } finally {
+      setUploadingSlot(null);
+    }
   };
 
   return (
@@ -570,28 +601,45 @@ function ImageGridView({ node, updateAttributes, selected }: NodeViewProps) {
         {([1, 2] as const).map((slot) => {
           const src = slot === 1 ? data.src1 : data.src2;
           const alt = slot === 1 ? data.alt1 : data.alt2;
+          const uploading = uploadingSlot === slot;
           return (
-            <div
-              key={slot}
-              onClick={() => promptUrl(slot)}
-              className={cn(
-                'relative overflow-hidden rounded-lg aspect-[4/3] cursor-pointer group',
-                !src && 'border-2 border-dashed border-border bg-muted flex items-center justify-center'
-              )}
-            >
-              {src ? (
-                <>
-                  <img src={src} alt={alt || ''} className="w-full h-full object-cover rounded-lg" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-                    <span className="text-white text-xs font-medium bg-black/60 px-2 py-1 rounded">Trocar imagem</span>
+            <div key={slot} className="space-y-1">
+              <div
+                onClick={() => !uploading && fileInputRefs.current[slot]?.click()}
+                className={cn(
+                  'relative overflow-hidden rounded-lg aspect-[4/3] cursor-pointer group',
+                  !src && 'border-2 border-dashed border-border bg-muted flex items-center justify-center'
+                )}
+              >
+                {uploading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
-                </>
-              ) : (
-                <div className="text-center text-muted-foreground p-4">
-                  <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
-                  <p className="text-xs">Clique para adicionar imagem {slot}</p>
-                </div>
-              )}
+                ) : src ? (
+                  <>
+                    <img src={src} alt={alt || ''} className="w-full h-full object-cover rounded-lg" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                      <span className="text-white text-xs font-medium bg-black/60 px-2 py-1 rounded">Trocar imagem</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center text-muted-foreground p-4">
+                    <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
+                    <p className="text-xs">Clique para enviar imagem {slot}</p>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={(el) => { fileInputRefs.current[slot] = el; }}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  onFileSelected(slot, file);
+                }}
+              />
             </div>
           );
         })}
@@ -657,14 +705,27 @@ function parseCarouselImages(raw: string | null | undefined): string[] {
 
 function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
   const [index, setIndex] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
   const images = parseCarouselImages(node.attrs.images as string);
 
-  const addImage = () => {
-    const url = window.prompt('URL da imagem para o carrossel:');
-    if (!url) return;
-    const next = [...images, url];
-    updateAttributes({ images: JSON.stringify(next) });
-    setIndex(next.length - 1);
+  const addImage = () => addInputRef.current?.click();
+
+  const onAddFileSelected = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const compressed = await compressImageFile(file);
+      const url = await uploadMediaFile(compressed);
+      const next = [...images, url];
+      updateAttributes({ images: JSON.stringify(next) });
+      setIndex(next.length - 1);
+    } catch (err) {
+      alert('Erro ao enviar a foto: ' + (err as Error).message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const removeCurrentImage = () => {
@@ -674,13 +735,21 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
     setIndex(Math.max(0, index - 1));
   };
 
-  const replaceCurrentImage = () => {
-    if (images.length === 0) return;
-    const current = images[index] || '';
-    const url = window.prompt('Nova URL da imagem:', current);
-    if (url === null) return;
-    const next = images.map((img, i) => (i === index ? url : img));
-    updateAttributes({ images: JSON.stringify(next) });
+  const replaceCurrentImage = () => replaceInputRef.current?.click();
+
+  const onReplaceFileSelected = async (file: File | undefined) => {
+    if (!file || images.length === 0) return;
+    setUploading(true);
+    try {
+      const compressed = await compressImageFile(file);
+      const url = await uploadMediaFile(compressed);
+      const next = images.map((img, i) => (i === index ? url : img));
+      updateAttributes({ images: JSON.stringify(next) });
+    } catch (err) {
+      alert('Erro ao enviar a foto: ' + (err as Error).message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const prev = () => setIndex((i) => (i - 1 + Math.max(1, images.length)) % Math.max(1, images.length));
@@ -691,7 +760,11 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
       <div className={cn('rounded-xl overflow-hidden bg-muted border border-border', selected && 'outline outline-2 outline-blue-500')}>
         {/* Carousel display */}
         <div className="relative aspect-[16/9] bg-muted/50 overflow-hidden">
-          {images.length > 0 ? (
+          {uploading ? (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : images.length > 0 ? (
             <img
               src={images[index]}
               alt={`Slide ${index + 1}`}
@@ -700,7 +773,7 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
               <GalleryHorizontal className="w-10 h-10 opacity-30" />
-              <p className="text-sm">Carrossel vazio — clique em + para adicionar fotos</p>
+              <p className="text-sm">Carrossel vazio — clique em + para enviar fotos</p>
             </div>
           )}
 
@@ -750,8 +823,9 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
           {images.length > 0 && (
             <button
               type="button"
+              disabled={uploading}
               onClick={replaceCurrentImage}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors disabled:opacity-40"
             >
               Trocar foto atual
             </button>
@@ -759,8 +833,9 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
           {images.length > 0 && (
             <button
               type="button"
+              disabled={uploading}
               onClick={removeCurrentImage}
-              className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors"
+              className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"
               title="Remover foto atual"
             >
               <Trash2 className="w-4 h-4" />
@@ -768,14 +843,37 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
           )}
           <button
             type="button"
+            disabled={uploading}
             onClick={addImage}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
           >
-            <Plus className="w-3.5 h-3.5" />
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             Adicionar foto
           </button>
         </div>
       </div>
+      <input
+        ref={addInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          onAddFileSelected(file);
+        }}
+      />
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          onReplaceFileSelected(file);
+        }}
+      />
     </NodeViewWrapper>
   );
 }
@@ -1073,21 +1171,6 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingKind, setUploadingKind] = useState<'photo' | 'video' | null>(null);
-
-  async function uploadMediaFile(file: File): Promise<string> {
-    const form = new FormData();
-    form.append('file', file);
-    const res = await fetch('/api/media/upload', { method: 'POST', body: form });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      if (res.status === 413) {
-        throw new Error('Arquivo grande demais para a hospedagem (máx. ~4MB). Tente uma foto/vídeo menor.');
-      }
-      throw new Error(body?.error || `Falha no upload (HTTP ${res.status})`);
-    }
-    const data = await res.json();
-    return data.url as string;
-  }
 
   // Aplica o limite de 640px na maior dimensão via transformação do
   // Cloudinary (sem corte, sem upscale) — mesmo padrão usado no resto do site.
