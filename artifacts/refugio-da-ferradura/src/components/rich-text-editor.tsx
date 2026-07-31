@@ -632,7 +632,7 @@ function ImageGridView({ node, updateAttributes, selected }: NodeViewProps) {
               <input
                 ref={(el) => { fileInputRefs.current[slot] = el; }}
                 type="file"
-                accept="image/*"
+                accept="image/*,.heic,.heif"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -855,7 +855,7 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
       <input
         ref={addInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -866,7 +866,7 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
       <input
         ref={replaceInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -1460,7 +1460,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
           icon={uploadingKind === 'video' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
           title="Enviar vídeo editorial (arquivo, máx. ~4MB, com origem opcional do Instagram)"
         />
-        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoSelected} />
+        <input ref={photoInputRef} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handlePhotoSelected} />
         <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleVideoSelected} />
 
         {/* Cola o link do post/reel do Instagram e o próprio servidor baixa

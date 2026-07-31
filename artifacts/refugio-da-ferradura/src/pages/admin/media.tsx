@@ -102,7 +102,7 @@ export default function AdminMedia() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      "image/*": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"],
+      "image/*": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".heic", ".heif"],
       "video/*": [".mp4", ".webm", ".mov", ".avi", ".m4v"],
     },
     multiple: true,

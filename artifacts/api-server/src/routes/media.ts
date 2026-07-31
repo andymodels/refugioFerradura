@@ -14,7 +14,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const ALLOWED_IMAGE = /jpeg|jpg|png|gif|webp|svg/;
+const ALLOWED_IMAGE = /jpeg|jpg|png|gif|webp|svg|heic|heif/;
 const ALLOWED_VIDEO = /mp4|webm|mov|avi|mkv|m4v/;
 
 // A Vercel rejeita o corpo da requisição acima de ~4,5MB antes mesmo dela
@@ -30,12 +30,16 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (_req, file, cb) => {
     const ext = file.originalname.toLowerCase().split(".").pop() || "";
-    const isImage = ALLOWED_IMAGE.test(ext) && /^image\//.test(file.mimetype);
+    // HEIC/HEIF (padrão de foto do iPhone) vem com o mimetype inconsistente
+    // dependendo do navegador/SO — às vezes image/heic, às vezes vazio ou
+    // application/octet-stream. Confia na extensão nesse caso específico.
+    const isHeic = /^(heic|heif)$/.test(ext);
+    const isImage = ALLOWED_IMAGE.test(ext) && (isHeic || /^image\//.test(file.mimetype));
     const isVideo = ALLOWED_VIDEO.test(ext) && /^video\//.test(file.mimetype);
     if (isImage || isVideo) {
       cb(null, true);
     } else {
-      cb(new Error("Tipo de arquivo não suportado. Use imagens (JPG, PNG, WEBP) ou vídeos (MP4, WEBM, MOV)."));
+      cb(new Error("Tipo de arquivo não suportado. Use imagens (JPG, PNG, WEBP, HEIC) ou vídeos (MP4, WEBM, MOV)."));
     }
   },
 });

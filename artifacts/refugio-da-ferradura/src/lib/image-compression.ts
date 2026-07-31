@@ -4,7 +4,14 @@
 // recomprime aqui no navegador antes de enviar. Não mexe em imagens já
 // pequenas nem em vídeo (vídeo tem seu próprio aviso de limite).
 export async function compressImageFile(file: File, maxDim = 1600, quality = 0.82): Promise<File> {
-  if (!/^image\//.test(file.type) || file.type === "image/svg+xml") return file;
+  const isSvg = file.type === "image/svg+xml";
+  // HEIC/HEIF (fotos de iPhone) não tem decodificador nativo na maioria dos
+  // navegadores (Chrome/Firefox no desktop não conseguem abrir via canvas) —
+  // em vez de tentar e cair no catch, já manda sem comprimir. O Cloudinary
+  // sabe ler HEIC direto e converte pro formato certo na hora de servir.
+  const isHeic = /^image\/(heic|heif)/.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+  if (!/^image\//.test(file.type) && !isHeic) return file;
+  if (isSvg || isHeic) return file;
   if (file.size <= 1.5 * 1024 * 1024) return file;
   try {
     const bitmap = await createImageBitmap(file);
