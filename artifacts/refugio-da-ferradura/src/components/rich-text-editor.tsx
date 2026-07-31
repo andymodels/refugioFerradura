@@ -706,25 +706,32 @@ function parseCarouselImages(raw: string | null | undefined): string[] {
 function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
   const [index, setIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const addInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const images = parseCarouselImages(node.attrs.images as string);
 
   const addImage = () => addInputRef.current?.click();
 
-  const onAddFileSelected = async (file: File | undefined) => {
-    if (!file) return;
+  const onAddFilesSelected = async (fileList: FileList | null) => {
+    const files = fileList ? Array.from(fileList) : [];
+    if (files.length === 0) return;
     setUploading(true);
+    let next = images;
     try {
-      const compressed = await compressImageFile(file);
-      const url = await uploadMediaFile(compressed);
-      const next = [...images, url];
-      updateAttributes({ images: JSON.stringify(next) });
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ done: i, total: files.length });
+        const compressed = await compressImageFile(files[i]);
+        const url = await uploadMediaFile(compressed);
+        next = [...next, url];
+        updateAttributes({ images: JSON.stringify(next) });
+      }
       setIndex(next.length - 1);
     } catch (err) {
       alert('Erro ao enviar a foto: ' + (err as Error).message);
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -758,20 +765,24 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
   return (
     <NodeViewWrapper data-drag-handle className="my-4">
       <div className={cn('rounded-xl overflow-hidden bg-muted border border-border', selected && 'outline outline-2 outline-blue-500')}>
-        {/* Carousel display */}
-        <div className="relative aspect-[16/9] bg-muted/50 overflow-hidden">
+        {/* Carousel display — height adapts to each photo's own aspect ratio instead of cropping */}
+        <div className="relative bg-muted/50 overflow-hidden flex items-center justify-center" style={{ minHeight: 220 }}>
           {uploading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              {uploadProgress && uploadProgress.total > 1 && (
+                <p className="text-xs">Enviando foto {uploadProgress.done + 1} de {uploadProgress.total}…</p>
+              )}
             </div>
           ) : images.length > 0 ? (
             <img
               src={images[index]}
               alt={`Slide ${index + 1}`}
-              className="w-full h-full object-cover"
+              className="max-w-full h-auto object-contain"
+              style={{ maxHeight: 480 }}
             />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
               <GalleryHorizontal className="w-10 h-10 opacity-30" />
               <p className="text-sm">Carrossel vazio — clique em + para enviar fotos</p>
             </div>
@@ -848,7 +859,7 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
             className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
           >
             {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            Adicionar foto
+            Adicionar fotos
           </button>
         </div>
       </div>
@@ -856,11 +867,12 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
         ref={addInputRef}
         type="file"
         accept="image/*,.heic,.heif"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          const files = e.target.files;
           e.target.value = '';
-          onAddFileSelected(file);
+          onAddFilesSelected(files);
         }}
       />
       <input

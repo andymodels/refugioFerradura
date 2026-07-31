@@ -359,12 +359,14 @@
 }
 .post-content .carousel-slide-img {
   flex: 0 0 auto;
-  width: 85%;
-  max-height: 420px;
-  object-fit: cover;
+  height: clamp(220px, 55vw, 420px);
+  width: auto;
+  max-width: 90%;
+  object-fit: contain;
   border-radius: 0.75rem;
   scroll-snap-align: start;
   margin: 0 !important;
+  background: var(--color-muted);
 }
 
 /* ── Text color — spans from Tiptap Color extension render via inline style ── */
