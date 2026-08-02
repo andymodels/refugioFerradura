@@ -55,6 +55,35 @@ export interface InstagramPublishResult {
   caption: string;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// O Instagram processa o container de mídia de forma assíncrona (baixa e
+// transcodifica a imagem antes de deixar publicar). Publicar assim que o
+// container é criado falha com "media is not ready for publishing" — é
+// preciso esperar o status_code virar FINISHED antes de chamar media_publish.
+async function waitForContainerReady(containerId: string, accessToken: string): Promise<void> {
+  const statusUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${containerId}`);
+  statusUrl.searchParams.set("fields", "status_code");
+  statusUrl.searchParams.set("access_token", accessToken);
+
+  const maxAttempts = 10;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const statusRes = await fetch(statusUrl);
+    const statusData: any = await statusRes.json();
+
+    if (statusData?.status_code === "FINISHED") return;
+    if (statusData?.status_code === "ERROR") {
+      throw new Error("O Instagram falhou ao processar a imagem para publicação.");
+    }
+
+    await sleep(2000);
+  }
+
+  throw new Error("O Instagram demorou demais pra processar a imagem. Tente novamente em alguns instantes.");
+}
+
 // Publica no feed do Instagram oficial (@refugioferradura). Sempre disparado
 // manualmente pelo painel admin — nunca por cron/agendamento.
 export async function publishPostToInstagram(post: Post): Promise<InstagramPublishResult> {
@@ -85,6 +114,8 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
       containerData?.error?.error_user_msg || containerData?.error?.message || "Falha ao preparar a publicação no Instagram.",
     );
   }
+
+  await waitForContainerReady(containerData.id, accessToken);
 
   const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
   publishUrl.searchParams.set("creation_id", containerData.id);
