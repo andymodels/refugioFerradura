@@ -53,6 +53,7 @@ export async function generateInstagramCaption(post: Post): Promise<string> {
 export interface InstagramPublishResult {
   mediaId: string;
   caption: string;
+  permalink: string | null;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -133,5 +134,21 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
     );
   }
 
-  return { mediaId: publishData.id, caption };
+  const permalink = await fetchPermalink(publishData.id, accessToken);
+  logger.info({ postId: post.id, mediaId: publishData.id, permalink }, "Post publicado no Instagram");
+
+  return { mediaId: publishData.id, caption, permalink };
+}
+
+async function fetchPermalink(mediaId: string, accessToken: string): Promise<string | null> {
+  try {
+    const url = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${mediaId}`);
+    url.searchParams.set("fields", "permalink");
+    url.searchParams.set("access_token", accessToken);
+    const res = await fetch(url);
+    const data: any = await res.json();
+    return typeof data?.permalink === "string" ? data.permalink : null;
+  } catch {
+    return null;
+  }
 }
