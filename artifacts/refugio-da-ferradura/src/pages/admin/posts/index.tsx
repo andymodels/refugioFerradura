@@ -47,8 +47,11 @@ export default function AdminPosts() {
     }
   };
 
-  const handlePublishInstagram = async (id: number, title: string) => {
-    if (!confirm(`Publicar "${title}" no feed do Instagram @refugioferradura agora? Essa ação é pública e não pode ser desfeita por aqui.`)) return;
+  const handlePublishInstagram = async (id: number, title: string, alreadyPosted: boolean) => {
+    const message = alreadyPosted
+      ? `Publicar "${title}" de novo no feed do Instagram @refugioferradura? A publicação anterior continua no ar — isso cria uma nova, não substitui.`
+      : `Publicar "${title}" no feed do Instagram @refugioferradura agora? Essa ação é pública e não pode ser desfeita por aqui.`;
+    if (!confirm(message)) return;
     try {
       await publishInstagramMutation.mutateAsync({ id });
       toast({ title: "Publicado no Instagram com sucesso" });
@@ -144,14 +147,14 @@ export default function AdminPosts() {
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">{new Date(post.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2">
-                      {post.status === 'published' && !post.instagramPostedAt && (
+                      {post.status === 'published' && (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-muted-foreground hover:text-pink-600"
-                          onClick={() => handlePublishInstagram(post.id, post.title)}
+                          onClick={() => handlePublishInstagram(post.id, post.title, !!post.instagramPostedAt)}
                           disabled={publishInstagramMutation.isPending}
-                          title="Publicar no Instagram"
+                          title={post.instagramPostedAt ? "Publicar de novo no Instagram" : "Publicar no Instagram"}
                         >
                           <Instagram className="w-4 h-4" />
                         </Button>

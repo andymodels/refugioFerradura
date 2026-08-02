@@ -191,11 +191,10 @@ router.post("/posts/admin/:id/publish-instagram", async (req, res): Promise<void
     res.status(400).json({ error: "Só é possível publicar no Instagram um post que já esteja publicado no blog." });
     return;
   }
-  if (post.instagramPostedAt) {
-    res.status(400).json({ error: "Este post já foi publicado no Instagram." });
-    return;
-  }
 
+  // Publicar de novo é permitido de propósito (post atualizado com foto/texto
+  // novo, por exemplo) — não apaga a publicação anterior no Instagram, só
+  // atualiza a marcação de "última publicação" deste post no painel.
   try {
     const result = await publishPostToInstagram(post);
     const [updated] = await db
