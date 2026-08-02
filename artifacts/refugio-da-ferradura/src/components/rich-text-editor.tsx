@@ -923,15 +923,13 @@ const ImageCarousel = Node.create({
         class: 'image-carousel-block',
         style: 'display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px',
       }),
-      ...imgs.map((src) => [
-        'img',
-        {
-          src,
-          class: 'carousel-slide-img',
-          style: 'flex:0 0 auto;width:85%;max-height:420px;object-fit:cover;border-radius:12px;scroll-snap-align:start',
-          alt: '',
-        },
-      ]),
+      // Sem style inline aqui de propósito: .post-content .carousel-slide-img
+      // (index.css) já define object-fit:contain pra nunca cortar a foto —
+      // um style inline no <img> teria especificidade maior que a classe e
+      // sobrescreveria isso silenciosamente (era exatamente esse o bug:
+      // o inline antigo tinha object-fit:cover, cortando a foto mesmo com
+      // a regra certa já existindo na folha de estilo).
+      ...imgs.map((src) => ['img', { src, class: 'carousel-slide-img', alt: '' }]),
     ];
   },
 
