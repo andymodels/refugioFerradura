@@ -713,8 +713,7 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
 
   const addImage = () => addInputRef.current?.click();
 
-  const onAddFilesSelected = async (fileList: FileList | null) => {
-    const files = fileList ? Array.from(fileList) : [];
+  const onAddFilesSelected = async (files: File[]) => {
     if (files.length === 0) return;
     setUploading(true);
     let next = images;
@@ -870,7 +869,10 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
         multiple
         className="hidden"
         onChange={(e) => {
-          const files = e.target.files;
+          // Precisa converter pra array ANTES de limpar e.target.value — files
+          // é uma FileList "viva" ligada ao input, então limpar o value zera
+          // a lista também (e o upload silenciosamente não faz nada).
+          const files = Array.from(e.target.files ?? []);
           e.target.value = '';
           onAddFilesSelected(files);
         }}
