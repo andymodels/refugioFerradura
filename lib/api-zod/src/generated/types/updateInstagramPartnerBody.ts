@@ -13,6 +13,7 @@ export interface UpdateInstagramPartnerBody {
   instagramHandle?: string | null;
   /** @nullable */
   telefone?: string | null;
+  pausado?: boolean;
   status?: UpdateInstagramPartnerBodyStatus;
   /** @nullable */
   autorizacaoData?: Date | null;

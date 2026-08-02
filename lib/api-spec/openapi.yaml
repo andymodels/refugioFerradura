@@ -363,6 +363,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InstagramPartnerListResponse"
+    post:
+      operationId: createInstagramPartner
+      tags: [partners]
+      summary: Manually register a partner not found via the blog scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInstagramPartnerBody"
+      responses:
+        "201":
+          description: Created partner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstagramPartner"
 
   /partners/admin/scan:
     post:
@@ -407,6 +424,130 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /partners/admin/content:
+    get:
+      operationId: listPartnerContentItems
+      tags: [partners]
+      summary: List all queued/scheduled/published partner content items
+      responses:
+        "200":
+          description: List of content items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerContentItemListResponse"
+
+  /partners/admin/{id}/content:
+    post:
+      operationId: createPartnerContentItem
+      tags: [partners]
+      summary: Queue a piece of already-uploaded media for a partner (partner must already be authorized for that content type)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePartnerContentItemBody"
+      responses:
+        "201":
+          description: Queued content item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerContentItem"
+        "400":
+          description: Partner not authorized for this content type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /partners/admin/content/{id}:
+    patch:
+      operationId: updatePartnerContentItem
+      tags: [partners]
+      summary: Update a queued content item (e.g. cancel it)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePartnerContentItemBody"
+      responses:
+        "200":
+          description: Updated content item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerContentItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /partners/admin/schedule-settings:
+    get:
+      operationId: getScheduleSettings
+      tags: [partners]
+      summary: Get the Stories auto-scheduling configuration
+      responses:
+        "200":
+          description: Schedule settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleSettingsResponse"
+    patch:
+      operationId: updateScheduleSettings
+      tags: [partners]
+      summary: Update the Stories auto-scheduling configuration (including the master automacaoAtiva kill switch)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScheduleSettingsBody"
+      responses:
+        "200":
+          description: Updated schedule settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleSettingsResponse"
+
+  /partners/admin/schedule-preview:
+    get:
+      operationId: getSchedulePreview
+      tags: [partners]
+      summary: Simulate the next 7 days of scheduled Stories — read-only, never publishes or persists anything
+      responses:
+        "200":
+          description: Preview of the upcoming schedule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SchedulePreviewResponse"
 
   /media/upload:
     post:
@@ -758,7 +899,12 @@ components:
         id:
           type: integer
         postId:
-          type: integer
+          type: ["integer", "null"]
+        origem:
+          type: string
+          enum: [blog, manual]
+        pausado:
+          type: boolean
         nomeEstabelecimento:
           type: string
         instagramHandle:
@@ -795,7 +941,8 @@ components:
           type: string
       required:
         - id
-        - postId
+        - origem
+        - pausado
         - nomeEstabelecimento
         - status
         - autorizacaoFotos
@@ -818,6 +965,18 @@ components:
         - partners
         - total
 
+    CreateInstagramPartnerBody:
+      type: object
+      properties:
+        nomeEstabelecimento:
+          type: string
+        instagramHandle:
+          type: string
+        telefone:
+          type: string
+      required:
+        - nomeEstabelecimento
+
     UpdateInstagramPartnerBody:
       type: object
       properties:
@@ -827,6 +986,8 @@ components:
           type: ["string", "null"]
         telefone:
           type: ["string", "null"]
+        pausado:
+          type: boolean
         status:
           type: string
           enum: [encontrado, conferido, seguido_manualmente, autorizado_repost]
@@ -857,6 +1018,181 @@ components:
         - postsChecked
         - partnersCreated
 
+    PartnerContentItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        partnerId:
+          type: integer
+        mediaUrl:
+          type: string
+        mediaType:
+          type: string
+          enum: [foto, video]
+        tipoConteudo:
+          type: string
+          enum: [story, feed, reel]
+        status:
+          type: string
+          enum: [na_fila, agendado, publicado, cancelado]
+        scheduledFor:
+          type: ["string", "null"]
+          format: date-time
+        publishedAt:
+          type: ["string", "null"]
+          format: date-time
+        publishedMediaId:
+          type: ["string", "null"]
+        notas:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        nomeEstabelecimento:
+          type: string
+        instagramHandle:
+          type: ["string", "null"]
+      required:
+        - id
+        - partnerId
+        - mediaUrl
+        - mediaType
+        - tipoConteudo
+        - status
+        - createdAt
+
+    PartnerContentItemListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartnerContentItem"
+        total:
+          type: integer
+      required:
+        - items
+        - total
+
+    CreatePartnerContentItemBody:
+      type: object
+      properties:
+        mediaUrl:
+          type: string
+        mediaType:
+          type: string
+          enum: [foto, video]
+        tipoConteudo:
+          type: string
+          enum: [story, feed, reel]
+        notas:
+          type: string
+      required:
+        - mediaUrl
+        - mediaType
+        - tipoConteudo
+
+    UpdatePartnerContentItemBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [na_fila, agendado, publicado, cancelado]
+        notas:
+          type: string
+
+    ScheduleSettingsResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        diasSemana:
+          type: array
+          items:
+            type: string
+        horarios:
+          type: array
+          items:
+            type: string
+        maxPorDia:
+          type: integer
+        maxPorParceiroDia:
+          type: integer
+        automacaoAtiva:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - diasSemana
+        - horarios
+        - maxPorDia
+        - maxPorParceiroDia
+        - automacaoAtiva
+        - updatedAt
+
+    UpdateScheduleSettingsBody:
+      type: object
+      properties:
+        diasSemana:
+          type: array
+          items:
+            type: string
+        horarios:
+          type: array
+          items:
+            type: string
+        maxPorDia:
+          type: integer
+        maxPorParceiroDia:
+          type: integer
+        automacaoAtiva:
+          type: boolean
+
+    ScheduleSlot:
+      type: object
+      properties:
+        data:
+          type: string
+          format: date-time
+        diaSemana:
+          type: string
+        horario:
+          type: string
+        contentItemId:
+          type: integer
+        partnerId:
+          type: integer
+        nomeEstabelecimento:
+          type: string
+        instagramHandle:
+          type: ["string", "null"]
+        mediaUrl:
+          type: string
+        tipoConteudo:
+          type: string
+      required:
+        - data
+        - diaSemana
+        - horario
+        - contentItemId
+        - partnerId
+        - nomeEstabelecimento
+        - mediaUrl
+        - tipoConteudo
+
+    SchedulePreviewResponse:
+      type: object
+      properties:
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduleSlot"
+      required:
+        - slots
+
     MediaUploadResponse:
       type: object
       properties:
@@ -864,6 +1200,9 @@ components:
           type: string
         filename:
           type: string
+        type:
+          type: string
+          enum: [image, video]
       required:
         - url
         - filename

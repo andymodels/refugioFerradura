@@ -20,6 +20,7 @@ import AdminMedia from "./pages/admin/media";
 import AdminSettings from "./pages/admin/settings";
 import AdminFontes from "./pages/admin/fontes";
 import AdminPartners from "./pages/admin/parceiros";
+import AdminStories from "./pages/admin/stories";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +65,9 @@ function Router() {
 
       {/* Admin Parceiros */}
       <Route path="/admin/parceiros" component={AdminPartners} />
+
+      {/* Admin Stories */}
+      <Route path="/admin/stories" component={AdminStories} />
 
       <Route component={NotFound} />
     </Switch>

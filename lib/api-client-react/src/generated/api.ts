@@ -19,6 +19,8 @@ import type {
 import type {
   AdminUser,
   CreateFonteBody,
+  CreateInstagramPartnerBody,
+  CreatePartnerContentItemBody,
   CreatePostBody,
   ErrorResponse,
   Fonte,
@@ -32,13 +34,19 @@ import type {
   LoginBody,
   LoginResponse,
   MediaUploadResponse,
+  PartnerContentItem,
+  PartnerContentItemListResponse,
   Post,
   PostListResponse,
   ScanInstagramPartnersResponse,
+  SchedulePreviewResponse,
+  ScheduleSettingsResponse,
   SuccessResponse,
   UpdateFonteBody,
   UpdateInstagramPartnerBody,
+  UpdatePartnerContentItemBody,
   UpdatePostBody,
+  UpdateScheduleSettingsBody,
   UploadMediaBody,
 } from "./api.schemas";
 
@@ -1441,6 +1449,93 @@ export function useListInstagramPartners<
 }
 
 /**
+ * @summary Manually register a partner not found via the blog scan
+ */
+export const getCreateInstagramPartnerUrl = () => {
+  return `/api/partners/admin`;
+};
+
+export const createInstagramPartner = async (
+  createInstagramPartnerBody: CreateInstagramPartnerBody,
+  options?: RequestInit,
+): Promise<InstagramPartner> => {
+  return customFetch<InstagramPartner>(getCreateInstagramPartnerUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createInstagramPartnerBody),
+  });
+};
+
+export const getCreateInstagramPartnerMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstagramPartner>>,
+    TError,
+    { data: BodyType<CreateInstagramPartnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createInstagramPartner>>,
+  TError,
+  { data: BodyType<CreateInstagramPartnerBody> },
+  TContext
+> => {
+  const mutationKey = ["createInstagramPartner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createInstagramPartner>>,
+    { data: BodyType<CreateInstagramPartnerBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createInstagramPartner(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateInstagramPartnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInstagramPartner>>
+>;
+export type CreateInstagramPartnerMutationBody =
+  BodyType<CreateInstagramPartnerBody>;
+export type CreateInstagramPartnerMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Manually register a partner not found via the blog scan
+ */
+export const useCreateInstagramPartner = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createInstagramPartner>>,
+    TError,
+    { data: BodyType<CreateInstagramPartnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createInstagramPartner>>,
+  TError,
+  { data: BodyType<CreateInstagramPartnerBody> },
+  TContext
+> => {
+  return useMutation(getCreateInstagramPartnerMutationOptions(options));
+};
+
+/**
  * @summary Manually scan published posts for cited Instagram profiles (never automatic, never follows/downloads/publishes)
  */
 export const getScanInstagramPartnersUrl = () => {
@@ -1611,6 +1706,498 @@ export const useUpdateInstagramPartner = <
 > => {
   return useMutation(getUpdateInstagramPartnerMutationOptions(options));
 };
+
+/**
+ * @summary List all queued/scheduled/published partner content items
+ */
+export const getListPartnerContentItemsUrl = () => {
+  return `/api/partners/admin/content`;
+};
+
+export const listPartnerContentItems = async (
+  options?: RequestInit,
+): Promise<PartnerContentItemListResponse> => {
+  return customFetch<PartnerContentItemListResponse>(
+    getListPartnerContentItemsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListPartnerContentItemsQueryKey = () => {
+  return [`/api/partners/admin/content`] as const;
+};
+
+export const getListPartnerContentItemsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPartnerContentItems>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPartnerContentItems>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPartnerContentItemsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPartnerContentItems>>
+  > = ({ signal }) => listPartnerContentItems({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPartnerContentItems>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListPartnerContentItemsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPartnerContentItems>>
+>;
+export type ListPartnerContentItemsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all queued/scheduled/published partner content items
+ */
+
+export function useListPartnerContentItems<
+  TData = Awaited<ReturnType<typeof listPartnerContentItems>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listPartnerContentItems>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListPartnerContentItemsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Queue a piece of already-uploaded media for a partner (partner must already be authorized for that content type)
+ */
+export const getCreatePartnerContentItemUrl = (id: number) => {
+  return `/api/partners/admin/${id}/content`;
+};
+
+export const createPartnerContentItem = async (
+  id: number,
+  createPartnerContentItemBody: CreatePartnerContentItemBody,
+  options?: RequestInit,
+): Promise<PartnerContentItem> => {
+  return customFetch<PartnerContentItem>(getCreatePartnerContentItemUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createPartnerContentItemBody),
+  });
+};
+
+export const getCreatePartnerContentItemMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPartnerContentItem>>,
+    TError,
+    { id: number; data: BodyType<CreatePartnerContentItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPartnerContentItem>>,
+  TError,
+  { id: number; data: BodyType<CreatePartnerContentItemBody> },
+  TContext
+> => {
+  const mutationKey = ["createPartnerContentItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPartnerContentItem>>,
+    { id: number; data: BodyType<CreatePartnerContentItemBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createPartnerContentItem(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePartnerContentItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPartnerContentItem>>
+>;
+export type CreatePartnerContentItemMutationBody =
+  BodyType<CreatePartnerContentItemBody>;
+export type CreatePartnerContentItemMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Queue a piece of already-uploaded media for a partner (partner must already be authorized for that content type)
+ */
+export const useCreatePartnerContentItem = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPartnerContentItem>>,
+    TError,
+    { id: number; data: BodyType<CreatePartnerContentItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPartnerContentItem>>,
+  TError,
+  { id: number; data: BodyType<CreatePartnerContentItemBody> },
+  TContext
+> => {
+  return useMutation(getCreatePartnerContentItemMutationOptions(options));
+};
+
+/**
+ * @summary Update a queued content item (e.g. cancel it)
+ */
+export const getUpdatePartnerContentItemUrl = (id: number) => {
+  return `/api/partners/admin/content/${id}`;
+};
+
+export const updatePartnerContentItem = async (
+  id: number,
+  updatePartnerContentItemBody: UpdatePartnerContentItemBody,
+  options?: RequestInit,
+): Promise<PartnerContentItem> => {
+  return customFetch<PartnerContentItem>(getUpdatePartnerContentItemUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updatePartnerContentItemBody),
+  });
+};
+
+export const getUpdatePartnerContentItemMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePartnerContentItem>>,
+    TError,
+    { id: number; data: BodyType<UpdatePartnerContentItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePartnerContentItem>>,
+  TError,
+  { id: number; data: BodyType<UpdatePartnerContentItemBody> },
+  TContext
+> => {
+  const mutationKey = ["updatePartnerContentItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePartnerContentItem>>,
+    { id: number; data: BodyType<UpdatePartnerContentItemBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updatePartnerContentItem(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePartnerContentItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePartnerContentItem>>
+>;
+export type UpdatePartnerContentItemMutationBody =
+  BodyType<UpdatePartnerContentItemBody>;
+export type UpdatePartnerContentItemMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a queued content item (e.g. cancel it)
+ */
+export const useUpdatePartnerContentItem = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePartnerContentItem>>,
+    TError,
+    { id: number; data: BodyType<UpdatePartnerContentItemBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updatePartnerContentItem>>,
+  TError,
+  { id: number; data: BodyType<UpdatePartnerContentItemBody> },
+  TContext
+> => {
+  return useMutation(getUpdatePartnerContentItemMutationOptions(options));
+};
+
+/**
+ * @summary Get the Stories auto-scheduling configuration
+ */
+export const getGetScheduleSettingsUrl = () => {
+  return `/api/partners/admin/schedule-settings`;
+};
+
+export const getScheduleSettings = async (
+  options?: RequestInit,
+): Promise<ScheduleSettingsResponse> => {
+  return customFetch<ScheduleSettingsResponse>(getGetScheduleSettingsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetScheduleSettingsQueryKey = () => {
+  return [`/api/partners/admin/schedule-settings`] as const;
+};
+
+export const getGetScheduleSettingsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getScheduleSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getScheduleSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetScheduleSettingsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getScheduleSettings>>
+  > = ({ signal }) => getScheduleSettings({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getScheduleSettings>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetScheduleSettingsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getScheduleSettings>>
+>;
+export type GetScheduleSettingsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the Stories auto-scheduling configuration
+ */
+
+export function useGetScheduleSettings<
+  TData = Awaited<ReturnType<typeof getScheduleSettings>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getScheduleSettings>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetScheduleSettingsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update the Stories auto-scheduling configuration (including the master automacaoAtiva kill switch)
+ */
+export const getUpdateScheduleSettingsUrl = () => {
+  return `/api/partners/admin/schedule-settings`;
+};
+
+export const updateScheduleSettings = async (
+  updateScheduleSettingsBody: UpdateScheduleSettingsBody,
+  options?: RequestInit,
+): Promise<ScheduleSettingsResponse> => {
+  return customFetch<ScheduleSettingsResponse>(getUpdateScheduleSettingsUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateScheduleSettingsBody),
+  });
+};
+
+export const getUpdateScheduleSettingsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateScheduleSettings>>,
+    TError,
+    { data: BodyType<UpdateScheduleSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateScheduleSettings>>,
+  TError,
+  { data: BodyType<UpdateScheduleSettingsBody> },
+  TContext
+> => {
+  const mutationKey = ["updateScheduleSettings"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateScheduleSettings>>,
+    { data: BodyType<UpdateScheduleSettingsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateScheduleSettings(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateScheduleSettingsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateScheduleSettings>>
+>;
+export type UpdateScheduleSettingsMutationBody =
+  BodyType<UpdateScheduleSettingsBody>;
+export type UpdateScheduleSettingsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update the Stories auto-scheduling configuration (including the master automacaoAtiva kill switch)
+ */
+export const useUpdateScheduleSettings = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateScheduleSettings>>,
+    TError,
+    { data: BodyType<UpdateScheduleSettingsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateScheduleSettings>>,
+  TError,
+  { data: BodyType<UpdateScheduleSettingsBody> },
+  TContext
+> => {
+  return useMutation(getUpdateScheduleSettingsMutationOptions(options));
+};
+
+/**
+ * @summary Simulate the next 7 days of scheduled Stories — read-only, never publishes or persists anything
+ */
+export const getGetSchedulePreviewUrl = () => {
+  return `/api/partners/admin/schedule-preview`;
+};
+
+export const getSchedulePreview = async (
+  options?: RequestInit,
+): Promise<SchedulePreviewResponse> => {
+  return customFetch<SchedulePreviewResponse>(getGetSchedulePreviewUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSchedulePreviewQueryKey = () => {
+  return [`/api/partners/admin/schedule-preview`] as const;
+};
+
+export const getGetSchedulePreviewQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSchedulePreview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSchedulePreview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSchedulePreviewQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSchedulePreview>>
+  > = ({ signal }) => getSchedulePreview({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSchedulePreview>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSchedulePreviewQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSchedulePreview>>
+>;
+export type GetSchedulePreviewQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Simulate the next 7 days of scheduled Stories — read-only, never publishes or persists anything
+ */
+
+export function useGetSchedulePreview<
+  TData = Awaited<ReturnType<typeof getSchedulePreview>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSchedulePreview>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSchedulePreviewQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Upload media file

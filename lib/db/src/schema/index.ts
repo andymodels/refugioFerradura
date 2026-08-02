@@ -5,3 +5,5 @@ export * from "./fontes";
 export * from "./fontes-processadas";
 export * from "./empreendimentos-fila";
 export * from "./instagram-partners";
+export * from "./partner-content-items";
+export * from "./story-schedule-settings";

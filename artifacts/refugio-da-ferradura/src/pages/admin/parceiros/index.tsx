@@ -1,9 +1,14 @@
 import React from "react";
 import { Link } from "wouter";
-import { Users, ScanSearch, Pencil, X, Check } from "lucide-react";
+import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui-elements";
-import { useListInstagramPartners, useScanInstagramPartners, useUpdateInstagramPartner } from "@workspace/api-client-react";
+import {
+  useListInstagramPartners,
+  useScanInstagramPartners,
+  useUpdateInstagramPartner,
+  useCreateInstagramPartner,
+} from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,15 +49,51 @@ export default function AdminPartners() {
   const { data, isLoading } = useListInstagramPartners();
   const scanMutation = useScanInstagramPartners();
   const updateMutation = useUpdateInstagramPartner();
+  const createMutation = useCreateInstagramPartner();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [form, setForm] = React.useState<EditForm | null>(null);
 
+  const [newNome, setNewNome] = React.useState("");
+  const [newInstagram, setNewInstagram] = React.useState("");
+  const [newTelefone, setNewTelefone] = React.useState("");
+
   const partners = data?.partners || [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/partners/admin"] });
+
+  const handleCreateManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNome.trim()) return;
+    try {
+      await createMutation.mutateAsync({
+        data: {
+          nomeEstabelecimento: newNome.trim(),
+          instagramHandle: newInstagram.trim().replace(/^@/, "") || undefined,
+          telefone: newTelefone.trim() || undefined,
+        },
+      });
+      setNewNome("");
+      setNewInstagram("");
+      setNewTelefone("");
+      invalidate();
+      toast({ title: "Parceiro cadastrado" });
+    } catch (e: any) {
+      toast({ title: "Erro ao cadastrar", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const handleTogglePause = async (id: number, pausado: boolean) => {
+    try {
+      await updateMutation.mutateAsync({ id, data: { pausado: !pausado } });
+      invalidate();
+      toast({ title: !pausado ? "Parceiro pausado" : "Parceiro reativado" });
+    } catch (e: any) {
+      toast({ title: "Erro ao atualizar", description: e?.message, variant: "destructive" });
+    }
+  };
 
   const handleScan = async () => {
     try {
@@ -133,13 +174,36 @@ export default function AdminPartners() {
         </Button>
       </div>
 
+      <Card className="p-6 mb-6">
+        <p className="text-xs font-medium text-muted-foreground uppercase mb-3">Cadastrar parceiro manualmente</p>
+        <form onSubmit={handleCreateManual} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <Label>Nome do estabelecimento</Label>
+            <Input value={newNome} onChange={(e) => setNewNome(e.target.value)} placeholder="Ex: Restaurante da Serra" />
+          </div>
+          <div>
+            <Label>Instagram (sem @)</Label>
+            <Input value={newInstagram} onChange={(e) => setNewInstagram(e.target.value)} placeholder="perfil" />
+          </div>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <Label>Telefone</Label>
+              <Input value={newTelefone} onChange={(e) => setNewTelefone(e.target.value)} placeholder="(27) 99999-9999" />
+            </div>
+            <Button type="submit" disabled={createMutation.isPending || !newNome.trim()} className="flex items-center gap-2 shrink-0">
+              <Plus className="w-4 h-4" /> Adicionar
+            </Button>
+          </div>
+        </form>
+      </Card>
+
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-4 font-medium">Estabelecimento</th>
-                <th className="px-6 py-4 font-medium">Matéria</th>
+                <th className="px-6 py-4 font-medium">Origem</th>
                 <th className="px-6 py-4 font-medium">Instagram</th>
                 <th className="px-6 py-4 font-medium">Telefone</th>
                 <th className="px-6 py-4 font-medium">Status</th>
@@ -152,18 +216,27 @@ export default function AdminPartners() {
               ) : partners.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Nenhum parceiro encontrado ainda. Clique em "Rodar varredura" pra ler os posts publicados.
+                    Nenhum parceiro encontrado ainda. Clique em "Rodar varredura" ou cadastre um manualmente.
                   </td>
                 </tr>
               ) : (
                 partners.map((p) => (
                   <React.Fragment key={p.id}>
-                    <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-6 py-4 font-medium text-foreground">{p.nomeEstabelecimento}</td>
+                    <tr className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${p.pausado ? "opacity-50" : ""}`}>
+                      <td className="px-6 py-4 font-medium text-foreground">
+                        {p.nomeEstabelecimento}
+                        {p.pausado && <span className="ml-2 text-xs text-amber-600 font-normal">(pausado)</span>}
+                      </td>
                       <td className="px-6 py-4">
-                        <Link href={`/blog/${p.postSlug}`} className="text-xs text-primary hover:underline" target="_blank">
-                          {p.postTitle}
-                        </Link>
+                        {p.origem === "manual" ? (
+                          <span className="text-xs text-muted-foreground">Manual</span>
+                        ) : p.postSlug ? (
+                          <Link href={`/blog/${p.postSlug}`} className="text-xs text-primary hover:underline" target="_blank">
+                            {p.postTitle}
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Blog</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {p.instagramHandle ? (
@@ -194,9 +267,20 @@ export default function AdminPartners() {
                             </Button>
                           </div>
                         ) : (
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-primary" onClick={() => startEdit(p)}>
-                            <Pencil className="w-4 h-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-600"
+                              onClick={() => handleTogglePause(p.id, p.pausado)}
+                              title={p.pausado ? "Reativar parceiro" : "Pausar parceiro"}
+                            >
+                              {p.pausado ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-primary" onClick={() => startEdit(p)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>

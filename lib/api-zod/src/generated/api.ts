@@ -442,7 +442,9 @@ export const ListInstagramPartnersResponse = zod.object({
   partners: zod.array(
     zod.object({
       id: zod.number(),
-      postId: zod.number(),
+      postId: zod.number().nullish(),
+      origem: zod.enum(["blog", "manual"]),
+      pausado: zod.boolean(),
       nomeEstabelecimento: zod.string(),
       instagramHandle: zod.string().nullish(),
       telefone: zod.string().nullish(),
@@ -469,6 +471,15 @@ export const ListInstagramPartnersResponse = zod.object({
 });
 
 /**
+ * @summary Manually register a partner not found via the blog scan
+ */
+export const CreateInstagramPartnerBody = zod.object({
+  nomeEstabelecimento: zod.string(),
+  instagramHandle: zod.string().optional(),
+  telefone: zod.string().optional(),
+});
+
+/**
  * @summary Manually scan published posts for cited Instagram profiles (never automatic, never follows/downloads/publishes)
  */
 export const ScanInstagramPartnersResponse = zod.object({
@@ -487,6 +498,7 @@ export const UpdateInstagramPartnerBody = zod.object({
   nomeEstabelecimento: zod.string().optional(),
   instagramHandle: zod.string().nullish(),
   telefone: zod.string().nullish(),
+  pausado: zod.boolean().optional(),
   status: zod
     .enum([
       "encontrado",
@@ -506,7 +518,9 @@ export const UpdateInstagramPartnerBody = zod.object({
 
 export const UpdateInstagramPartnerResponse = zod.object({
   id: zod.number(),
-  postId: zod.number(),
+  postId: zod.number().nullish(),
+  origem: zod.enum(["blog", "manual"]),
+  pausado: zod.boolean(),
   nomeEstabelecimento: zod.string(),
   instagramHandle: zod.string().nullish(),
   telefone: zod.string().nullish(),
@@ -530,6 +544,127 @@ export const UpdateInstagramPartnerResponse = zod.object({
 });
 
 /**
+ * @summary List all queued/scheduled/published partner content items
+ */
+export const ListPartnerContentItemsResponse = zod.object({
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      partnerId: zod.number(),
+      mediaUrl: zod.string(),
+      mediaType: zod.enum(["foto", "video"]),
+      tipoConteudo: zod.enum(["story", "feed", "reel"]),
+      status: zod.enum(["na_fila", "agendado", "publicado", "cancelado"]),
+      scheduledFor: zod.coerce.date().nullish(),
+      publishedAt: zod.coerce.date().nullish(),
+      publishedMediaId: zod.string().nullish(),
+      notas: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+      nomeEstabelecimento: zod.string().optional(),
+      instagramHandle: zod.string().nullish(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Queue a piece of already-uploaded media for a partner (partner must already be authorized for that content type)
+ */
+export const CreatePartnerContentItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreatePartnerContentItemBody = zod.object({
+  mediaUrl: zod.string(),
+  mediaType: zod.enum(["foto", "video"]),
+  tipoConteudo: zod.enum(["story", "feed", "reel"]),
+  notas: zod.string().optional(),
+});
+
+/**
+ * @summary Update a queued content item (e.g. cancel it)
+ */
+export const UpdatePartnerContentItemParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdatePartnerContentItemBody = zod.object({
+  status: zod
+    .enum(["na_fila", "agendado", "publicado", "cancelado"])
+    .optional(),
+  notas: zod.string().optional(),
+});
+
+export const UpdatePartnerContentItemResponse = zod.object({
+  id: zod.number(),
+  partnerId: zod.number(),
+  mediaUrl: zod.string(),
+  mediaType: zod.enum(["foto", "video"]),
+  tipoConteudo: zod.enum(["story", "feed", "reel"]),
+  status: zod.enum(["na_fila", "agendado", "publicado", "cancelado"]),
+  scheduledFor: zod.coerce.date().nullish(),
+  publishedAt: zod.coerce.date().nullish(),
+  publishedMediaId: zod.string().nullish(),
+  notas: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  nomeEstabelecimento: zod.string().optional(),
+  instagramHandle: zod.string().nullish(),
+});
+
+/**
+ * @summary Get the Stories auto-scheduling configuration
+ */
+export const GetScheduleSettingsResponse = zod.object({
+  id: zod.number(),
+  diasSemana: zod.array(zod.string()),
+  horarios: zod.array(zod.string()),
+  maxPorDia: zod.number(),
+  maxPorParceiroDia: zod.number(),
+  automacaoAtiva: zod.boolean(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Update the Stories auto-scheduling configuration (including the master automacaoAtiva kill switch)
+ */
+export const UpdateScheduleSettingsBody = zod.object({
+  diasSemana: zod.array(zod.string()).optional(),
+  horarios: zod.array(zod.string()).optional(),
+  maxPorDia: zod.number().optional(),
+  maxPorParceiroDia: zod.number().optional(),
+  automacaoAtiva: zod.boolean().optional(),
+});
+
+export const UpdateScheduleSettingsResponse = zod.object({
+  id: zod.number(),
+  diasSemana: zod.array(zod.string()),
+  horarios: zod.array(zod.string()),
+  maxPorDia: zod.number(),
+  maxPorParceiroDia: zod.number(),
+  automacaoAtiva: zod.boolean(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Simulate the next 7 days of scheduled Stories — read-only, never publishes or persists anything
+ */
+export const GetSchedulePreviewResponse = zod.object({
+  slots: zod.array(
+    zod.object({
+      data: zod.coerce.date(),
+      diaSemana: zod.string(),
+      horario: zod.string(),
+      contentItemId: zod.number(),
+      partnerId: zod.number(),
+      nomeEstabelecimento: zod.string(),
+      instagramHandle: zod.string().nullish(),
+      mediaUrl: zod.string(),
+      tipoConteudo: zod.string(),
+    }),
+  ),
+});
+
+/**
  * @summary Upload media file
  */
 export const UploadMediaBody = zod.object({
@@ -539,6 +674,7 @@ export const UploadMediaBody = zod.object({
 export const UploadMediaResponse = zod.object({
   url: zod.string(),
   filename: zod.string(),
+  type: zod.enum(["image", "video"]).optional(),
 });
 
 /**

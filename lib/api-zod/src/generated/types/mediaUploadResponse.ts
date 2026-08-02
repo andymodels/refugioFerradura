@@ -5,8 +5,10 @@
  * Refúgio da Ferradura API
  * OpenAPI spec version: 0.2.0
  */
+import type { MediaUploadResponseType } from "./mediaUploadResponseType";
 
 export interface MediaUploadResponse {
   url: string;
   filename: string;
+  type?: MediaUploadResponseType;
 }

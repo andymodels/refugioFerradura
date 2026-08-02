@@ -5,11 +5,15 @@
  * Refúgio da Ferradura API
  * OpenAPI spec version: 0.2.0
  */
+import type { InstagramPartnerOrigem } from "./instagramPartnerOrigem";
 import type { InstagramPartnerStatus } from "./instagramPartnerStatus";
 
 export interface InstagramPartner {
   id: number;
-  postId: number;
+  /** @nullable */
+  postId?: number | null;
+  origem: InstagramPartnerOrigem;
+  pausado: boolean;
   nomeEstabelecimento: string;
   /** @nullable */
   instagramHandle?: string | null;

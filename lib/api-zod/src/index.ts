@@ -14,4 +14,8 @@ export {
   UploadMediaBody,
   UpdateInstagramPartnerBody,
   ScanInstagramPartnersResponse,
+  CreateInstagramPartnerBody,
+  CreatePartnerContentItemBody,
+  UpdatePartnerContentItemBody,
+  UpdateScheduleSettingsBody,
 } from "./generated/api";

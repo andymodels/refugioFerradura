@@ -207,6 +207,14 @@ export interface UpdateFonteBody {
   tags?: string;
 }
 
+export type InstagramPartnerOrigem =
+  (typeof InstagramPartnerOrigem)[keyof typeof InstagramPartnerOrigem];
+
+export const InstagramPartnerOrigem = {
+  blog: "blog",
+  manual: "manual",
+} as const;
+
 export type InstagramPartnerStatus =
   (typeof InstagramPartnerStatus)[keyof typeof InstagramPartnerStatus];
 
@@ -219,7 +227,10 @@ export const InstagramPartnerStatus = {
 
 export interface InstagramPartner {
   id: number;
-  postId: number;
+  /** @nullable */
+  postId?: number | null;
+  origem: InstagramPartnerOrigem;
+  pausado: boolean;
   nomeEstabelecimento: string;
   /** @nullable */
   instagramHandle?: string | null;
@@ -247,6 +258,12 @@ export interface InstagramPartnerListResponse {
   total: number;
 }
 
+export interface CreateInstagramPartnerBody {
+  nomeEstabelecimento: string;
+  instagramHandle?: string;
+  telefone?: string;
+}
+
 export type UpdateInstagramPartnerBodyStatus =
   (typeof UpdateInstagramPartnerBodyStatus)[keyof typeof UpdateInstagramPartnerBodyStatus];
 
@@ -263,6 +280,7 @@ export interface UpdateInstagramPartnerBody {
   instagramHandle?: string | null;
   /** @nullable */
   telefone?: string | null;
+  pausado?: boolean;
   status?: UpdateInstagramPartnerBodyStatus;
   /** @nullable */
   autorizacaoData?: string | null;
@@ -281,9 +299,145 @@ export interface ScanInstagramPartnersResponse {
   partnersCreated: number;
 }
 
+export type PartnerContentItemMediaType =
+  (typeof PartnerContentItemMediaType)[keyof typeof PartnerContentItemMediaType];
+
+export const PartnerContentItemMediaType = {
+  foto: "foto",
+  video: "video",
+} as const;
+
+export type PartnerContentItemTipoConteudo =
+  (typeof PartnerContentItemTipoConteudo)[keyof typeof PartnerContentItemTipoConteudo];
+
+export const PartnerContentItemTipoConteudo = {
+  story: "story",
+  feed: "feed",
+  reel: "reel",
+} as const;
+
+export type PartnerContentItemStatus =
+  (typeof PartnerContentItemStatus)[keyof typeof PartnerContentItemStatus];
+
+export const PartnerContentItemStatus = {
+  na_fila: "na_fila",
+  agendado: "agendado",
+  publicado: "publicado",
+  cancelado: "cancelado",
+} as const;
+
+export interface PartnerContentItem {
+  id: number;
+  partnerId: number;
+  mediaUrl: string;
+  mediaType: PartnerContentItemMediaType;
+  tipoConteudo: PartnerContentItemTipoConteudo;
+  status: PartnerContentItemStatus;
+  /** @nullable */
+  scheduledFor?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  /** @nullable */
+  publishedMediaId?: string | null;
+  /** @nullable */
+  notas?: string | null;
+  createdAt: string;
+  nomeEstabelecimento?: string;
+  /** @nullable */
+  instagramHandle?: string | null;
+}
+
+export interface PartnerContentItemListResponse {
+  items: PartnerContentItem[];
+  total: number;
+}
+
+export type CreatePartnerContentItemBodyMediaType =
+  (typeof CreatePartnerContentItemBodyMediaType)[keyof typeof CreatePartnerContentItemBodyMediaType];
+
+export const CreatePartnerContentItemBodyMediaType = {
+  foto: "foto",
+  video: "video",
+} as const;
+
+export type CreatePartnerContentItemBodyTipoConteudo =
+  (typeof CreatePartnerContentItemBodyTipoConteudo)[keyof typeof CreatePartnerContentItemBodyTipoConteudo];
+
+export const CreatePartnerContentItemBodyTipoConteudo = {
+  story: "story",
+  feed: "feed",
+  reel: "reel",
+} as const;
+
+export interface CreatePartnerContentItemBody {
+  mediaUrl: string;
+  mediaType: CreatePartnerContentItemBodyMediaType;
+  tipoConteudo: CreatePartnerContentItemBodyTipoConteudo;
+  notas?: string;
+}
+
+export type UpdatePartnerContentItemBodyStatus =
+  (typeof UpdatePartnerContentItemBodyStatus)[keyof typeof UpdatePartnerContentItemBodyStatus];
+
+export const UpdatePartnerContentItemBodyStatus = {
+  na_fila: "na_fila",
+  agendado: "agendado",
+  publicado: "publicado",
+  cancelado: "cancelado",
+} as const;
+
+export interface UpdatePartnerContentItemBody {
+  status?: UpdatePartnerContentItemBodyStatus;
+  notas?: string;
+}
+
+export interface ScheduleSettingsResponse {
+  id: number;
+  diasSemana: string[];
+  horarios: string[];
+  maxPorDia: number;
+  maxPorParceiroDia: number;
+  automacaoAtiva: boolean;
+  updatedAt: string;
+}
+
+export interface UpdateScheduleSettingsBody {
+  diasSemana?: string[];
+  horarios?: string[];
+  maxPorDia?: number;
+  maxPorParceiroDia?: number;
+  automacaoAtiva?: boolean;
+}
+
+export interface ScheduleSlot {
+  data: string;
+  diaSemana: string;
+  horario: string;
+  contentItemId: number;
+  partnerId: number;
+  nomeEstabelecimento: string;
+  /** @nullable */
+  instagramHandle?: string | null;
+  mediaUrl: string;
+  tipoConteudo: string;
+}
+
+export interface SchedulePreviewResponse {
+  slots: ScheduleSlot[];
+}
+
+export type MediaUploadResponseType =
+  (typeof MediaUploadResponseType)[keyof typeof MediaUploadResponseType];
+
+export const MediaUploadResponseType = {
+  image: "image",
+  video: "video",
+} as const;
+
 export interface MediaUploadResponse {
   url: string;
   filename: string;
+  type?: MediaUploadResponseType;
 }
 
 export interface GenerateFromUrlBody {
