@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import crypto from "crypto";
+import multer from "multer";
 import { db, instagramPartnersTable, postsTable, partnerContentItemsTable, storyScheduleSettingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import {
@@ -18,10 +20,25 @@ import {
   UpdateScheduleSettingsBody,
   UpdateScheduleSettingsResponse,
   GetSchedulePreviewResponse,
+  CreatePartnerConnectLinkResponse,
+  CreatePartnerUploadLinkResponse,
+  GetPartnerUploadInfoResponse,
 } from "@workspace/api-zod";
 import { scanPostsForPartners } from "../lib/partners";
-import { computeSchedulePreview } from "../lib/story-schedule";
+import { computeSchedulePreview, assignScheduleSlots } from "../lib/story-schedule";
+import { buildPartnerConnectUrl, verifyState, exchangePartnerCode } from "../lib/partner-oauth";
+import { publishPartnerContentToInstagram } from "../lib/instagram";
+import { uploadToCloudinary } from "./media";
 import { logger } from "../lib/logger";
+
+const publicUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (/^(image|video)\//.test(file.mimetype)) cb(null, true);
+    else cb(new Error("Tipo de arquivo não suportado."));
+  },
+});
 
 const router: IRouter = Router();
 
@@ -49,6 +66,11 @@ router.get("/partners/admin", async (req, res): Promise<void> => {
       autorizacaoVideosReels: instagramPartnersTable.autorizacaoVideosReels,
       autorizacaoStories: instagramPartnersTable.autorizacaoStories,
       marcacaoObrigatoria: instagramPartnersTable.marcacaoObrigatoria,
+      // Nunca selecionar igAccessToken aqui — não pode ir pro cliente.
+      igUsername: instagramPartnersTable.igUsername,
+      conectadoEm: instagramPartnersTable.conectadoEm,
+      ultimoPollEm: instagramPartnersTable.ultimoPollEm,
+      uploadToken: instagramPartnersTable.uploadToken,
       createdAt: instagramPartnersTable.createdAt,
       updatedAt: instagramPartnersTable.updatedAt,
       postSlug: postsTable.slug,
@@ -107,6 +129,204 @@ router.post("/partners/admin", async (req, res): Promise<void> => {
     .returning();
 
   res.status(201).json(UpdateInstagramPartnerResponse.parse(partner));
+});
+
+// ─── Conexão única da conta do parceiro (Feed/Reels automáticos) ─────────
+// O parceiro autoriza a PRÓPRIA conta a nos deixar ler o próprio feed —
+// nunca lemos conta de terceiro sem essa autorização direta dele.
+
+router.post("/partners/admin/:id/connect-link", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const params = UpdateInstagramPartnerParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [partner] = await db.select({ id: instagramPartnersTable.id }).from(instagramPartnersTable).where(eq(instagramPartnersTable.id, params.data.id));
+  if (!partner) {
+    res.status(404).json({ error: "Parceiro não encontrado" });
+    return;
+  }
+
+  try {
+    const url = buildPartnerConnectUrl(partner.id);
+    res.json(CreatePartnerConnectLinkResponse.parse({ url }));
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Falha ao gerar link de conexão." });
+  }
+});
+
+router.post("/partners/admin/:id/disconnect", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const params = UpdateInstagramPartnerParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [partner] = await db
+    .update(instagramPartnersTable)
+    .set({ igUserId: null, igUsername: null, igAccessToken: null, igTokenExpiresAt: null, conectadoEm: null, ultimoPollEm: null })
+    .where(eq(instagramPartnersTable.id, params.data.id))
+    .returning();
+
+  if (!partner) {
+    res.status(404).json({ error: "Parceiro não encontrado" });
+    return;
+  }
+
+  res.json(UpdateInstagramPartnerResponse.parse(partner));
+});
+
+// ─── Link exclusivo de envio de Story (sem login) ─────────────────────────
+
+router.post("/partners/admin/:id/upload-link", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const params = UpdateInstagramPartnerParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [partner] = await db.select().from(instagramPartnersTable).where(eq(instagramPartnersTable.id, params.data.id));
+  if (!partner) {
+    res.status(404).json({ error: "Parceiro não encontrado" });
+    return;
+  }
+
+  let token = partner.uploadToken;
+  if (!token) {
+    token = crypto.randomBytes(20).toString("hex");
+    await db.update(instagramPartnersTable).set({ uploadToken: token }).where(eq(instagramPartnersTable.id, partner.id));
+  }
+
+  const base = process.env.FRONTEND_URL || "https://refugioferradura.com.br";
+  res.json(CreatePartnerUploadLinkResponse.parse({ url: `${base.replace(/\/+$/, "")}/parceiro/${token}` }));
+});
+
+// Rotas públicas abaixo — sem sessão de admin, é o parceiro no próprio
+// celular. Só aceitam envio se o parceiro estiver autorizado pra Stories.
+
+router.get("/partners/upload/:token", async (req, res): Promise<void> => {
+  const [partner] = await db
+    .select({
+      nomeEstabelecimento: instagramPartnersTable.nomeEstabelecimento,
+      status: instagramPartnersTable.status,
+      pausado: instagramPartnersTable.pausado,
+      autorizacaoStories: instagramPartnersTable.autorizacaoStories,
+    })
+    .from(instagramPartnersTable)
+    .where(eq(instagramPartnersTable.uploadToken, String(req.params.token)));
+
+  if (!partner || partner.status !== "autorizado_repost" || partner.pausado) {
+    res.status(404).json({ error: "Link não encontrado ou não está mais ativo." });
+    return;
+  }
+
+  res.json(GetPartnerUploadInfoResponse.parse({ nomeEstabelecimento: partner.nomeEstabelecimento, autorizacaoStories: partner.autorizacaoStories }));
+});
+
+router.post("/partners/upload/:token", publicUpload.single("file"), async (req, res): Promise<void> => {
+  const [partner] = await db.select().from(instagramPartnersTable).where(eq(instagramPartnersTable.uploadToken, String(req.params.token)));
+
+  if (!partner || partner.status !== "autorizado_repost" || partner.pausado) {
+    res.status(404).json({ error: "Link não encontrado ou não está mais ativo." });
+    return;
+  }
+  if (!partner.autorizacaoStories) {
+    res.status(400).json({ error: "Esse link não está autorizado pra envio de Stories." });
+    return;
+  }
+  if (!req.file) {
+    res.status(400).json({ error: "Nenhum arquivo enviado." });
+    return;
+  }
+
+  try {
+    const isVideo = /^video\//.test(req.file.mimetype);
+    const { url } = await uploadToCloudinary(req.file.buffer, "refugio-da-ferradura/parceiros", isVideo ? "video" : "image");
+
+    await db.insert(partnerContentItemsTable).values({
+      partnerId: partner.id,
+      origem: "link_parceiro",
+      mediaUrl: url,
+      mediaType: isVideo ? "video" : "foto",
+      tipoConteudo: "story",
+      status: "na_fila",
+    });
+
+    res.status(201).json({ success: true });
+  } catch (err: any) {
+    if (String(err?.message ?? "").includes("unique")) {
+      res.status(400).json({ error: "Esse arquivo já foi enviado antes." });
+      return;
+    }
+    logger.error({ partnerId: partner.id, error: String(err?.message ?? err) }, "[partners] Falha no upload público de Story");
+    res.status(500).json({ error: "Falha ao enviar o arquivo. Tente de novo." });
+  }
+});
+
+// Instagram redireciona pra cá depois do parceiro autorizar — sem sessão de
+// admin, é o navegador do próprio parceiro. Responde com uma página simples.
+router.get("/partners/connect/callback", async (req, res): Promise<void> => {
+  const { code, state, error, error_description } = req.query as Record<string, string | undefined>;
+
+  const renderPage = (title: string, message: string) => `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title>
+<style>body{font-family:system-ui,sans-serif;background:#0b0f0c;color:#f2f2f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}
+.card{max-width:420px}h1{font-size:1.25rem;margin-bottom:0.5rem}p{color:#c9c9c4}</style>
+</head><body><div class="card"><h1>${title}</h1><p>${message}</p></div></body></html>`;
+
+  if (error) {
+    res.status(200).type("html").send(renderPage("Conexão cancelada", error_description || "A autorização não foi concluída. Pode fechar esta aba."));
+    return;
+  }
+  if (!code || !state) {
+    res.status(400).type("html").send(renderPage("Link inválido", "Faltam dados na resposta do Instagram. Peça um novo link."));
+    return;
+  }
+
+  const partnerId = verifyState(state);
+  if (!partnerId) {
+    res.status(400).type("html").send(renderPage("Link inválido", "Esse link de conexão não é válido ou expirou. Peça um novo."));
+    return;
+  }
+
+  try {
+    const connection = await exchangePartnerCode(code);
+    await db
+      .update(instagramPartnersTable)
+      .set({
+        igUserId: connection.igUserId,
+        igUsername: connection.igUsername,
+        igAccessToken: connection.accessToken,
+        igTokenExpiresAt: connection.expiresAt,
+        conectadoEm: new Date(),
+      })
+      .where(eq(instagramPartnersTable.id, partnerId));
+
+    logger.info({ partnerId, igUsername: connection.igUsername }, "[partners] Conta de parceiro conectada");
+    res.status(200).type("html").send(renderPage("Conectado!", "Sua conta do Instagram foi conectada. Pode fechar esta aba."));
+  } catch (err: any) {
+    logger.error({ partnerId, error: String(err?.message ?? err) }, "[partners] Falha ao conectar conta do parceiro");
+    res.status(500).type("html").send(renderPage("Erro ao conectar", err?.message || "Não foi possível concluir a conexão. Tente novamente."));
+  }
 });
 
 router.patch("/partners/admin/:id", async (req, res): Promise<void> => {
@@ -269,6 +489,66 @@ router.patch("/partners/admin/content/:id", async (req, res): Promise<void> => {
   }
 
   res.json(UpdatePartnerContentItemResponse.parse(item));
+});
+
+// Único gatilho que de fato chama a API do Instagram pra publicar conteúdo
+// de parceiro — sempre um clique explícito do admin. Não existe cron
+// nenhum chamando isso ainda; é assim de propósito, até o primeiro teste
+// real ser feito e autorizado.
+router.post("/partners/admin/content/:id/publish-now", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const params = UpdatePartnerContentItemParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [item] = await db
+    .select({
+      id: partnerContentItemsTable.id,
+      partnerId: partnerContentItemsTable.partnerId,
+      mediaUrl: partnerContentItemsTable.mediaUrl,
+      mediaType: partnerContentItemsTable.mediaType,
+      tipoConteudo: partnerContentItemsTable.tipoConteudo,
+      status: partnerContentItemsTable.status,
+      nomeEstabelecimento: instagramPartnersTable.nomeEstabelecimento,
+      instagramHandle: instagramPartnersTable.instagramHandle,
+    })
+    .from(partnerContentItemsTable)
+    .innerJoin(instagramPartnersTable, eq(partnerContentItemsTable.partnerId, instagramPartnersTable.id))
+    .where(eq(partnerContentItemsTable.id, params.data.id));
+
+  if (!item) {
+    res.status(404).json({ error: "Item não encontrado" });
+    return;
+  }
+  if (item.status === "publicado") {
+    res.status(400).json({ error: "Esse item já foi publicado." });
+    return;
+  }
+
+  try {
+    const result = await publishPartnerContentToInstagram(item, {
+      nomeEstabelecimento: item.nomeEstabelecimento,
+      instagramHandle: item.instagramHandle,
+    });
+
+    const [updated] = await db
+      .update(partnerContentItemsTable)
+      .set({ status: "publicado", publishedAt: new Date(), publishedMediaId: result.mediaId })
+      .where(eq(partnerContentItemsTable.id, item.id))
+      .returning();
+
+    res.json(UpdatePartnerContentItemResponse.parse(updated));
+  } catch (err: any) {
+    logger.error({ itemId: item.id, error: String(err?.message ?? err) }, "[partners] Falha ao publicar conteúdo de parceiro");
+    res.status(400).json({ error: err?.message ?? "Falha ao publicar no Instagram." });
+  }
 });
 
 // ─── Configuração do agendamento ─────────────────────────────────────────

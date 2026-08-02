@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.2.0
  */
 import type { PartnerContentItemMediaType } from "./partnerContentItemMediaType";
+import type { PartnerContentItemOrigem } from "./partnerContentItemOrigem";
 import type { PartnerContentItemStatus } from "./partnerContentItemStatus";
 import type { PartnerContentItemTipoConteudo } from "./partnerContentItemTipoConteudo";
 
@@ -24,6 +25,7 @@ export interface PartnerContentItem {
   publishedMediaId?: string | null;
   /** @nullable */
   notas?: string | null;
+  origem: PartnerContentItemOrigem;
   createdAt: Date;
   nomeEstabelecimento?: string;
   /** @nullable */

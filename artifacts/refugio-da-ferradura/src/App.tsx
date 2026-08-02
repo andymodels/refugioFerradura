@@ -10,6 +10,7 @@ import Blog from "./pages/blog";
 import TagPage from "./pages/tag-page";
 import BlogPost from "./pages/blog-post";
 import Search from "./pages/search";
+import PartnerUpload from "./pages/partner-upload";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/login";
@@ -44,6 +45,7 @@ function Router() {
       <Route path="/hospedagem">{() => <TagPage tag="hospedagem" />}</Route>
       <Route path="/eventos">{() => <TagPage tag="eventos" />}</Route>
       <Route path="/buscar" component={Search} />
+      <Route path="/parceiro/:token" component={PartnerUpload} />
 
       {/* Admin Routes */}
       <Route path="/admin/login" component={AdminLogin} />

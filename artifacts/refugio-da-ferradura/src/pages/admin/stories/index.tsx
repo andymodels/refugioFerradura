@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, Upload, Trash2, CalendarClock, Power, Plus, X } from "lucide-react";
+import { Sparkles, Upload, Trash2, CalendarClock, Power, Plus, X, Send } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui-elements";
 import {
@@ -12,6 +12,7 @@ import {
   useGetSchedulePreview,
   getGetSchedulePreviewQueryKey,
   useUploadMedia,
+  usePublishPartnerContentNow,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +54,7 @@ export default function AdminStories() {
   const createItemMutation = useCreatePartnerContentItem();
   const updateItemMutation = useUpdatePartnerContentItem();
   const updateSettingsMutation = useUpdateScheduleSettings();
+  const publishNowMutation = usePublishPartnerContentNow();
   const preview = useGetSchedulePreview({ query: { enabled: false, queryKey: getGetSchedulePreviewQueryKey() } });
 
   const partners = partnersData?.partners || [];
@@ -103,6 +105,17 @@ export default function AdminStories() {
       toast({ title: "Item cancelado" });
     } catch (e: any) {
       toast({ title: "Erro ao cancelar", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const handlePublishNow = async (id: number, nomeEstabelecimento: string) => {
+    if (!confirm(`Publicar AGORA de verdade no Instagram, conteúdo de "${nomeEstabelecimento}"? Isso é público e não pode ser desfeito por aqui.`)) return;
+    try {
+      await publishNowMutation.mutateAsync({ id });
+      invalidateItems();
+      toast({ title: "Publicado no Instagram!" });
+    } catch (e: any) {
+      toast({ title: "Erro ao publicar", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -318,22 +331,26 @@ export default function AdminStories() {
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-4 font-medium">Parceiro</th>
+                <th className="px-6 py-4 font-medium">Origem</th>
                 <th className="px-6 py-4 font-medium">Tipo</th>
                 <th className="px-6 py-4 font-medium">Mídia</th>
                 <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Adicionado em</th>
+                <th className="px-6 py-4 font-medium">Agendado / Publicado</th>
                 <th className="px-6 py-4 font-medium text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {itemsLoading ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Fila vazia.</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Fila vazia.</td></tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">{item.nomeEstabelecimento}</td>
+                    <td className="px-6 py-4 text-muted-foreground text-xs">
+                      {item.origem === "conexao" ? "Conexão automática" : item.origem === "link_parceiro" ? "Link do parceiro" : "Manual"}
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground text-xs capitalize">{item.tipoConteudo}</td>
                     <td className="px-6 py-4">
                       <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
@@ -346,14 +363,32 @@ export default function AdminStories() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-muted-foreground text-xs">
-                      {new Date(item.createdAt).toLocaleString("pt-BR")}
+                      {item.status === "publicado" && item.publishedAt
+                        ? new Date(item.publishedAt).toLocaleString("pt-BR")
+                        : item.scheduledFor
+                          ? new Date(item.scheduledFor).toLocaleString("pt-BR")
+                          : "—"}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {item.status === "na_fila" && (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleCancelItem(item.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <div className="flex justify-end gap-1">
+                        {(item.status === "na_fila" || item.status === "agendado") && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-green-600"
+                            onClick={() => handlePublishNow(item.id, item.nomeEstabelecimento || "este parceiro")}
+                            disabled={publishNowMutation.isPending}
+                            title="Publicar agora no Instagram"
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {item.status === "na_fila" && (
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={() => handleCancelItem(item.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

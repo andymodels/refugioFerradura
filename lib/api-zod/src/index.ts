@@ -18,4 +18,8 @@ export {
   CreatePartnerContentItemBody,
   UpdatePartnerContentItemBody,
   UpdateScheduleSettingsBody,
+  SubmitPartnerUploadBody,
+  CreatePartnerConnectLinkResponse,
+  CreatePartnerUploadLinkResponse,
+  GetPartnerUploadInfoResponse,
 } from "./generated/api";

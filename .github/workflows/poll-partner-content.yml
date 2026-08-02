@@ -1,0 +1,33 @@
+name: Descobrir e agendar conteúdo de parceiros (a cada 6h)
+
+# Lê o feed/Reels de parceiros com conta conectada e enfileira o que for
+# novo, depois aloca a fila nos horários configurados de quinta a domingo.
+# Nunca publica nada no Instagram — isso só organiza a fila. A publicação
+# real continua exigindo o interruptor "automacaoAtiva" ligado E (por
+# enquanto) o botão manual de teste no painel.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: poll-partner-content
+  cancel-in-progress: false
+
+jobs:
+  poll-and-schedule:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Buscar conteúdo novo de parceiros conectados
+        run: |
+          curl --fail --show-error --silent \
+            --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/poll-partner-content
+      - name: Alocar fila nos horários configurados
+        run: |
+          curl --fail --show-error --silent \
+            --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/assign-partner-schedule

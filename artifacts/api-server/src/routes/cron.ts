@@ -29,6 +29,8 @@ import {
   archiveMediaItems,
 } from "../lib/media-pipeline";
 import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink, renderServicoBlock } from "../lib/contact-links";
+import { pollConnectedPartners } from "../lib/partner-content-poll";
+import { assignScheduleSlots } from "../lib/story-schedule";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -1101,6 +1103,47 @@ router.get("/instagram-debug/:mediaId", async (req, res): Promise<void> => {
   const list = await listRes.json();
 
   res.json({ mediaStatus: mediaRes.status, media, recentMediaStatus: listRes.status, recentMedia: list });
+});
+
+// Lê o feed/Reels de parceiros conectados e enfileira o que for novo, dentro
+// do que cada um autorizou. Nunca segue ninguém, nunca publica nada, só
+// organiza a fila — seguro de rodar automaticamente.
+router.get("/poll-partner-content", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  try {
+    const result = await pollConnectedPartners();
+    logger.info(result, "[cron] Polling de conteúdo de parceiros concluído");
+    res.json({ status: "ok", ...result });
+  } catch (err) {
+    logger.error({ err }, "[cron] Falha no polling de conteúdo de parceiros");
+    res.status(500).json({ status: "error" });
+  }
+});
+
+// Aloca itens "na_fila" nos horários de quinta a domingo — só grava
+// scheduledFor/status="agendado", nunca chama a API do Instagram.
+router.get("/assign-partner-schedule", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  try {
+    const result = await assignScheduleSlots();
+    logger.info(result, "[cron] Agendamento automático de parceiros concluído");
+    res.json({ status: "ok", ...result });
+  } catch (err) {
+    logger.error({ err }, "[cron] Falha ao agendar conteúdo de parceiros");
+    res.status(500).json({ status: "error" });
+  }
 });
 
 export default router;

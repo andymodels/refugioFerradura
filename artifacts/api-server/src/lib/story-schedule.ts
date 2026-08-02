@@ -1,5 +1,5 @@
 import { db, instagramPartnersTable, partnerContentItemsTable, storyScheduleSettingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const DIA_INDEX: Record<string, number> = {
   domingo: 0,
@@ -33,29 +33,39 @@ export interface ScheduleSlotPreview {
   tipoConteudo: string;
 }
 
+interface AllocationPlan {
+  slots: ScheduleSlotPreview[];
+}
+
 // Monta a grade dos próximos 7 dias (só quinta-domingo, conforme
 // configurado) alocando itens "na_fila" de parceiros autorizados e não
-// pausados, respeitando os limites diários — sem persistir nada, sem
-// publicar nada. Só uma simulação pra revisão.
-export async function computeSchedulePreview(): Promise<ScheduleSlotPreview[]> {
+// pausados, respeitando os limites diários — considerando também o que já
+// está "agendado" pra não estourar o limite do dia ao somar com o novo.
+async function planAllocation(): Promise<AllocationPlan> {
   const settings = await getScheduleSettings();
   const allowedDayIndexes = new Set(settings.diasSemana.map((d) => DIA_INDEX[d]).filter((n) => n !== undefined));
 
-  const queuedItems = await db
-    .select({
-      id: partnerContentItemsTable.id,
-      partnerId: partnerContentItemsTable.partnerId,
-      mediaUrl: partnerContentItemsTable.mediaUrl,
-      tipoConteudo: partnerContentItemsTable.tipoConteudo,
-      createdAt: partnerContentItemsTable.createdAt,
-      nomeEstabelecimento: instagramPartnersTable.nomeEstabelecimento,
-      instagramHandle: instagramPartnersTable.instagramHandle,
-      pausado: instagramPartnersTable.pausado,
-      partnerStatus: instagramPartnersTable.status,
-    })
-    .from(partnerContentItemsTable)
-    .innerJoin(instagramPartnersTable, eq(partnerContentItemsTable.partnerId, instagramPartnersTable.id))
-    .where(eq(partnerContentItemsTable.status, "na_fila"));
+  const [queuedItems, alreadyScheduled] = await Promise.all([
+    db
+      .select({
+        id: partnerContentItemsTable.id,
+        partnerId: partnerContentItemsTable.partnerId,
+        mediaUrl: partnerContentItemsTable.mediaUrl,
+        tipoConteudo: partnerContentItemsTable.tipoConteudo,
+        createdAt: partnerContentItemsTable.createdAt,
+        nomeEstabelecimento: instagramPartnersTable.nomeEstabelecimento,
+        instagramHandle: instagramPartnersTable.instagramHandle,
+        pausado: instagramPartnersTable.pausado,
+        partnerStatus: instagramPartnersTable.status,
+      })
+      .from(partnerContentItemsTable)
+      .innerJoin(instagramPartnersTable, eq(partnerContentItemsTable.partnerId, instagramPartnersTable.id))
+      .where(eq(partnerContentItemsTable.status, "na_fila")),
+    db
+      .select({ partnerId: partnerContentItemsTable.partnerId, scheduledFor: partnerContentItemsTable.scheduledFor })
+      .from(partnerContentItemsTable)
+      .where(eq(partnerContentItemsTable.status, "agendado")),
+  ]);
 
   const eligible = queuedItems
     .filter((item) => !item.pausado && item.partnerStatus === "autorizado_repost")
@@ -65,10 +75,17 @@ export async function computeSchedulePreview(): Promise<ScheduleSlotPreview[]> {
   const perDayCount = new Map<string, number>();
   const perPartnerDayCount = new Map<string, number>();
 
-  let queueIndex = 0;
+  for (const s of alreadyScheduled) {
+    if (!s.scheduledFor) continue;
+    const dayKey = s.scheduledFor.toISOString().slice(0, 10);
+    perDayCount.set(dayKey, (perDayCount.get(dayKey) || 0) + 1);
+    const partnerDayKey = `${s.partnerId}:${dayKey}`;
+    perPartnerDayCount.set(partnerDayKey, (perPartnerDayCount.get(partnerDayKey) || 0) + 1);
+  }
+
   const now = new Date();
 
-  for (let dayOffset = 0; dayOffset < 7 && queueIndex < eligible.length; dayOffset++) {
+  for (let dayOffset = 0; dayOffset < 7 && eligible.length > 0; dayOffset++) {
     const day = new Date(now);
     day.setDate(day.getDate() + dayOffset);
     if (!allowedDayIndexes.has(day.getDay())) continue;
@@ -76,12 +93,11 @@ export async function computeSchedulePreview(): Promise<ScheduleSlotPreview[]> {
     const dayKey = day.toISOString().slice(0, 10);
 
     for (const horario of settings.horarios) {
-      if (queueIndex >= eligible.length) break;
+      if (eligible.length === 0) break;
       if ((perDayCount.get(dayKey) || 0) >= settings.maxPorDia) break;
 
-      // Acha o próximo item elegível cujo parceiro ainda não bateu o limite do dia
       let pickedIndex = -1;
-      for (let i = queueIndex; i < eligible.length; i++) {
+      for (let i = 0; i < eligible.length; i++) {
         const item = eligible[i];
         const partnerDayKey = `${item.partnerId}:${dayKey}`;
         if ((perPartnerDayCount.get(partnerDayKey) || 0) < settings.maxPorParceiroDia) {
@@ -117,5 +133,32 @@ export async function computeSchedulePreview(): Promise<ScheduleSlotPreview[]> {
     }
   }
 
+  return { slots };
+}
+
+// Só simulação — não persiste nada, não publica nada. Usado pela tela de
+// prévia pra revisão manual.
+export async function computeSchedulePreview(): Promise<ScheduleSlotPreview[]> {
+  const { slots } = await planAllocation();
   return slots;
+}
+
+export interface AssignScheduleResult {
+  itemsScheduled: number;
+}
+
+// Persiste de verdade: grava scheduledFor e marca status="agendado" nos
+// itens alocados. Seguro de rodar automaticamente — só organiza a fila,
+// nunca chama a API do Instagram nem publica nada.
+export async function assignScheduleSlots(): Promise<AssignScheduleResult> {
+  const { slots } = await planAllocation();
+
+  for (const slot of slots) {
+    await db
+      .update(partnerContentItemsTable)
+      .set({ status: "agendado", scheduledFor: new Date(slot.data) })
+      .where(and(eq(partnerContentItemsTable.id, slot.contentItemId), eq(partnerContentItemsTable.status, "na_fila")));
+  }
+
+  return { itemsScheduled: slots.length };
 }

@@ -18,6 +18,7 @@ import type {
 
 import type {
   AdminUser,
+  ConnectPartnerLinkResponse,
   CreateFonteBody,
   CreateInstagramPartnerBody,
   CreatePartnerContentItemBody,
@@ -36,11 +37,14 @@ import type {
   MediaUploadResponse,
   PartnerContentItem,
   PartnerContentItemListResponse,
+  PartnerUploadInfoResponse,
+  PartnerUploadLinkResponse,
   Post,
   PostListResponse,
   ScanInstagramPartnersResponse,
   SchedulePreviewResponse,
   ScheduleSettingsResponse,
+  SubmitPartnerUploadBody,
   SuccessResponse,
   UpdateFonteBody,
   UpdateInstagramPartnerBody,
@@ -2198,6 +2202,532 @@ export function useGetSchedulePreview<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Generate a one-time OAuth link for the partner to connect their own Instagram account
+ */
+export const getCreatePartnerConnectLinkUrl = (id: number) => {
+  return `/api/partners/admin/${id}/connect-link`;
+};
+
+export const createPartnerConnectLink = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ConnectPartnerLinkResponse> => {
+  return customFetch<ConnectPartnerLinkResponse>(
+    getCreatePartnerConnectLinkUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCreatePartnerConnectLinkMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPartnerConnectLink>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPartnerConnectLink>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["createPartnerConnectLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPartnerConnectLink>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return createPartnerConnectLink(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePartnerConnectLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPartnerConnectLink>>
+>;
+
+export type CreatePartnerConnectLinkMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate a one-time OAuth link for the partner to connect their own Instagram account
+ */
+export const useCreatePartnerConnectLink = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPartnerConnectLink>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPartnerConnectLink>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCreatePartnerConnectLinkMutationOptions(options));
+};
+
+/**
+ * @summary Disconnect a partner's connected Instagram account
+ */
+export const getDisconnectPartnerUrl = (id: number) => {
+  return `/api/partners/admin/${id}/disconnect`;
+};
+
+export const disconnectPartner = async (
+  id: number,
+  options?: RequestInit,
+): Promise<InstagramPartner> => {
+  return customFetch<InstagramPartner>(getDisconnectPartnerUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDisconnectPartnerMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disconnectPartner>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof disconnectPartner>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["disconnectPartner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof disconnectPartner>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return disconnectPartner(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DisconnectPartnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof disconnectPartner>>
+>;
+
+export type DisconnectPartnerMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Disconnect a partner's connected Instagram account
+ */
+export const useDisconnectPartner = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disconnectPartner>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof disconnectPartner>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDisconnectPartnerMutationOptions(options));
+};
+
+/**
+ * @summary Generate (or return the existing) public Story-upload link for the partner
+ */
+export const getCreatePartnerUploadLinkUrl = (id: number) => {
+  return `/api/partners/admin/${id}/upload-link`;
+};
+
+export const createPartnerUploadLink = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PartnerUploadLinkResponse> => {
+  return customFetch<PartnerUploadLinkResponse>(
+    getCreatePartnerUploadLinkUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCreatePartnerUploadLinkMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPartnerUploadLink>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPartnerUploadLink>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["createPartnerUploadLink"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPartnerUploadLink>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return createPartnerUploadLink(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePartnerUploadLinkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPartnerUploadLink>>
+>;
+
+export type CreatePartnerUploadLinkMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate (or return the existing) public Story-upload link for the partner
+ */
+export const useCreatePartnerUploadLink = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPartnerUploadLink>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPartnerUploadLink>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCreatePartnerUploadLinkMutationOptions(options));
+};
+
+/**
+ * @summary Public — get the partner name/status for the upload page (no login)
+ */
+export const getGetPartnerUploadInfoUrl = (token: string) => {
+  return `/api/partners/upload/${token}`;
+};
+
+export const getPartnerUploadInfo = async (
+  token: string,
+  options?: RequestInit,
+): Promise<PartnerUploadInfoResponse> => {
+  return customFetch<PartnerUploadInfoResponse>(
+    getGetPartnerUploadInfoUrl(token),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPartnerUploadInfoQueryKey = (token: string) => {
+  return [`/api/partners/upload/${token}`] as const;
+};
+
+export const getGetPartnerUploadInfoQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPartnerUploadInfo>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPartnerUploadInfo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPartnerUploadInfoQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPartnerUploadInfo>>
+  > = ({ signal }) =>
+    getPartnerUploadInfo(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPartnerUploadInfo>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPartnerUploadInfoQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPartnerUploadInfo>>
+>;
+export type GetPartnerUploadInfoQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Public — get the partner name/status for the upload page (no login)
+ */
+
+export function useGetPartnerUploadInfo<
+  TData = Awaited<ReturnType<typeof getPartnerUploadInfo>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPartnerUploadInfo>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPartnerUploadInfoQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Public — partner submits a Story file directly to their own queue (no login)
+ */
+export const getSubmitPartnerUploadUrl = (token: string) => {
+  return `/api/partners/upload/${token}`;
+};
+
+export const submitPartnerUpload = async (
+  token: string,
+  submitPartnerUploadBody: SubmitPartnerUploadBody,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  const formData = new FormData();
+  formData.append(`file`, submitPartnerUploadBody.file);
+
+  return customFetch<SuccessResponse>(getSubmitPartnerUploadUrl(token), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getSubmitPartnerUploadMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitPartnerUpload>>,
+    TError,
+    { token: string; data: BodyType<SubmitPartnerUploadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitPartnerUpload>>,
+  TError,
+  { token: string; data: BodyType<SubmitPartnerUploadBody> },
+  TContext
+> => {
+  const mutationKey = ["submitPartnerUpload"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitPartnerUpload>>,
+    { token: string; data: BodyType<SubmitPartnerUploadBody> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return submitPartnerUpload(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitPartnerUploadMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitPartnerUpload>>
+>;
+export type SubmitPartnerUploadMutationBody = BodyType<SubmitPartnerUploadBody>;
+export type SubmitPartnerUploadMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Public — partner submits a Story file directly to their own queue (no login)
+ */
+export const useSubmitPartnerUpload = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitPartnerUpload>>,
+    TError,
+    { token: string; data: BodyType<SubmitPartnerUploadBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitPartnerUpload>>,
+  TError,
+  { token: string; data: BodyType<SubmitPartnerUploadBody> },
+  TContext
+> => {
+  return useMutation(getSubmitPartnerUploadMutationOptions(options));
+};
+
+/**
+ * @summary Manually publish one queued/scheduled content item right now (the only real-publish trigger — always explicit)
+ */
+export const getPublishPartnerContentNowUrl = (id: number) => {
+  return `/api/partners/admin/content/${id}/publish-now`;
+};
+
+export const publishPartnerContentNow = async (
+  id: number,
+  options?: RequestInit,
+): Promise<PartnerContentItem> => {
+  return customFetch<PartnerContentItem>(
+    getPublishPartnerContentNowUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getPublishPartnerContentNowMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publishPartnerContentNow>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof publishPartnerContentNow>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["publishPartnerContentNow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof publishPartnerContentNow>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return publishPartnerContentNow(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PublishPartnerContentNowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof publishPartnerContentNow>>
+>;
+
+export type PublishPartnerContentNowMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Manually publish one queued/scheduled content item right now (the only real-publish trigger — always explicit)
+ */
+export const usePublishPartnerContentNow = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publishPartnerContentNow>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof publishPartnerContentNow>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getPublishPartnerContentNowMutationOptions(options));
+};
 
 /**
  * @summary Upload media file

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "wouter";
-import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play } from "lucide-react";
+import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play, Link2, Unlink, Copy } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui-elements";
 import {
@@ -8,6 +8,9 @@ import {
   useScanInstagramPartners,
   useUpdateInstagramPartner,
   useCreateInstagramPartner,
+  useCreatePartnerConnectLink,
+  useDisconnectPartner,
+  useCreatePartnerUploadLink,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +53,9 @@ export default function AdminPartners() {
   const scanMutation = useScanInstagramPartners();
   const updateMutation = useUpdateInstagramPartner();
   const createMutation = useCreateInstagramPartner();
+  const connectLinkMutation = useCreatePartnerConnectLink();
+  const disconnectMutation = useDisconnectPartner();
+  const uploadLinkMutation = useCreatePartnerUploadLink();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -92,6 +98,37 @@ export default function AdminPartners() {
       toast({ title: !pausado ? "Parceiro pausado" : "Parceiro reativado" });
     } catch (e: any) {
       toast({ title: "Erro ao atualizar", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const handleConnect = async (id: number) => {
+    try {
+      const result = await connectLinkMutation.mutateAsync({ id });
+      window.open(result.url, "_blank", "noopener,noreferrer");
+      toast({ title: "Link de conexão aberto", description: "Peça pro parceiro fazer login e autorizar na aba que abriu." });
+    } catch (e: any) {
+      toast({ title: "Erro ao gerar link", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const handleDisconnect = async (id: number) => {
+    if (!confirm("Desconectar a conta do Instagram desse parceiro? Ele para de ter conteúdo descoberto automaticamente.")) return;
+    try {
+      await disconnectMutation.mutateAsync({ id });
+      invalidate();
+      toast({ title: "Parceiro desconectado" });
+    } catch (e: any) {
+      toast({ title: "Erro ao desconectar", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const handleCopyUploadLink = async (id: number) => {
+    try {
+      const result = await uploadLinkMutation.mutateAsync({ id });
+      await navigator.clipboard.writeText(result.url);
+      toast({ title: "Link copiado", description: "Manda esse link pro parceiro enviar Stories direto pra fila dele." });
+    } catch (e: any) {
+      toast({ title: "Erro ao gerar link", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -207,15 +244,16 @@ export default function AdminPartners() {
                 <th className="px-6 py-4 font-medium">Instagram</th>
                 <th className="px-6 py-4 font-medium">Telefone</th>
                 <th className="px-6 py-4 font-medium">Status</th>
+                <th className="px-6 py-4 font-medium">Automação</th>
                 <th className="px-6 py-4 font-medium text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : partners.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <td colSpan={7} className="text-center py-8 text-muted-foreground">
                     Nenhum parceiro encontrado ainda. Clique em "Rodar varredura" ou cadastre um manualmente.
                   </td>
                 </tr>
@@ -256,6 +294,39 @@ export default function AdminPartners() {
                           {STATUS_LABEL[p.status] || p.status}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col gap-1.5 text-xs">
+                          {p.conectadoEm ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
+                                Conectado{p.igUsername ? ` @${p.igUsername}` : ""}
+                              </span>
+                              <button onClick={() => handleDisconnect(p.id)} className="text-muted-foreground hover:text-destructive" title="Desconectar">
+                                <Unlink className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : p.status === "autorizado_repost" ? (
+                            <button
+                              onClick={() => handleConnect(p.id)}
+                              disabled={connectLinkMutation.isPending}
+                              className="flex items-center gap-1 text-primary hover:underline w-fit"
+                            >
+                              <Link2 className="w-3.5 h-3.5" /> Conectar Instagram
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                          {p.status === "autorizado_repost" && p.autorizacaoStories && (
+                            <button
+                              onClick={() => handleCopyUploadLink(p.id)}
+                              disabled={uploadLinkMutation.isPending}
+                              className="flex items-center gap-1 text-muted-foreground hover:text-primary w-fit"
+                            >
+                              <Copy className="w-3.5 h-3.5" /> Link de Stories
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-right">
                         {editingId === p.id ? (
                           <div className="flex justify-end gap-2">
@@ -286,7 +357,7 @@ export default function AdminPartners() {
                     </tr>
                     {editingId === p.id && form && (
                       <tr className="bg-muted/30 border-b border-border">
-                        <td colSpan={6} className="px-6 py-5">
+                        <td colSpan={7} className="px-6 py-5">
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                             <div>
                               <Label>Nome do estabelecimento</Label>

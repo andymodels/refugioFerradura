@@ -3,16 +3,23 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { instagramPartnersTable } from "./instagram-partners";
 
-// Um item de mídia (foto/vídeo) recebido de um parceiro já autorizado,
-// aguardando a vez de ser publicado pelo agendamento de quinta a domingo.
-// Como a API do Instagram não permite ler Stories (nem posts, na maioria dos
-// casos) de outra conta, esse item chega SEMPRE por envio manual — o
-// parceiro manda o arquivo (WhatsApp/e-mail) e o admin sobe no painel.
-// Entrar na fila já conta como aprovado: a autorização foi dada uma vez, no
-// parceiro, não item por item.
+// Um item de mídia (foto/vídeo) de um parceiro já autorizado, aguardando a
+// vez de ser publicado pelo agendamento de quinta a domingo. Chega de duas
+// formas: (1) feed/Reels descobertos automaticamente via polling da conta
+// conectada do parceiro (origem="conexao"), sempre re-hospedados no nosso
+// Cloudinary pra não depender de URL assinada do Instagram que expira; ou
+// (2) Stories enviados pelo próprio parceiro pelo link exclusivo de upload
+// (origem="link_parceiro"). Entrar na fila já conta como aprovado — a
+// autorização foi dada uma vez, no parceiro, não item por item.
 export const partnerContentItemsTable = pgTable("partner_content_items", {
   id: serial("id").primaryKey(),
   partnerId: integer("partner_id").notNull().references(() => instagramPartnersTable.id, { onDelete: "cascade" }),
+  // "conexao" (polling automático do feed/Reels) | "link_parceiro" (upload
+  // pelo link de Stories) | "manual" (admin subiu direto no painel).
+  origem: text("origem").notNull().default("manual"),
+  // ID da mídia original no Instagram do parceiro — chave de dedupe do
+  // polling, checada ANTES de rehospedar (evita reprocessar a cada rodada).
+  sourceMediaId: text("source_media_id").unique(),
   mediaUrl: text("media_url").notNull().unique(),
   mediaType: text("media_type").notNull(), // "foto" | "video"
   // Qual autorização esse item consome: "story" | "feed" | "reel".

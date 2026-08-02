@@ -32,6 +32,19 @@ export const instagramPartnersTable = pgTable("instagram_partners", {
   autorizacaoVideosReels: boolean("autorizacao_videos_reels").notNull().default(false),
   autorizacaoStories: boolean("autorizacao_stories").notNull().default(false),
   marcacaoObrigatoria: boolean("marcacao_obrigatoria").notNull().default(false),
+  // Preenchidos quando o parceiro conecta a própria conta (login único do
+  // Instagram) — nunca expostos em nenhuma resposta de API. Com isso dá pra
+  // ler o feed/Reels dele automaticamente, sem repost de terceiro nenhum:
+  // é a própria conta dele autorizando o acesso aos próprios dados.
+  igUserId: text("ig_user_id"),
+  igUsername: text("ig_username"),
+  igAccessToken: text("ig_access_token"),
+  igTokenExpiresAt: timestamp("ig_token_expires_at", { withTimezone: true }),
+  conectadoEm: timestamp("conectado_em", { withTimezone: true }),
+  ultimoPollEm: timestamp("ultimo_poll_em", { withTimezone: true }),
+  // Token único e imprevisível pro link pessoal de envio de Stories — o
+  // parceiro usa esse link sem login nenhum no painel.
+  uploadToken: text("upload_token").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

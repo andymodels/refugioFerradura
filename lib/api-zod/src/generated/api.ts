@@ -461,6 +461,10 @@ export const ListInstagramPartnersResponse = zod.object({
       autorizacaoVideosReels: zod.boolean(),
       autorizacaoStories: zod.boolean(),
       marcacaoObrigatoria: zod.boolean(),
+      igUsername: zod.string().nullish(),
+      conectadoEm: zod.coerce.date().nullish(),
+      ultimoPollEm: zod.coerce.date().nullish(),
+      uploadToken: zod.string().nullish(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
       postSlug: zod.string().optional(),
@@ -537,6 +541,10 @@ export const UpdateInstagramPartnerResponse = zod.object({
   autorizacaoVideosReels: zod.boolean(),
   autorizacaoStories: zod.boolean(),
   marcacaoObrigatoria: zod.boolean(),
+  igUsername: zod.string().nullish(),
+  conectadoEm: zod.coerce.date().nullish(),
+  ultimoPollEm: zod.coerce.date().nullish(),
+  uploadToken: zod.string().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
   postSlug: zod.string().optional(),
@@ -559,6 +567,7 @@ export const ListPartnerContentItemsResponse = zod.object({
       publishedAt: zod.coerce.date().nullish(),
       publishedMediaId: zod.string().nullish(),
       notas: zod.string().nullish(),
+      origem: zod.enum(["conexao", "link_parceiro", "manual"]),
       createdAt: zod.coerce.date(),
       nomeEstabelecimento: zod.string().optional(),
       instagramHandle: zod.string().nullish(),
@@ -606,6 +615,7 @@ export const UpdatePartnerContentItemResponse = zod.object({
   publishedAt: zod.coerce.date().nullish(),
   publishedMediaId: zod.string().nullish(),
   notas: zod.string().nullish(),
+  origem: zod.enum(["conexao", "link_parceiro", "manual"]),
   createdAt: zod.coerce.date(),
   nomeEstabelecimento: zod.string().optional(),
   instagramHandle: zod.string().nullish(),
@@ -663,6 +673,98 @@ export const GetSchedulePreviewResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary Generate a one-time OAuth link for the partner to connect their own Instagram account
+ */
+export const CreatePartnerConnectLinkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreatePartnerConnectLinkResponse = zod.object({
+  url: zod.string(),
+});
+
+/**
+ * @summary Disconnect a partner's connected Instagram account
+ */
+export const DisconnectPartnerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DisconnectPartnerResponse = zod.object({
+  id: zod.number(),
+  postId: zod.number().nullish(),
+  origem: zod.enum(["blog", "manual"]),
+  pausado: zod.boolean(),
+  nomeEstabelecimento: zod.string(),
+  instagramHandle: zod.string().nullish(),
+  telefone: zod.string().nullish(),
+  status: zod.enum([
+    "encontrado",
+    "conferido",
+    "seguido_manualmente",
+    "autorizado_repost",
+  ]),
+  autorizacaoData: zod.coerce.date().nullish(),
+  autorizacaoCanal: zod.string().nullish(),
+  autorizacaoObservacao: zod.string().nullish(),
+  autorizacaoFotos: zod.boolean(),
+  autorizacaoVideosReels: zod.boolean(),
+  autorizacaoStories: zod.boolean(),
+  marcacaoObrigatoria: zod.boolean(),
+  igUsername: zod.string().nullish(),
+  conectadoEm: zod.coerce.date().nullish(),
+  ultimoPollEm: zod.coerce.date().nullish(),
+  uploadToken: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  postSlug: zod.string().optional(),
+  postTitle: zod.string().optional(),
+});
+
+/**
+ * @summary Generate (or return the existing) public Story-upload link for the partner
+ */
+export const CreatePartnerUploadLinkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreatePartnerUploadLinkResponse = zod.object({
+  url: zod.string(),
+});
+
+/**
+ * @summary Public — get the partner name/status for the upload page (no login)
+ */
+export const GetPartnerUploadInfoParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetPartnerUploadInfoResponse = zod.object({
+  nomeEstabelecimento: zod.string(),
+  autorizacaoStories: zod.boolean(),
+});
+
+/**
+ * @summary Public — partner submits a Story file directly to their own queue (no login)
+ */
+export const SubmitPartnerUploadParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const SubmitPartnerUploadBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+/**
+ * @summary Manually publish one queued/scheduled content item right now (the only real-publish trigger — always explicit)
+ */
+export const PublishPartnerContentNowParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const PublishPartnerContentNowResponse = zod.unknown();
 
 /**
  * @summary Upload media file

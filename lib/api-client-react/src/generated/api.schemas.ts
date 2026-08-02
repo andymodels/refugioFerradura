@@ -247,6 +247,14 @@ export interface InstagramPartner {
   autorizacaoVideosReels: boolean;
   autorizacaoStories: boolean;
   marcacaoObrigatoria: boolean;
+  /** @nullable */
+  igUsername?: string | null;
+  /** @nullable */
+  conectadoEm?: string | null;
+  /** @nullable */
+  ultimoPollEm?: string | null;
+  /** @nullable */
+  uploadToken?: string | null;
   createdAt: string;
   updatedAt: string;
   postSlug?: string;
@@ -326,6 +334,15 @@ export const PartnerContentItemStatus = {
   cancelado: "cancelado",
 } as const;
 
+export type PartnerContentItemOrigem =
+  (typeof PartnerContentItemOrigem)[keyof typeof PartnerContentItemOrigem];
+
+export const PartnerContentItemOrigem = {
+  conexao: "conexao",
+  link_parceiro: "link_parceiro",
+  manual: "manual",
+} as const;
+
 export interface PartnerContentItem {
   id: number;
   partnerId: number;
@@ -341,6 +358,7 @@ export interface PartnerContentItem {
   publishedMediaId?: string | null;
   /** @nullable */
   notas?: string | null;
+  origem: PartnerContentItemOrigem;
   createdAt: string;
   nomeEstabelecimento?: string;
   /** @nullable */
@@ -426,6 +444,19 @@ export interface SchedulePreviewResponse {
   slots: ScheduleSlot[];
 }
 
+export interface ConnectPartnerLinkResponse {
+  url: string;
+}
+
+export interface PartnerUploadLinkResponse {
+  url: string;
+}
+
+export interface PartnerUploadInfoResponse {
+  nomeEstabelecimento: string;
+  autorizacaoStories: boolean;
+}
+
 export type MediaUploadResponseType =
   (typeof MediaUploadResponseType)[keyof typeof MediaUploadResponseType];
 
@@ -458,6 +489,10 @@ export type ListPostsParams = {
   tag?: string;
   page?: number;
   limit?: number;
+};
+
+export type SubmitPartnerUploadBody = {
+  file: Blob;
 };
 
 export type UploadMediaBody = {

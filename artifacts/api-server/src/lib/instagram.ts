@@ -244,6 +244,108 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
   return { mediaId: publishData.id, caption, permalink };
 }
 
+// O Instagram não tem sticker de menção via API (isso só existe no app,
+// composto manualmente) — pra Story em foto, grava o @ do parceiro
+// visualmente na imagem via transformação do Cloudinary, garantindo o
+// crédito mesmo sem a marcação nativa clicável.
+function overlayHandleOnImage(url: string, handle: string): string {
+  const text = encodeURIComponent(`@${handle}`).replace(/,/g, "%2C").replace(/\//g, "%2F");
+  const layer = `l_text:Arial_48_bold:${text},co_white,b_rgb:00000090,g_south,y_60`;
+  return url.replace("/upload/", `/upload/${layer}/`);
+}
+
+export interface PartnerContentToPublish {
+  id: number;
+  mediaUrl: string;
+  mediaType: string; // "foto" | "video"
+  tipoConteudo: string; // "story" | "feed" | "reel"
+}
+
+export interface PartnerForPublish {
+  nomeEstabelecimento: string;
+  instagramHandle: string | null;
+}
+
+// Publica um item da fila de parceiro no Instagram oficial. Sempre marca o
+// parceiro (legenda pra feed/Reel, overlay visual pra Story em foto — a API
+// não permite sticker de menção em Story). Disparado só pelo gatilho manual
+// de teste ou, futuramente, pelo agendamento real — nunca sem o interruptor
+// de automação ligado.
+export async function publishPartnerContentToInstagram(
+  item: PartnerContentToPublish,
+  partner: PartnerForPublish,
+): Promise<InstagramPublishResult> {
+  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!accessToken || !igUserId) {
+    throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
+  }
+
+  const isVideo = item.mediaType === "video";
+  const handle = partner.instagramHandle;
+  let mediaUrlToUse = ensureJpegUrl(item.mediaUrl);
+  let caption: string | undefined;
+
+  if (item.tipoConteudo === "story") {
+    if (!isVideo && handle) {
+      mediaUrlToUse = overlayHandleOnImage(mediaUrlToUse, handle);
+    }
+  } else {
+    caption = handle
+      ? `Conteúdo de @${handle} — ${partner.nomeEstabelecimento}.\n\n📍 @${handle}`
+      : partner.nomeEstabelecimento;
+  }
+
+  const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
+  if (item.tipoConteudo === "story") {
+    containerUrl.searchParams.set("media_type", "STORIES");
+    containerUrl.searchParams.set(isVideo ? "video_url" : "image_url", mediaUrlToUse);
+  } else if (isVideo) {
+    containerUrl.searchParams.set("media_type", "REELS");
+    containerUrl.searchParams.set("video_url", mediaUrlToUse);
+    if (caption) containerUrl.searchParams.set("caption", caption);
+  } else {
+    containerUrl.searchParams.set("image_url", mediaUrlToUse);
+    if (caption) containerUrl.searchParams.set("caption", caption);
+  }
+  containerUrl.searchParams.set("access_token", accessToken);
+
+  const containerRes = await fetch(containerUrl, { method: "POST" });
+  const containerData: any = await containerRes.json();
+  if (!containerRes.ok || !containerData?.id) {
+    logger.error(
+      { status: containerRes.status, data: containerData, itemId: item.id },
+      "Falha ao criar container de mídia de parceiro no Instagram",
+    );
+    throw new Error(
+      containerData?.error?.error_user_msg || containerData?.error?.message || "Falha ao preparar a publicação no Instagram.",
+    );
+  }
+
+  await waitForContainerReady(containerData.id, accessToken, isVideo ? "video" : "foto");
+
+  const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
+  publishUrl.searchParams.set("creation_id", containerData.id);
+  publishUrl.searchParams.set("access_token", accessToken);
+
+  const publishRes = await fetch(publishUrl, { method: "POST" });
+  const publishData: any = await publishRes.json();
+  if (!publishRes.ok || !publishData?.id) {
+    logger.error(
+      { status: publishRes.status, data: publishData, itemId: item.id },
+      "Falha ao publicar mídia de parceiro no Instagram",
+    );
+    throw new Error(
+      publishData?.error?.error_user_msg || publishData?.error?.message || "Falha ao publicar no Instagram.",
+    );
+  }
+
+  const permalink = await fetchPermalink(publishData.id, accessToken);
+  logger.info({ itemId: item.id, mediaId: publishData.id, permalink }, "Conteúdo de parceiro publicado no Instagram");
+
+  return { mediaId: publishData.id, caption: caption || "", permalink };
+}
+
 async function fetchPermalink(mediaId: string, accessToken: string): Promise<string | null> {
   try {
     const url = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${mediaId}`);

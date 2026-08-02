@@ -30,6 +30,14 @@ export interface InstagramPartner {
   autorizacaoVideosReels: boolean;
   autorizacaoStories: boolean;
   marcacaoObrigatoria: boolean;
+  /** @nullable */
+  igUsername?: string | null;
+  /** @nullable */
+  conectadoEm?: Date | null;
+  /** @nullable */
+  ultimoPollEm?: Date | null;
+  /** @nullable */
+  uploadToken?: string | null;
   createdAt: Date;
   updatedAt: Date;
   postSlug?: string;

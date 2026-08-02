@@ -7,6 +7,7 @@
  */
 
 export * from "./adminUser";
+export * from "./connectPartnerLinkResponse";
 export * from "./createFonteBody";
 export * from "./createInstagramPartnerBody";
 export * from "./createPartnerContentItemBody";
@@ -32,8 +33,11 @@ export * from "./mediaUploadResponseType";
 export * from "./partnerContentItem";
 export * from "./partnerContentItemListResponse";
 export * from "./partnerContentItemMediaType";
+export * from "./partnerContentItemOrigem";
 export * from "./partnerContentItemStatus";
 export * from "./partnerContentItemTipoConteudo";
+export * from "./partnerUploadInfoResponse";
+export * from "./partnerUploadLinkResponse";
 export * from "./post";
 export * from "./postCoverImageDisplayMode";
 export * from "./postListResponse";
@@ -41,6 +45,7 @@ export * from "./scanInstagramPartnersResponse";
 export * from "./schedulePreviewResponse";
 export * from "./scheduleSettingsResponse";
 export * from "./scheduleSlot";
+export * from "./submitPartnerUploadBody";
 export * from "./successResponse";
 export * from "./updateFonteBody";
 export * from "./updateInstagramPartnerBody";
