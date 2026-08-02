@@ -9,6 +9,7 @@ const CAPTION_SYSTEM_PROMPT = `Você escreve legendas para o feed do Instagram o
 Regras:
 - Baseie-se apenas no texto do post fornecido, nunca invente detalhes (endereço, preço, contato) que não estejam nele.
 - Tom convidativo, direto, sem exagero publicitário.
+- Se for informado o Instagram do local/negócio do post, marque esse perfil (@handle) em algum ponto natural do texto — é obrigatório, nunca esqueça.
 - Máximo 5 linhas de texto antes das hashtags.
 - Termine com 5 a 8 hashtags relevantes (região, tipo de negócio, turismo capixaba).
 - Não use markdown, apenas texto simples com quebras de linha.
@@ -30,9 +31,27 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+// instagram.com/p/..., /reel/..., /stories/... etc. não são o @ do negócio —
+// são links pra publicações específicas, não pro perfil.
+const RESERVED_INSTAGRAM_PATHS = new Set(["p", "reel", "reels", "tv", "stories", "explore", "accounts", "direct"]);
+
+// Acha o @ do negócio/atrativo do post (vem do link de contato Instagram
+// gerado por buildInstagramHtml em contact-links.ts, ex:
+// <a href="https://instagram.com/nome.do.negocio">@nome.do.negocio</a>).
+function extractFeaturedInstagramHandle(content: string): string | null {
+  for (const match of content.matchAll(/instagram\.com\/([a-zA-Z0-9_.]+)/g)) {
+    const handle = match[1].replace(/\/+$/, "");
+    if (handle && !RESERVED_INSTAGRAM_PATHS.has(handle.toLowerCase())) {
+      return handle;
+    }
+  }
+  return null;
+}
+
 export async function generateInstagramCaption(post: Post): Promise<string> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const plainText = stripHtml(post.content).slice(0, 4000);
+  const featuredHandle = extractFeaturedInstagramHandle(post.content);
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-5",
@@ -41,13 +60,21 @@ export async function generateInstagramCaption(post: Post): Promise<string> {
     messages: [
       {
         role: "user",
-        content: `Título: ${post.title}\n${post.subtitle ? `Subtítulo: ${post.subtitle}\n` : ""}Texto do post:\n${plainText}`,
+        content: `Título: ${post.title}\n${post.subtitle ? `Subtítulo: ${post.subtitle}\n` : ""}${featuredHandle ? `Instagram do local/negócio: @${featuredHandle} (marque esse perfil na legenda, é obrigatório)\n` : ""}Texto do post:\n${plainText}`,
       },
     ],
   });
 
+  let caption = getTextBlock(message).trim();
+
+  // Rede de segurança: se a IA esquecer de marcar, garante que o @ do local
+  // sempre apareça na legenda — isso é regra, não opcional.
+  if (featuredHandle && !caption.toLowerCase().includes(`@${featuredHandle.toLowerCase()}`)) {
+    caption = `${caption}\n\n📍 @${featuredHandle}`;
+  }
+
   // O Instagram rejeita legendas acima de 2200 caracteres.
-  return getTextBlock(message).trim().slice(0, 2200);
+  return caption.slice(0, 2200);
 }
 
 export interface InstagramPublishResult {
