@@ -195,10 +195,6 @@ router.post("/posts/admin/:id/publish-instagram", async (req, res): Promise<void
     res.status(400).json({ error: "Este post já foi publicado no Instagram." });
     return;
   }
-  if (!post.coverImage) {
-    res.status(400).json({ error: "Este post não tem imagem de capa." });
-    return;
-  }
 
   try {
     const result = await publishPostToInstagram(post);

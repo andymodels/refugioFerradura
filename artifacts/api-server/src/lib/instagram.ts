@@ -60,29 +60,62 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+interface MediaSource {
+  kind: "foto" | "video";
+  url: string;
+}
+
+// Prioriza a primeira foto/vídeo editorial aprovado no corpo do post
+// (mediaItems, preenchido pelo pipeline de mídia com a mídia de verdade do
+// artigo) — a imagem de capa é um campo opcional e às vezes é só um
+// enfeite genérico, não a melhor foto do post. Só cai pra capa se não
+// houver nenhuma mídia aprovada no corpo.
+function resolveMediaSource(post: Post): MediaSource | null {
+  if (post.mediaItems) {
+    try {
+      const items: Array<{ kind?: string; urlArquivo?: string }> = JSON.parse(post.mediaItems);
+      const first = items.find((item) => typeof item.urlArquivo === "string" && item.urlArquivo);
+      if (first?.urlArquivo) {
+        return { kind: first.kind === "video" ? "video" : "foto", url: first.urlArquivo };
+      }
+    } catch {
+      // mediaItems malformado — segue pro fallback da capa
+    }
+  }
+
+  if (post.coverImage) {
+    return { kind: "foto", url: post.coverImage };
+  }
+
+  return null;
+}
+
 // O Instagram processa o container de mídia de forma assíncrona (baixa e
-// transcodifica a imagem antes de deixar publicar). Publicar assim que o
-// container é criado falha com "media is not ready for publishing" — é
-// preciso esperar o status_code virar FINISHED antes de chamar media_publish.
-async function waitForContainerReady(containerId: string, accessToken: string): Promise<void> {
+// transcodifica o arquivo antes de deixar publicar — vídeo demora bem mais
+// que foto). Publicar assim que o container é criado falha com "media is
+// not ready for publishing" — é preciso esperar o status_code virar
+// FINISHED antes de chamar media_publish.
+async function waitForContainerReady(containerId: string, accessToken: string, kind: "foto" | "video"): Promise<void> {
   const statusUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${containerId}`);
   statusUrl.searchParams.set("fields", "status_code");
   statusUrl.searchParams.set("access_token", accessToken);
 
-  const maxAttempts = 10;
+  const maxAttempts = kind === "video" ? 30 : 10;
+  const intervalMs = kind === "video" ? 3000 : 2000;
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const statusRes = await fetch(statusUrl);
     const statusData: any = await statusRes.json();
 
     if (statusData?.status_code === "FINISHED") return;
     if (statusData?.status_code === "ERROR") {
-      throw new Error("O Instagram falhou ao processar a imagem para publicação.");
+      throw new Error(`O Instagram falhou ao processar ${kind === "video" ? "o vídeo" : "a imagem"} para publicação.`);
     }
 
-    await sleep(2000);
+    await sleep(intervalMs);
   }
 
-  throw new Error("O Instagram demorou demais pra processar a imagem. Tente novamente em alguns instantes.");
+  throw new Error(`O Instagram demorou demais pra processar ${kind === "video" ? "o vídeo" : "a imagem"}. Tente novamente em alguns instantes.`);
 }
 
 // Publica no feed do Instagram oficial (@refugioferradura). Sempre disparado
@@ -93,14 +126,22 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
   if (!accessToken || !igUserId) {
     throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
   }
-  if (!post.coverImage) {
-    throw new Error("Este post não tem imagem de capa — o Instagram exige uma imagem pra publicar.");
+  const source = resolveMediaSource(post);
+  if (!source) {
+    throw new Error("Este post não tem nenhuma foto ou vídeo aprovado pra publicar no Instagram.");
   }
 
   const caption = await generateInstagramCaption(post);
 
   const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
-  containerUrl.searchParams.set("image_url", post.coverImage);
+  if (source.kind === "video") {
+    // media_type=REELS é obrigatório pro Instagram aceitar video_url neste
+    // endpoint — vídeo publicado sem isso é rejeitado.
+    containerUrl.searchParams.set("media_type", "REELS");
+    containerUrl.searchParams.set("video_url", source.url);
+  } else {
+    containerUrl.searchParams.set("image_url", source.url);
+  }
   containerUrl.searchParams.set("caption", caption);
   containerUrl.searchParams.set("access_token", accessToken);
 
@@ -108,7 +149,7 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
   const containerData: any = await containerRes.json();
   if (!containerRes.ok || !containerData?.id) {
     logger.error(
-      { status: containerRes.status, data: containerData, postId: post.id },
+      { status: containerRes.status, data: containerData, postId: post.id, mediaKind: source.kind },
       "Falha ao criar container de mídia no Instagram",
     );
     throw new Error(
@@ -116,7 +157,7 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
     );
   }
 
-  await waitForContainerReady(containerData.id, accessToken);
+  await waitForContainerReady(containerData.id, accessToken, source.kind);
 
   const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
   publishUrl.searchParams.set("creation_id", containerData.id);
