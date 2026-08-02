@@ -19,6 +19,8 @@ tags:
     description: AI content generation
   - name: fontes
     description: Content sources for the automated publishing pipeline
+  - name: partners
+    description: Instagram profiles cited in blog posts, tracked for manual repost authorization
 paths:
   /healthz:
     get:
@@ -348,6 +350,63 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /partners/admin:
+    get:
+      operationId: listInstagramPartners
+      tags: [partners]
+      summary: List all discovered Instagram partner profiles
+      responses:
+        "200":
+          description: List of partners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstagramPartnerListResponse"
+
+  /partners/admin/scan:
+    post:
+      operationId: scanInstagramPartners
+      tags: [partners]
+      summary: Manually scan published posts for cited Instagram profiles (never automatic, never follows/downloads/publishes)
+      responses:
+        "200":
+          description: Scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanInstagramPartnersResponse"
+
+  /partners/admin/{id}:
+    patch:
+      operationId: updateInstagramPartner
+      tags: [partners]
+      summary: Update a partner profile (name, status, authorization record)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInstagramPartnerBody"
+      responses:
+        "200":
+          description: Updated partner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstagramPartner"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /media/upload:
     post:
@@ -692,6 +751,113 @@ components:
           type: string
         tags:
           type: string
+
+    InstagramPartner:
+      type: object
+      properties:
+        id:
+          type: integer
+        postId:
+          type: integer
+        nomeEstabelecimento:
+          type: string
+        instagramHandle:
+          type: ["string", "null"]
+        telefone:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [encontrado, conferido, seguido_manualmente, autorizado_repost]
+        autorizacaoData:
+          type: ["string", "null"]
+          format: date-time
+        autorizacaoCanal:
+          type: ["string", "null"]
+        autorizacaoObservacao:
+          type: ["string", "null"]
+        autorizacaoFotos:
+          type: boolean
+        autorizacaoVideosReels:
+          type: boolean
+        autorizacaoStories:
+          type: boolean
+        marcacaoObrigatoria:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        postSlug:
+          type: string
+        postTitle:
+          type: string
+      required:
+        - id
+        - postId
+        - nomeEstabelecimento
+        - status
+        - autorizacaoFotos
+        - autorizacaoVideosReels
+        - autorizacaoStories
+        - marcacaoObrigatoria
+        - createdAt
+        - updatedAt
+        - postSlug
+        - postTitle
+
+    InstagramPartnerListResponse:
+      type: object
+      properties:
+        partners:
+          type: array
+          items:
+            $ref: "#/components/schemas/InstagramPartner"
+        total:
+          type: integer
+      required:
+        - partners
+        - total
+
+    UpdateInstagramPartnerBody:
+      type: object
+      properties:
+        nomeEstabelecimento:
+          type: string
+        instagramHandle:
+          type: ["string", "null"]
+        telefone:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [encontrado, conferido, seguido_manualmente, autorizado_repost]
+        autorizacaoData:
+          type: ["string", "null"]
+          format: date-time
+        autorizacaoCanal:
+          type: ["string", "null"]
+        autorizacaoObservacao:
+          type: ["string", "null"]
+        autorizacaoFotos:
+          type: boolean
+        autorizacaoVideosReels:
+          type: boolean
+        autorizacaoStories:
+          type: boolean
+        marcacaoObrigatoria:
+          type: boolean
+
+    ScanInstagramPartnersResponse:
+      type: object
+      properties:
+        postsChecked:
+          type: integer
+        partnersCreated:
+          type: integer
+      required:
+        - postsChecked
+        - partnersCreated
 
     MediaUploadResponse:
       type: object

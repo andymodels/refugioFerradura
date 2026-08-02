@@ -7,6 +7,7 @@ import aiRouter from "./ai";
 import settingsRouter from "./settings";
 import fontesRouter from "./fontes";
 import cronRouter from "./cron";
+import partnersRouter from "./partners";
 
 const router: IRouter = Router();
 
@@ -17,6 +18,7 @@ router.use(mediaRouter);
 router.use("/ai", aiRouter);
 router.use(settingsRouter);
 router.use(fontesRouter);
+router.use(partnersRouter);
 router.use("/cron", cronRouter);
 
 router.use((_req, res) => {

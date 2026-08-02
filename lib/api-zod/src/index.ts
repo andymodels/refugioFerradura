@@ -12,4 +12,6 @@ export {
   UpdatePostBody,
   GenerateFromUrlBody,
   UploadMediaBody,
+  UpdateInstagramPartnerBody,
+  ScanInstagramPartnersResponse,
 } from "./generated/api";

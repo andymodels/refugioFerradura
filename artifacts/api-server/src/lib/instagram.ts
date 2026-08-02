@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parseHTML } from "linkedom";
 import type { Post } from "@workspace/db";
 import { logger } from "./logger";
+import { extractInstagramHandle } from "./partner-extraction";
 
 const GRAPH_API_VERSION = "v21.0";
 
@@ -32,27 +33,10 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-// instagram.com/p/..., /reel/..., /stories/... etc. não são o @ do negócio —
-// são links pra publicações específicas, não pro perfil.
-const RESERVED_INSTAGRAM_PATHS = new Set(["p", "reel", "reels", "tv", "stories", "explore", "accounts", "direct"]);
-
-// Acha o @ do negócio/atrativo do post (vem do link de contato Instagram
-// gerado por buildInstagramHtml em contact-links.ts, ex:
-// <a href="https://instagram.com/nome.do.negocio">@nome.do.negocio</a>).
-function extractFeaturedInstagramHandle(content: string): string | null {
-  for (const match of content.matchAll(/instagram\.com\/([a-zA-Z0-9_.]+)/g)) {
-    const handle = match[1].replace(/\/+$/, "");
-    if (handle && !RESERVED_INSTAGRAM_PATHS.has(handle.toLowerCase())) {
-      return handle;
-    }
-  }
-  return null;
-}
-
 export async function generateInstagramCaption(post: Post): Promise<string> {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const plainText = stripHtml(post.content).slice(0, 4000);
-  const featuredHandle = extractFeaturedInstagramHandle(post.content);
+  const featuredHandle = extractInstagramHandle(post.content);
 
   const message = await anthropic.messages.create({
     model: "claude-sonnet-5",

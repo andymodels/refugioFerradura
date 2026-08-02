@@ -207,6 +207,80 @@ export interface UpdateFonteBody {
   tags?: string;
 }
 
+export type InstagramPartnerStatus =
+  (typeof InstagramPartnerStatus)[keyof typeof InstagramPartnerStatus];
+
+export const InstagramPartnerStatus = {
+  encontrado: "encontrado",
+  conferido: "conferido",
+  seguido_manualmente: "seguido_manualmente",
+  autorizado_repost: "autorizado_repost",
+} as const;
+
+export interface InstagramPartner {
+  id: number;
+  postId: number;
+  nomeEstabelecimento: string;
+  /** @nullable */
+  instagramHandle?: string | null;
+  /** @nullable */
+  telefone?: string | null;
+  status: InstagramPartnerStatus;
+  /** @nullable */
+  autorizacaoData?: string | null;
+  /** @nullable */
+  autorizacaoCanal?: string | null;
+  /** @nullable */
+  autorizacaoObservacao?: string | null;
+  autorizacaoFotos: boolean;
+  autorizacaoVideosReels: boolean;
+  autorizacaoStories: boolean;
+  marcacaoObrigatoria: boolean;
+  createdAt: string;
+  updatedAt: string;
+  postSlug: string;
+  postTitle: string;
+}
+
+export interface InstagramPartnerListResponse {
+  partners: InstagramPartner[];
+  total: number;
+}
+
+export type UpdateInstagramPartnerBodyStatus =
+  (typeof UpdateInstagramPartnerBodyStatus)[keyof typeof UpdateInstagramPartnerBodyStatus];
+
+export const UpdateInstagramPartnerBodyStatus = {
+  encontrado: "encontrado",
+  conferido: "conferido",
+  seguido_manualmente: "seguido_manualmente",
+  autorizado_repost: "autorizado_repost",
+} as const;
+
+export interface UpdateInstagramPartnerBody {
+  nomeEstabelecimento?: string;
+  /** @nullable */
+  instagramHandle?: string | null;
+  /** @nullable */
+  telefone?: string | null;
+  status?: UpdateInstagramPartnerBodyStatus;
+  /** @nullable */
+  autorizacaoData?: string | null;
+  /** @nullable */
+  autorizacaoCanal?: string | null;
+  /** @nullable */
+  autorizacaoObservacao?: string | null;
+  autorizacaoFotos?: boolean;
+  autorizacaoVideosReels?: boolean;
+  autorizacaoStories?: boolean;
+  marcacaoObrigatoria?: boolean;
+}
+
+export interface ScanInstagramPartnersResponse {
+  postsChecked: number;
+  partnersCreated: number;
+}
+
 export interface MediaUploadResponse {
   url: string;
   filename: string;

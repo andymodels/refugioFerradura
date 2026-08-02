@@ -436,6 +436,100 @@ export const DeleteFonteParams = zod.object({
 });
 
 /**
+ * @summary List all discovered Instagram partner profiles
+ */
+export const ListInstagramPartnersResponse = zod.object({
+  partners: zod.array(
+    zod.object({
+      id: zod.number(),
+      postId: zod.number(),
+      nomeEstabelecimento: zod.string(),
+      instagramHandle: zod.string().nullish(),
+      telefone: zod.string().nullish(),
+      status: zod.enum([
+        "encontrado",
+        "conferido",
+        "seguido_manualmente",
+        "autorizado_repost",
+      ]),
+      autorizacaoData: zod.coerce.date().nullish(),
+      autorizacaoCanal: zod.string().nullish(),
+      autorizacaoObservacao: zod.string().nullish(),
+      autorizacaoFotos: zod.boolean(),
+      autorizacaoVideosReels: zod.boolean(),
+      autorizacaoStories: zod.boolean(),
+      marcacaoObrigatoria: zod.boolean(),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+      postSlug: zod.string(),
+      postTitle: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
+ * @summary Manually scan published posts for cited Instagram profiles (never automatic, never follows/downloads/publishes)
+ */
+export const ScanInstagramPartnersResponse = zod.object({
+  postsChecked: zod.number(),
+  partnersCreated: zod.number(),
+});
+
+/**
+ * @summary Update a partner profile (name, status, authorization record)
+ */
+export const UpdateInstagramPartnerParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateInstagramPartnerBody = zod.object({
+  nomeEstabelecimento: zod.string().optional(),
+  instagramHandle: zod.string().nullish(),
+  telefone: zod.string().nullish(),
+  status: zod
+    .enum([
+      "encontrado",
+      "conferido",
+      "seguido_manualmente",
+      "autorizado_repost",
+    ])
+    .optional(),
+  autorizacaoData: zod.coerce.date().nullish(),
+  autorizacaoCanal: zod.string().nullish(),
+  autorizacaoObservacao: zod.string().nullish(),
+  autorizacaoFotos: zod.boolean().optional(),
+  autorizacaoVideosReels: zod.boolean().optional(),
+  autorizacaoStories: zod.boolean().optional(),
+  marcacaoObrigatoria: zod.boolean().optional(),
+});
+
+export const UpdateInstagramPartnerResponse = zod.object({
+  id: zod.number(),
+  postId: zod.number(),
+  nomeEstabelecimento: zod.string(),
+  instagramHandle: zod.string().nullish(),
+  telefone: zod.string().nullish(),
+  status: zod.enum([
+    "encontrado",
+    "conferido",
+    "seguido_manualmente",
+    "autorizado_repost",
+  ]),
+  autorizacaoData: zod.coerce.date().nullish(),
+  autorizacaoCanal: zod.string().nullish(),
+  autorizacaoObservacao: zod.string().nullish(),
+  autorizacaoFotos: zod.boolean(),
+  autorizacaoVideosReels: zod.boolean(),
+  autorizacaoStories: zod.boolean(),
+  marcacaoObrigatoria: zod.boolean(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+  postSlug: zod.string(),
+  postTitle: zod.string(),
+});
+
+/**
  * @summary Upload media file
  */
 export const UploadMediaBody = zod.object({

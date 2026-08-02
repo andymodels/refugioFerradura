@@ -26,14 +26,18 @@ import type {
   GenerateFromUrlBody,
   GeneratedArticle,
   HealthStatus,
+  InstagramPartner,
+  InstagramPartnerListResponse,
   ListPostsParams,
   LoginBody,
   LoginResponse,
   MediaUploadResponse,
   Post,
   PostListResponse,
+  ScanInstagramPartnersResponse,
   SuccessResponse,
   UpdateFonteBody,
+  UpdateInstagramPartnerBody,
   UpdatePostBody,
   UploadMediaBody,
 } from "./api.schemas";
@@ -1356,6 +1360,256 @@ export const useDeleteFonte = <
   TContext
 > => {
   return useMutation(getDeleteFonteMutationOptions(options));
+};
+
+/**
+ * @summary List all discovered Instagram partner profiles
+ */
+export const getListInstagramPartnersUrl = () => {
+  return `/api/partners/admin`;
+};
+
+export const listInstagramPartners = async (
+  options?: RequestInit,
+): Promise<InstagramPartnerListResponse> => {
+  return customFetch<InstagramPartnerListResponse>(
+    getListInstagramPartnersUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListInstagramPartnersQueryKey = () => {
+  return [`/api/partners/admin`] as const;
+};
+
+export const getListInstagramPartnersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInstagramPartners>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInstagramPartners>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInstagramPartnersQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInstagramPartners>>
+  > = ({ signal }) => listInstagramPartners({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInstagramPartners>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInstagramPartnersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInstagramPartners>>
+>;
+export type ListInstagramPartnersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all discovered Instagram partner profiles
+ */
+
+export function useListInstagramPartners<
+  TData = Awaited<ReturnType<typeof listInstagramPartners>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listInstagramPartners>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInstagramPartnersQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Manually scan published posts for cited Instagram profiles (never automatic, never follows/downloads/publishes)
+ */
+export const getScanInstagramPartnersUrl = () => {
+  return `/api/partners/admin/scan`;
+};
+
+export const scanInstagramPartners = async (
+  options?: RequestInit,
+): Promise<ScanInstagramPartnersResponse> => {
+  return customFetch<ScanInstagramPartnersResponse>(
+    getScanInstagramPartnersUrl(),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getScanInstagramPartnersMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scanInstagramPartners>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scanInstagramPartners>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["scanInstagramPartners"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scanInstagramPartners>>,
+    void
+  > = () => {
+    return scanInstagramPartners(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScanInstagramPartnersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scanInstagramPartners>>
+>;
+
+export type ScanInstagramPartnersMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Manually scan published posts for cited Instagram profiles (never automatic, never follows/downloads/publishes)
+ */
+export const useScanInstagramPartners = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scanInstagramPartners>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof scanInstagramPartners>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getScanInstagramPartnersMutationOptions(options));
+};
+
+/**
+ * @summary Update a partner profile (name, status, authorization record)
+ */
+export const getUpdateInstagramPartnerUrl = (id: number) => {
+  return `/api/partners/admin/${id}`;
+};
+
+export const updateInstagramPartner = async (
+  id: number,
+  updateInstagramPartnerBody: UpdateInstagramPartnerBody,
+  options?: RequestInit,
+): Promise<InstagramPartner> => {
+  return customFetch<InstagramPartner>(getUpdateInstagramPartnerUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateInstagramPartnerBody),
+  });
+};
+
+export const getUpdateInstagramPartnerMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateInstagramPartner>>,
+    TError,
+    { id: number; data: BodyType<UpdateInstagramPartnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateInstagramPartner>>,
+  TError,
+  { id: number; data: BodyType<UpdateInstagramPartnerBody> },
+  TContext
+> => {
+  const mutationKey = ["updateInstagramPartner"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateInstagramPartner>>,
+    { id: number; data: BodyType<UpdateInstagramPartnerBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateInstagramPartner(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateInstagramPartnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateInstagramPartner>>
+>;
+export type UpdateInstagramPartnerMutationBody =
+  BodyType<UpdateInstagramPartnerBody>;
+export type UpdateInstagramPartnerMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a partner profile (name, status, authorization record)
+ */
+export const useUpdateInstagramPartner = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateInstagramPartner>>,
+    TError,
+    { id: number; data: BodyType<UpdateInstagramPartnerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateInstagramPartner>>,
+  TError,
+  { id: number; data: BodyType<UpdateInstagramPartnerBody> },
+  TContext
+> => {
+  return useMutation(getUpdateInstagramPartnerMutationOptions(options));
 };
 
 /**
