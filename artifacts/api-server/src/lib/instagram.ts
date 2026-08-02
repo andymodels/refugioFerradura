@@ -84,7 +84,10 @@ function resolveMediaSource(post: Post): MediaSource | null {
   }
 
   if (post.coverImage) {
-    return { kind: "foto", url: post.coverImage };
+    // "Capa" é um campo genérico que às vezes guarda um vídeo do Cloudinary
+    // (URL com /video/upload/ ou extensão de vídeo), não só foto.
+    const isVideo = /\/video\/upload\//.test(post.coverImage) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.coverImage);
+    return { kind: isVideo ? "video" : "foto", url: post.coverImage };
   }
 
   return null;
