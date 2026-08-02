@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { parseHTML } from "linkedom";
 import type { Post } from "@workspace/db";
 import { logger } from "./logger";
 
@@ -97,6 +98,39 @@ interface MediaSource {
 // artigo) — a imagem de capa é um campo opcional e às vezes é só um
 // enfeite genérico, não a melhor foto do post. Só cai pra capa se não
 // houver nenhuma mídia aprovada no corpo.
+// Posts colados/criados direto no editor (sem passar pelo pipeline
+// automático) nunca têm mediaItems preenchido, mas têm fotos/vídeos reais
+// dentro do próprio HTML do corpo (figuras, imagens soltas, carrossel,
+// vídeo editorial) — acha a primeira mídia de verdade aí.
+function extractFirstMediaFromContent(content: string): MediaSource | null {
+  if (!content) return null;
+  const { document } = parseHTML(`<div>${content}</div>`);
+
+  const video = document.querySelector("video[src]");
+  const videoSrc = video?.getAttribute("src");
+  if (videoSrc) return { kind: "video", url: videoSrc };
+
+  // Carrossel guarda a lista de fotos em data-carousel (JSON), não em <img>.
+  const carousel = document.querySelector("[data-carousel]");
+  const carouselJson = carousel?.getAttribute("data-carousel");
+  if (carouselJson) {
+    try {
+      const urls: unknown = JSON.parse(carouselJson);
+      if (Array.isArray(urls) && typeof urls[0] === "string" && urls[0]) {
+        return { kind: "foto", url: urls[0] };
+      }
+    } catch {
+      // ignora e segue pro <img> comum
+    }
+  }
+
+  const img = document.querySelector("img[src]");
+  const imgSrc = img?.getAttribute("src");
+  if (imgSrc) return { kind: "foto", url: imgSrc };
+
+  return null;
+}
+
 function resolveMediaSource(post: Post): MediaSource | null {
   if (post.mediaItems) {
     try {
@@ -106,9 +140,12 @@ function resolveMediaSource(post: Post): MediaSource | null {
         return { kind: first.kind === "video" ? "video" : "foto", url: first.urlArquivo };
       }
     } catch {
-      // mediaItems malformado — segue pro fallback da capa
+      // mediaItems malformado — segue pro próximo fallback
     }
   }
+
+  const fromContent = extractFirstMediaFromContent(post.content);
+  if (fromContent) return fromContent;
 
   if (post.coverImage) {
     // "Capa" é um campo genérico que às vezes guarda um vídeo do Cloudinary
@@ -118,6 +155,14 @@ function resolveMediaSource(post: Post): MediaSource | null {
   }
 
   return null;
+}
+
+// Fotos enviadas de iPhone ficam salvas no Cloudinary como HEIC, formato que
+// o Instagram não processa no upload por URL. Força a entrega em JPEG via
+// transformação do Cloudinary (não baixa/reenvia nada, só muda a URL).
+function ensureJpegUrl(url: string): string {
+  if (!/\.heic(\?|$)/i.test(url)) return url;
+  return url.replace("/upload/", "/upload/f_jpg,q_auto/");
 }
 
 // O Instagram processa o container de mídia de forma assíncrona (baixa e
@@ -170,7 +215,7 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
     containerUrl.searchParams.set("media_type", "REELS");
     containerUrl.searchParams.set("video_url", source.url);
   } else {
-    containerUrl.searchParams.set("image_url", source.url);
+    containerUrl.searchParams.set("image_url", ensureJpegUrl(source.url));
   }
   containerUrl.searchParams.set("caption", caption);
   containerUrl.searchParams.set("access_token", accessToken);
