@@ -74,6 +74,16 @@ export interface Post {
   status: string;
   /** @nullable */
   metaDescription?: string | null;
+  /**
+   * When this post was published to the official Instagram feed, if ever
+   * @nullable
+   */
+  instagramPostedAt?: string | null;
+  /**
+   * Instagram media ID returned when the post was published to Instagram
+   * @nullable
+   */
+  instagramMediaId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -14,7 +14,11 @@ import {
   UpdatePostResponse,
   DeletePostParams,
   CreatePostBody,
+  PublishPostInstagramParams,
+  PublishPostInstagramResponse,
 } from "@workspace/api-zod";
+import { publishPostToInstagram } from "../lib/instagram";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -159,6 +163,56 @@ router.delete("/posts/admin/:id", async (req, res): Promise<void> => {
     .where(eq(empreendimentosFilaTable.postId, params.data.id));
   await db.delete(postsTable).where(eq(postsTable.id, params.data.id));
   res.sendStatus(204);
+});
+
+// Publica um post no feed do Instagram oficial. Ação sempre disparada
+// manualmente pelo admin no painel — não existe cron/agendamento chamando
+// esta rota.
+router.post("/posts/admin/:id/publish-instagram", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const params = PublishPostInstagramParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, params.data.id));
+  if (!post) {
+    res.status(404).json({ error: "Post não encontrado" });
+    return;
+  }
+
+  if (post.status !== "published") {
+    res.status(400).json({ error: "Só é possível publicar no Instagram um post que já esteja publicado no blog." });
+    return;
+  }
+  if (post.instagramPostedAt) {
+    res.status(400).json({ error: "Este post já foi publicado no Instagram." });
+    return;
+  }
+  if (!post.coverImage) {
+    res.status(400).json({ error: "Este post não tem imagem de capa." });
+    return;
+  }
+
+  try {
+    const result = await publishPostToInstagram(post);
+    const [updated] = await db
+      .update(postsTable)
+      .set({ instagramPostedAt: new Date(), instagramMediaId: result.mediaId })
+      .where(eq(postsTable.id, post.id))
+      .returning();
+
+    res.json(PublishPostInstagramResponse.parse(updated));
+  } catch (err) {
+    logger.error({ postId: post.id, error: String((err as any)?.message ?? err) }, "Falha ao publicar post no Instagram");
+    res.status(400).json({ error: (err as any)?.message ?? "Falha ao publicar no Instagram." });
+  }
 });
 
 router.get("/posts/:slug", async (req, res): Promise<void> => {

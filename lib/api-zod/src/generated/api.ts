@@ -77,6 +77,18 @@ export const ListPostsResponse = zod.object({
       tags: zod.string().nullish().describe("JSON array of tag strings"),
       status: zod.string(),
       metaDescription: zod.string().nullish(),
+      instagramPostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When this post was published to the official Instagram feed, if ever",
+        ),
+      instagramMediaId: zod
+        .string()
+        .nullish()
+        .describe(
+          "Instagram media ID returned when the post was published to Instagram",
+        ),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -109,6 +121,18 @@ export const ListPostsAdminResponse = zod.object({
       tags: zod.string().nullish().describe("JSON array of tag strings"),
       status: zod.string(),
       metaDescription: zod.string().nullish(),
+      instagramPostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When this post was published to the official Instagram feed, if ever",
+        ),
+      instagramMediaId: zod
+        .string()
+        .nullish()
+        .describe(
+          "Instagram media ID returned when the post was published to Instagram",
+        ),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -143,6 +167,18 @@ export const GetPostResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  instagramPostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "When this post was published to the official Instagram feed, if ever",
+    ),
+  instagramMediaId: zod
+    .string()
+    .nullish()
+    .describe(
+      "Instagram media ID returned when the post was published to Instagram",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -174,6 +210,18 @@ export const GetPostAdminResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  instagramPostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "When this post was published to the official Instagram feed, if ever",
+    ),
+  instagramMediaId: zod
+    .string()
+    .nullish()
+    .describe(
+      "Instagram media ID returned when the post was published to Instagram",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -220,6 +268,18 @@ export const UpdatePostResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  instagramPostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "When this post was published to the official Instagram feed, if ever",
+    ),
+  instagramMediaId: zod
+    .string()
+    .nullish()
+    .describe(
+      "Instagram media ID returned when the post was published to Instagram",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -247,6 +307,49 @@ export const CreatePostBody = zod.object({
   tags: zod.string().nullish(),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+});
+
+/**
+ * @summary Publish a post to the official Instagram feed (manual trigger only, never automatic)
+ */
+export const PublishPostInstagramParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const PublishPostInstagramResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  subtitle: zod.string().nullish(),
+  slug: zod.string(),
+  excerpt: zod.string().nullish(),
+  content: zod.string(),
+  coverImage: zod.string().nullish(),
+  coverImageDisplayMode: zod
+    .enum(["cover", "natural"])
+    .optional()
+    .describe("How the cover image is shown inside the article"),
+  gallery: zod.string().nullish().describe("JSON array of image URLs"),
+  videoEmbeds: zod
+    .string()
+    .nullish()
+    .describe("JSON array of video embed URLs"),
+  tags: zod.string().nullish().describe("JSON array of tag strings"),
+  status: zod.string(),
+  metaDescription: zod.string().nullish(),
+  instagramPostedAt: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "When this post was published to the official Instagram feed, if ever",
+    ),
+  instagramMediaId: zod
+    .string()
+    .nullish()
+    .describe(
+      "Instagram media ID returned when the post was published to Instagram",
+    ),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
 });
 
 /**

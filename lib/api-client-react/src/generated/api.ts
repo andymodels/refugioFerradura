@@ -943,6 +943,90 @@ export const useCreatePost = <
 };
 
 /**
+ * @summary Publish a post to the official Instagram feed (manual trigger only, never automatic)
+ */
+export const getPublishPostInstagramUrl = (id: number) => {
+  return `/api/posts/admin/${id}/publish-instagram`;
+};
+
+export const publishPostInstagram = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Post> => {
+  return customFetch<Post>(getPublishPostInstagramUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPublishPostInstagramMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publishPostInstagram>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof publishPostInstagram>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["publishPostInstagram"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof publishPostInstagram>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return publishPostInstagram(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PublishPostInstagramMutationResult = NonNullable<
+  Awaited<ReturnType<typeof publishPostInstagram>>
+>;
+
+export type PublishPostInstagramMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Publish a post to the official Instagram feed (manual trigger only, never automatic)
+ */
+export const usePublishPostInstagram = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publishPostInstagram>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof publishPostInstagram>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getPublishPostInstagramMutationOptions(options));
+};
+
+/**
  * @summary List all content sources
  */
 export const getListFontesUrl = () => {

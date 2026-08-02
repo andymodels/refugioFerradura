@@ -244,6 +244,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/Post"
 
+  /posts/admin/{id}/publish-instagram:
+    post:
+      operationId: publishPostInstagram
+      tags: [posts]
+      summary: Publish a post to the official Instagram feed (manual trigger only, never automatic)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Published to Instagram
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          description: Post not eligible for publishing (not published, no cover image, or already posted)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /fontes/admin:
     get:
       operationId: listFontes
@@ -461,6 +492,13 @@ components:
           type: string
         metaDescription:
           type: ["string", "null"]
+        instagramPostedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: When this post was published to the official Instagram feed, if ever
+        instagramMediaId:
+          type: ["string", "null"]
+          description: Instagram media ID returned when the post was published to Instagram
         createdAt:
           type: string
           format: date-time

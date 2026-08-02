@@ -30,6 +30,10 @@ export const postsTable = pgTable("posts", {
   tags: text("tags"),
   status: text("status").notNull().default("draft"),
   metaDescription: text("meta_description"),
+  // Preenchidos quando o post é publicado no feed do Instagram oficial via
+  // painel admin (sempre uma ação manual, nunca automática).
+  instagramPostedAt: timestamp("instagram_posted_at", { withTimezone: true }),
+  instagramMediaId: text("instagram_media_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

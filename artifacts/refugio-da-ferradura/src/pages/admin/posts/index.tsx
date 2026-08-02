@@ -1,9 +1,9 @@
 import React from "react";
 import { Link } from "wouter";
-import { Plus, Edit, Trash2, FileEdit } from "lucide-react";
+import { Plus, Edit, Trash2, FileEdit, Instagram } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card } from "@/components/ui-elements";
-import { useListPostsAdmin, useDeletePost } from "@workspace/api-client-react";
+import { useListPostsAdmin, useDeletePost, usePublishPostInstagram } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,6 +12,7 @@ const NEW_DRAFT_KEY = "refugio-editor-draft-new";
 export default function AdminPosts() {
   const { data, isLoading } = useListPostsAdmin();
   const deleteMutation = useDeletePost();
+  const publishInstagramMutation = usePublishPostInstagram();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [pendingDraft, setPendingDraft] = React.useState<{ title?: string } | null>(null);
@@ -43,6 +44,17 @@ export default function AdminPosts() {
       } catch (e) {
         toast({ title: "Erro ao excluir", variant: "destructive" });
       }
+    }
+  };
+
+  const handlePublishInstagram = async (id: number, title: string) => {
+    if (!confirm(`Publicar "${title}" no feed do Instagram @refugioferradura agora? Essa ação é pública e não pode ser desfeita por aqui.`)) return;
+    try {
+      await publishInstagramMutation.mutateAsync({ id });
+      toast({ title: "Publicado no Instagram com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts/admin"] });
+    } catch (e: any) {
+      toast({ title: "Erro ao publicar no Instagram", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -93,15 +105,16 @@ export default function AdminPosts() {
                 <th className="px-6 py-4 font-medium">Título</th>
                 <th className="px-6 py-4 font-medium">Tags</th>
                 <th className="px-6 py-4 font-medium">Status</th>
+                <th className="px-6 py-4 font-medium">Instagram</th>
                 <th className="px-6 py-4 font-medium">Data</th>
                 <th className="px-6 py-4 font-medium text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : posts.length === 0 ? (
-                <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Nenhuma postagem encontrada.</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma postagem encontrada.</td></tr>
               ) : (
                 posts.map(post => (
                   <tr key={post.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
@@ -118,16 +131,39 @@ export default function AdminPosts() {
                         {post.status === 'published' ? 'Publicado' : 'Rascunho'}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      {post.instagramPostedAt ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          Publicado em {new Date(post.instagramPostedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      ) : post.status === 'published' ? (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Pendente</span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-50 text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-muted-foreground">{new Date(post.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td className="px-6 py-4 text-right flex justify-end gap-2">
+                      {post.status === 'published' && !post.instagramPostedAt && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-pink-600"
+                          onClick={() => handlePublishInstagram(post.id, post.title)}
+                          disabled={publishInstagramMutation.isPending}
+                          title="Publicar no Instagram"
+                        >
+                          <Instagram className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Link href={`/admin/posts/${post.id}/editar`}>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-primary">
                           <Edit className="w-4 h-4" />
                         </Button>
                       </Link>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                         onClick={() => handleDelete(post.id)}
                         disabled={deleteMutation.isPending}
