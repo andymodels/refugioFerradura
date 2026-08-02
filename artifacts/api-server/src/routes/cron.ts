@@ -1069,4 +1069,38 @@ router.get("/reconcile-media", async (req, res): Promise<void> => {
   res.json({ status: "ok", log });
 });
 
+// Rota de diagnóstico temporária — confere direto na API do Instagram se um
+// media_id retornado por publishPostToInstagram realmente existe e está
+// visível. Remover depois de confirmar o fluxo de publicação manual.
+router.get("/instagram-debug/:mediaId", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!accessToken || !igUserId) {
+    res.status(500).json({ error: "Instagram não configurado" });
+    return;
+  }
+
+  const mediaUrl = new URL(`https://graph.instagram.com/v21.0/${req.params.mediaId}`);
+  mediaUrl.searchParams.set("fields", "id,permalink,media_type,media_url,timestamp,caption,is_shared_to_feed");
+  mediaUrl.searchParams.set("access_token", accessToken);
+  const mediaRes = await fetch(mediaUrl);
+  const media = await mediaRes.json();
+
+  const listUrl = new URL(`https://graph.instagram.com/v21.0/${igUserId}/media`);
+  listUrl.searchParams.set("fields", "id,timestamp,permalink");
+  listUrl.searchParams.set("limit", "10");
+  listUrl.searchParams.set("access_token", accessToken);
+  const listRes = await fetch(listUrl);
+  const list = await listRes.json();
+
+  res.json({ mediaStatus: mediaRes.status, media, recentMediaStatus: listRes.status, recentMedia: list });
+});
+
 export default router;
