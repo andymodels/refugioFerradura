@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
-import { buildWhatsappHtml, buildMailtoHtml, buildMapsHtml, buildInstagramHtml } from "./contact-links";
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|gif|avif|bmp|tiff?)(\?.*)?$/i;
 
@@ -554,78 +553,10 @@ export async function verifyArticleAgainstSource(
   return parseJsonResponse(getTextBlock(message)) as VerificationResult;
 }
 
-export interface EmpreendimentoData {
-  nome: string;
-  regiao?: string | null;
-  proprietario?: string | null;
-  telefone?: string | null;
-  email?: string | null;
-  endereco?: string | null;
-  plusCode?: string | null;
-  instagram?: string | null;
-  site?: string | null;
-  caracteristicas: string[];
-}
-
-const EMPREENDIMENTO_SYSTEM_PROMPT = `Você é um editor de conteúdo especialista em turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura, Buenos Aires e Guarapari - ES.
-
-REGRAS ABSOLUTAS:
-1. Use APENAS as informações fornecidas sobre o empreendimento. NUNCA invente características, preços, horários ou serviços que não estejam na lista fornecida.
-2. Escreva um texto editorial e convidativo, na perspectiva de quem apresenta o local ao visitante da Rota da Ferradura.
-3. Sempre em Português do Brasil, tom acolhedor e profissional.
-4. O conteúdo é baseado num levantamento oficial (Diagnóstico Turístico e Econômico da Rota da Ferradura), não invente nada além do que foi listado.`;
-
-const EMPREENDIMENTO_PROMPT = (data: EmpreendimentoData) => {
-  const phoneHtml = buildWhatsappHtml(data.telefone);
-  const emailHtml = buildMailtoHtml(data.email);
-  const instagramHtml = buildInstagramHtml(data.instagram);
-  const siteHtml = data.site && data.site.startsWith("http")
-    ? `<a href="${data.site}" target="_blank" rel="noopener noreferrer">${data.site}</a>`
-    : null;
-  const mapsHtml = buildMapsHtml(data.endereco, data.plusCode);
-
-  return `Escreva um artigo editorial apresentando o seguinte empreendimento da Rota da Ferradura para o site Refúgio da Ferradura:
-
-Nome: ${data.nome}
-Região: ${data.regiao || "não informado"}
-Proprietário/Responsável: ${data.proprietario || "não informado"}
-Endereço: ${data.endereco || "não informado"}
-Telefone / WhatsApp (HTML já pronto, use exatamente como está, não reescreva): ${phoneHtml || data.telefone || "não informado"}
-E-mail (HTML já pronto, use exatamente como está, não reescreva): ${emailHtml || data.email || "não informado"}
-Localização (Plus Code): ${data.plusCode || "não informado"}
-Instagram (HTML já pronto, use exatamente como está, não reescreva): ${instagramHtml || "não informado"}
-Site (HTML já pronto, use exatamente como está, não reescreva): ${siteHtml || "não informado"}
-Google Maps (HTML já pronto, use exatamente como está, não reescreva): ${mapsHtml || "não informado"}
-Características/serviços oferecidos:
-${data.caracteristicas.map((c) => `- ${c}`).join("\n")}
-
-Estruture o artigo em HTML com <h2>, <p>, <ul>, <li>:
-1. Comece apresentando o empreendimento e a região onde fica.
-2. Descreva as características/serviços de forma fluida e convidativa (pode agrupar em parágrafos ou lista).
-3. Termine SEMPRE com uma seção "<h2>Serviços</h2>" contendo, em uma lista, TODOS os dados acima que estiverem marcados como "não informado" e forem informados de fato (endereço, telefone/WhatsApp, e-mail, site, Instagram, proprietário e Google Maps) — inclua exatamente como foram fornecidos acima, sem alterar números/textos. Para Telefone/WhatsApp, E-mail, Instagram, Site e Google Maps, copie o HTML de link fornecido acima exatamente como está, sem modificar a URL. Omita da lista só os que estiverem como "não informado". Nunca invente nenhum dado que não esteja listado acima.
-
-RESPONDA APENAS EM JSON válido, sem markdown ao redor:
-{
-  "title": "Título atraente com o nome do empreendimento",
-  "subtitle": "Subtítulo complementar",
-  "excerpt": "Resumo de 2 a 3 frases",
-  "content": "Artigo completo em HTML, terminando com a seção Serviços",
-  "metaDescription": "Até 160 caracteres para SEO"
-}`;
-};
-
-export async function generateEmpreendimentoArticle(
-  data: EmpreendimentoData,
-): Promise<GeneratedArticle> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-5",
-    max_tokens: 4096,
-    system: EMPREENDIMENTO_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: EMPREENDIMENTO_PROMPT(data) }],
-  });
-  return parseJsonResponse(getTextBlock(message));
-}
+// generateEmpreendimentoArticle (baseado no PDF do ADERES) foi removida —
+// a fila que ele processava já foi totalmente publicada e a descoberta de
+// novos empreendimentos agora é feita via busca na web
+// (searchAndGenerateRegionalArticle, abaixo).
 
 export interface ChannelUpdateInput {
   nome: string;
@@ -694,6 +625,8 @@ export const ROTA_DA_FERRADURA_LOCALITIES = [
   "Arraial do Jabuti",
   "Jabuti",
   "São João do Jabuti",
+  "Iguape",
+  "Alto Iguape",
   "Cachoeirinha",
 ];
 
@@ -763,6 +696,79 @@ export async function searchAndGenerateRegionalArticle(
     system: REGIONAL_SEARCH_SYSTEM_PROMPT,
     tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
     messages: [{ role: "user", content: REGIONAL_SEARCH_PROMPT(excludeUrls, recentTopics) }],
+  });
+
+  const textBlocks = message.content.filter(
+    (block): block is Anthropic.TextBlock => block.type === "text",
+  );
+  const lastTextBlock = textBlocks[textBlocks.length - 1];
+  if (!lastTextBlock) throw new Error("A IA não retornou texto após a pesquisa.");
+
+  return parseJsonResponse(lastTextBlock.text);
+}
+
+// ─── Descoberta de novo empreendimento ─────────────────────────────────────
+// Roda a cada 15 dias (ver /discover-new-empreendimento em cron.ts) — versão
+// automática do que passou a ser feito manualmente depois que a fila
+// alimentada pelo PDF do ADERES foi totalmente publicada: procurar, na
+// própria região que o diagnóstico original mapeou, negócios turísticos
+// (hospedagem, gastronomia, atrativos naturais/culturais) que ainda não
+// viraram matéria no site.
+const EMPREENDIMENTO_DISCOVERY_SYSTEM_PROMPT = `Você é um pesquisador de turismo regional do Espírito Santo, com foco exclusivo na Rota da Ferradura — a região de montanha/serra do município de Guarapari-ES.
+
+REGRAS ABSOLUTAS:
+1. Use a ferramenta de busca na web pra encontrar um empreendimento ou atrativo REAL e ATUAL. NUNCA invente um nome, endereço, contato ou característica.
+2. O achado precisa ser da cadeia produtiva do turismo (hospedagem, gastronomia, produção artesanal/agroindústria aberta a visita) ou um atrativo natural/cultural (cachoeira, mirante, trilha, igreja, marco histórico) — genuinamente dentro da região serrana da Rota da Ferradura, não da praia/centro urbano de Guarapari.
+3. Baseie TODO o conteúdo exclusivamente no que a pesquisa retornou (Instagram, Google Maps, site oficial, matérias de imprensa). Não invente característica, preço, horário ou serviço.
+4. Se não achar Instagram nem site oficial confiável pra esse empreendimento, ainda assim pode escrever a matéria com o que achou (endereço/contato via Google Maps, por exemplo) — mas nunca invente um contato que não apareça na pesquisa.
+5. Sempre em Português do Brasil, tom editorial acolhedor, escrevendo com suas próprias palavras.
+6. "Refúgio da Ferradura" é o SITE DE TURISMO que publica essa matéria — não é o nome de um estabelecimento.
+7. O campo "content" deve terminar SEMPRE com uma seção "<h2>Serviço</h2>" em lista (<ul><li>), contendo só os dados que a pesquisa realmente confirmou (endereço, telefone/WhatsApp, Instagram, site) — omita o que não foi encontrado, nunca invente.`;
+
+const EMPREENDIMENTO_DISCOVERY_PROMPT = (
+  excludeNames: string[],
+  excludeUrls: string[],
+) => `Pesquise na internet e encontre UM empreendimento turístico ou atrativo real que AINDA NÃO tenha matéria publicada no site Refúgio da Ferradura, dentro da região da Rota da Ferradura — as comunidades de Buenos Aires, Boa Esperança e Jabuti, além da área de abrangência de Barra do Limão, Arraial do Jabuti, São João do Jabuti, Iguape e Cachoeirinha, no interior serrano de Guarapari-ES.
+
+O objetivo é o mesmo do levantamento original que deu origem ao site: identificar os diversos equipamentos e serviços da cadeia produtiva do turismo (hospedagem, gastronomia, produção rural/artesanal) e os atrativos naturais e culturais dessa região — sítios, pousadas, restaurantes, cafés, cachoeiras, mirantes, igrejas, comunidades tradicionais etc.
+
+NÃO escreva sobre nenhum destes — já têm matéria publicada no site:
+${excludeNames.length > 0 ? excludeNames.map((n) => `- ${n}`).join("\n") : "(nenhum registrado ainda)"}
+
+NÃO use nenhuma destas fontes, já usadas em tentativas anteriores:
+${excludeUrls.length > 0 ? excludeUrls.join("\n") : "(nenhuma ainda)"}
+
+Depois de confirmar que é um achado novo (nome claramente diferente dos já listados) e real, escreva um artigo editorial para o site, terminando com a seção "Serviço" (endereço, telefone/WhatsApp, Instagram, site — só o que a pesquisa confirmou).
+
+Além do texto, procure 1 a 3 FOTOS reais desse empreendimento específico (perfil oficial do Instagram, site, Google Maps) — precisa ser a URL direta do ARQUIVO de imagem (.jpg/.jpeg/.png/.webp), não o link da página. Se não achar nenhuma foto com URL de arquivo direta e confiável, é melhor não incluir nenhuma do que inventar.
+
+RESPONDA, como sua ÚLTIMA mensagem (depois de concluir a pesquisa), APENAS EM JSON válido, sem markdown ao redor:
+{
+  "sourceUrl": "URL exata da página que você usou como fonte principal (Instagram, site oficial ou Google Maps do empreendimento)",
+  "title": "Título com o nome do empreendimento",
+  "subtitle": "Subtítulo complementar",
+  "excerpt": "Resumo de 2 a 3 frases fiéis ao conteúdo",
+  "content": "Artigo completo em HTML usando <h2>, <p>, <ul>, <li>, terminando com a seção Serviço",
+  "metaDescription": "Até 160 caracteres para SEO",
+  "tags": ["empreendimentos"],
+  "images": [
+    { "url": "URL direta do arquivo de imagem", "pageUrl": "URL da página/post onde encontrou", "creditLabel": "nome da fonte/perfil pra dar crédito" }
+  ]
+}
+
+Se, mesmo pesquisando, você não encontrar nenhum empreendimento novo e real na região, responda apenas: {"error": "nada_encontrado"}`;
+
+export async function searchAndDiscoverNewEmpreendimento(
+  excludeNames: string[],
+  excludeUrls: string[],
+): Promise<RegionalSearchArticle> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 8192,
+    system: EMPREENDIMENTO_DISCOVERY_SYSTEM_PROMPT,
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
+    messages: [{ role: "user", content: EMPREENDIMENTO_DISCOVERY_PROMPT(excludeNames, excludeUrls) }],
   });
 
   const textBlocks = message.content.filter(

@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { parseHTML } from "linkedom";
 import { db, fontesTable, fontesProcessadasTable, postsTable, empreendimentosFilaTable } from "@workspace/db";
 import { CONTENT_TAGS } from "@workspace/db/constants/tags";
-import { eq, and, gte, asc, desc, sql } from "drizzle-orm";
+import { eq, and, gte, desc, sql } from "drizzle-orm";
 import {
   extractArticleContent,
   extractImagesFromSource,
@@ -12,9 +12,9 @@ import {
   stripExistingMedia,
   generateFromText,
   verifyArticleAgainstSource,
-  generateEmpreendimentoArticle,
   generateChannelUpdateArticle,
   searchAndGenerateRegionalArticle,
+  searchAndDiscoverNewEmpreendimento,
   searchIllustrativePhotos,
   slugify,
   type RegionalSearchImage,
@@ -290,229 +290,15 @@ router.get("/publish-pipeline", async (req, res): Promise<void> => {
   res.json({ status: "ok", message: "Nenhum conteúdo novo encontrado nas fontes ativas." });
 });
 
-async function isLinkReachable(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; RefugioFerraduraBot/1.0)" },
-    });
-    return res.ok || (res.status >= 300 && res.status < 400);
-  } catch {
-    return false;
-  }
-}
-
-// Publica exatamente 1 item da fila de empreendimentos por execução.
-// O GitHub Actions chama esta rota a cada hora, das 7h às 19h (BRT).
-// Encerra sozinho quando a fila acabar.
-// Erros de API (limite de uso, sobrecarga, timeout, rede) nunca devem
-// descartar um empreendimento da fila — o item volta pra "pendente" e o
-// motivo fica registrado em `ultimoErro`. Só um erro de CONTEÚDO (a IA
-// respondeu mas o resultado não presta) é tratado como "falhou" de fato,
-// e isso já acontece inline, fora daqui, antes de qualquer exceção.
-function classifyTransientError(err: any): { message: string; pausadoAte: Date | null } {
-  const message = String(err?.message ?? err ?? "Erro desconhecido").slice(0, 500);
-
-  // A Anthropic retorna essa frase exata quando um limite de gasto/uso
-  // mensal é atingido, com a data/hora UTC em que volta a funcionar —
-  // aproveita isso pra não tentar de novo (e gastar mais um request) até lá.
-  const match = message.match(/(\d{4}-\d{2}-\d{2})\s+at\s+(\d{2}:\d{2})\s*UTC/i);
-  let pausadoAte: Date | null = null;
-  if (match) {
-    const parsed = new Date(`${match[1]}T${match[2]}:00Z`);
-    if (!isNaN(parsed.getTime())) pausadoAte = parsed;
-  }
-
-  return { message, pausadoAte };
-}
-
-router.get("/publish-next-empreendimento", async (req, res): Promise<void> => {
-  const expected = process.env.CRON_SECRET;
-  const expectedMigration = process.env.MIGRATION_SECRET;
-  const authHeader = req.headers.authorization;
-  const authorized =
-    (!!expected && authHeader === `Bearer ${expected}`) ||
-    (!!expectedMigration && authHeader === `Bearer ${expectedMigration}`);
-  if (!authorized) {
-    res.status(401).json({ error: "Não autorizado" });
-    return;
-  }
-
-  // Serializa a escolha e marca o item antes das chamadas externas. Duas
-  // execuções nunca conseguem reivindicar o mesmo empreendimento.
-  const item = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext('refugio_ferradura'), hashtext('publish_next_empreendimento'))`,
-    );
-
-    // Pula itens pausados por um erro transitório com data de retorno
-    // conhecida (ex: limite de uso da IA) — evita gastar outro request à toa.
-    const [nextItem] = await tx
-      .select()
-      .from(empreendimentosFilaTable)
-      .where(
-        and(
-          eq(empreendimentosFilaTable.status, "pendente"),
-          sql`(${empreendimentosFilaTable.pausadoAte} IS NULL OR ${empreendimentosFilaTable.pausadoAte} < now())`,
-        ),
-      )
-      .orderBy(asc(empreendimentosFilaTable.ordem))
-      .limit(1);
-
-    if (!nextItem) return undefined;
-
-    const [claimedItem] = await tx
-      .update(empreendimentosFilaTable)
-      .set({ status: "processando" })
-      .where(
-        and(
-          eq(empreendimentosFilaTable.id, nextItem.id),
-          eq(empreendimentosFilaTable.status, "pendente"),
-        ),
-      )
-      .returning();
-
-    return claimedItem;
-  });
-
-  if (!item) {
-    res.json({ status: "ok", message: "Fila de empreendimentos vazia — nada a publicar." });
-    return;
-  }
-
-  try {
-    // O Instagram pode bloquear verificações anônimas mesmo quando o perfil é
-    // público. O resolvedor especializado deve tentar o canal cadastrado.
-    const siteOk =
-      item.site && item.site.startsWith("http")
-        ? await isLinkReachable(item.site)
-        : false;
-
-    const caracteristicas: string[] = item.caracteristicas ? JSON.parse(item.caracteristicas) : [];
-
-    const article = await generateEmpreendimentoArticle({
-      nome: item.nome,
-      regiao: item.regiao,
-      proprietario: item.proprietario,
-      telefone: item.telefone,
-      email: item.email,
-      endereco: item.endereco,
-      plusCode: item.plusCode,
-      instagram: item.instagram,
-      site: siteOk ? item.site : null,
-      caracteristicas,
-    });
-
-    if (!article.title || !article.content) {
-      await db
-        .update(empreendimentosFilaTable)
-        .set({ status: "falhou" })
-        .where(
-          and(
-            eq(empreendimentosFilaTable.id, item.id),
-            eq(empreendimentosFilaTable.status, "processando"),
-          ),
-        );
-      res.status(500).json({ error: "Falha ao gerar o artigo do empreendimento." });
-      return;
-    }
-
-    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
-
-    // Pipeline único de mídia: Instagram oficial > site oficial > pesquisa
-    // apenas para localizar outro canal oficial. PDF e paisagem institucional
-    // genérica nunca entram em post de empreendimento.
-    const mediaItems = await resolveEmpreendimentoImage({
-      nome: item.nome,
-      regiao: item.regiao,
-      endereco: item.endereco,
-      plusCode: item.plusCode,
-      instagram: item.instagram,
-      site: siteOk ? item.site : null,
-      slug,
-    });
-
-    const finalContent = mediaItems.length > 0 ? interleaveImages(article.content, mediaItems) : article.content;
-    const tags = mapTags(
-      { title: item.nome, content: `${caracteristicas.join(" ")} ${article.content}` },
-      ["empreendimentos"],
-    );
-
-    // Sem mídia oficial aprovada, preserva o texto como rascunho e libera a
-    // fila para continuar no próximo horário.
-    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
-    const postStatus = mediaItems.length > 0 ? "published" : "draft";
-    const queueStatus = mediaItems.length > 0 ? "publicado" : "rascunho";
-
-    const [post] = await db
-      .insert(postsTable)
-      .values({
-        title: article.title,
-        subtitle: article.subtitle ?? null,
-        slug,
-        excerpt: article.excerpt ?? null,
-        content: finalContent,
-        coverImage: cover?.urlArquivo ?? null,
-        coverImageDisplayMode: "natural",
-        coverImageMeta: cover ? JSON.stringify(cover) : null,
-        mediaItems: mediaItems.length > 0 ? JSON.stringify(mediaItems) : null,
-        tags: JSON.stringify(tags),
-        status: postStatus,
-        metaDescription: article.metaDescription ?? null,
-      })
-      .returning();
-
-    await db
-      .update(empreendimentosFilaTable)
-      .set({ status: queueStatus, postId: post.id, publicadoEm: new Date() })
-      .where(
-        and(
-          eq(empreendimentosFilaTable.id, item.id),
-          eq(empreendimentosFilaTable.status, "processando"),
-        ),
-      );
-
-    logger.info(
-      {
-        postId: post.id,
-        slug,
-        empreendimento: item.nome,
-        postStatus,
-        queueStatus,
-        totalMidia: mediaItems.length,
-        tipos: mediaItems.map((m) => m.tipo),
-      },
-      "[cron] Post de empreendimento processado",
-    );
-
-    res.json({
-      status: "ok",
-      post: { id: post.id, slug: post.slug, status: post.status },
-      queueStatus,
-    });
-  } catch (err: any) {
-    const { message, pausadoAte } = classifyTransientError(err);
-    logger.error(
-      { err, item: item.nome, pausadoAte },
-      "[cron] Erro transitório ao publicar empreendimento — item volta pra pendente, fila não avança",
-    );
-    // Nunca descarta o empreendimento por um erro de API/rede/limite — só
-    // registra o motivo e devolve pra fila, pro próprio ordem ser retomado
-    // na próxima execução (nenhum outro item avança na frente dele).
-    await db
-      .update(empreendimentosFilaTable)
-      .set({ status: "pendente", ultimoErro: message, pausadoAte })
-      .where(
-        and(
-          eq(empreendimentosFilaTable.id, item.id),
-          eq(empreendimentosFilaTable.status, "processando"),
-        ),
-      );
-    res.status(500).json({ error: "Erro transitório ao publicar empreendimento (item devolvido pra fila): " + message, pausadoAte });
-  }
-});
+// A fila de empreendimentos alimentada pelo PDF do ADERES (guia inicial do
+// blog) foi totalmente processada — não há mais itens pendentes. A rota que
+// publicava dali (`/publish-next-empreendimento`) foi removida a pedido
+// explícito, junto do workflow do GitHub Actions que a chamava de hora em
+// hora. Descoberta de novos empreendimentos agora é feita por
+// `/discover-new-empreendimento` (mais abaixo), que pesquisa a web a cada 15
+// dias em vez de depender de uma lista fixa. `empreendimentosFilaTable`
+// continua importada porque `/reconcile-media` (abaixo) ainda referencia
+// posts antigos vinculados a ela.
 
 const BUSCA_REGIONAL_FONTE_NOME = "Busca regional automática (web)";
 
@@ -702,6 +488,192 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
   } catch (err: any) {
     logger.error({ err }, "[cron] Falha na busca regional");
     res.status(500).json({ error: "Erro na busca regional: " + err.message });
+  }
+});
+
+const DESCOBERTA_EMPREENDIMENTO_FONTE_NOME = "Descoberta de novo empreendimento (web, a cada 15 dias)";
+const DESCOBERTA_EMPREENDIMENTO_INTERVALO_DIAS = 12; // margem abaixo de 15 pra tolerar atraso do agendador
+
+async function getOrCreateDescobertaEmpreendimentoFonte() {
+  const [existing] = await db
+    .select()
+    .from(fontesTable)
+    .where(eq(fontesTable.nome, DESCOBERTA_EMPREENDIMENTO_FONTE_NOME))
+    .limit(1);
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(fontesTable)
+    .values({
+      nome: DESCOBERTA_EMPREENDIMENTO_FONTE_NOME,
+      url: "busca-web://novo-empreendimento",
+      tipo: "busca_web",
+      ativo: true,
+    })
+    .returning();
+  return created;
+}
+
+// Roda a cada 15 dias (agendado via GitHub Actions — ver
+// .github/workflows/discover-new-empreendimento.yml) procurando UM
+// empreendimento/atrativo real da região que ainda não tenha matéria no
+// site. Sempre cria como rascunho — nunca publica sozinho — pra alguém
+// revisar antes de ir ao ar, exatamente como pedido.
+router.get("/discover-new-empreendimento", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const fonte = await getOrCreateDescobertaEmpreendimentoFonte();
+
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - DESCOBERTA_EMPREENDIMENTO_INTERVALO_DIAS);
+
+  const [ranRecently] = await db
+    .select()
+    .from(fontesProcessadasTable)
+    .where(
+      and(
+        eq(fontesProcessadasTable.fonteId, fonte.id),
+        eq(fontesProcessadasTable.status, "sucesso"),
+        gte(fontesProcessadasTable.criadoEm, cutoff),
+      ),
+    )
+    .limit(1);
+
+  if (ranRecently) {
+    res.json({ status: "ok", message: `Já rodou nos últimos ${DESCOBERTA_EMPREENDIMENTO_INTERVALO_DIAS} dias.` });
+    return;
+  }
+
+  // Nomes de posts já existentes (qualquer origem — manual, pipeline antigo
+  // do PDF ou este próprio pipeline) pra IA nunca sugerir algo repetido.
+  const existingPosts = await db.select({ title: postsTable.title }).from(postsTable);
+  const excludeNames = existingPosts.map((p) => p.title);
+
+  const previouslyTried = await db
+    .select({ url: fontesProcessadasTable.url })
+    .from(fontesProcessadasTable)
+    .where(eq(fontesProcessadasTable.fonteId, fonte.id));
+  const excludeUrls = previouslyTried.map((r) => r.url);
+
+  try {
+    const article = await searchAndDiscoverNewEmpreendimento(excludeNames, excludeUrls);
+
+    if (article.error || !article.title || !article.content || !article.sourceUrl) {
+      res.json({ status: "ok", message: "Nenhum empreendimento novo e real encontrado desta vez." });
+      return;
+    }
+
+    const [existingUrl] = await db
+      .select()
+      .from(fontesProcessadasTable)
+      .where(eq(fontesProcessadasTable.url, article.sourceUrl))
+      .limit(1);
+    if (existingUrl) {
+      res.json({ status: "ok", message: "Fonte encontrada já havia sido tentada antes." });
+      return;
+    }
+
+    // Segunda checagem de duplicidade — a IA já recebeu a lista de nomes
+    // existentes, mas confere de novo por segurança (nome muito parecido
+    // com um post já publicado/rascunho).
+    const normalizedNew = article.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const looksDuplicate = existingPosts.some((p) => {
+      const normalizedExisting = p.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      return normalizedExisting === normalizedNew || normalizedExisting.includes(normalizedNew) || normalizedNew.includes(normalizedExisting);
+    });
+    if (looksDuplicate) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: article.sourceUrl,
+        status: "falhou",
+        detalhe: `Título muito parecido com um post existente: "${article.title}"`,
+      });
+      res.json({ status: "ok", message: "Achado parece duplicado de um post existente — pulado." });
+      return;
+    }
+
+    const foundImages = article.images ?? [];
+    const validatedImages = (
+      await Promise.all(
+        foundImages.map(async (img) => ((await isImageUrlValid(img.url)) ? img : null)),
+      )
+    ).filter((img): img is RegionalSearchImage => img !== null);
+
+    const sourceImages = await extractImagesFromSource(article.sourceUrl);
+    const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
+    const candidateUrls = [...validatedImages.map((img) => img.url), ...sourceImages];
+
+    let mediaItems = await vetAndArchiveFoundImages(article.title, candidateUrls, slug);
+
+    if (mediaItems.length === 0) {
+      const fallbackImages = await searchIllustrativePhotos(article.title);
+      const validatedFallback = (
+        await Promise.all(
+          fallbackImages.map(async (img) => ((await isImageUrlValid(img.url)) ? img : null)),
+        )
+      ).filter((img): img is RegionalSearchImage => img !== null);
+      mediaItems = await vetAndArchiveFoundImages(article.title, validatedFallback.map((img) => img.url), slug);
+    }
+
+    // Diferente da busca regional geral: sem foto de verdade desse
+    // empreendimento específico, NÃO usa paisagem institucional genérica —
+    // vira rascunho sem mídia, pra alguém adicionar foto na mão depois
+    // (mesma regra usada o dia todo manualmente).
+    const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+    if (cover && (await isCoverAlreadyUsed(cover.urlArquivo))) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: article.sourceUrl,
+        status: "falhou",
+        detalhe: `Mídia já usada como capa em outro post — bloqueado por unicidade (${cover.urlArquivo})`,
+      });
+      res.json({ status: "ok", message: "Mídia já usada em outro post — bloqueado por unicidade." });
+      return;
+    }
+
+    const finalContent = mediaItems.length > 0 ? interleaveImages(article.content, mediaItems) : article.content;
+    const tags = mapTags(article, ["empreendimentos"]);
+
+    const [post] = await db
+      .insert(postsTable)
+      .values({
+        title: article.title,
+        subtitle: article.subtitle ?? null,
+        slug,
+        excerpt: article.excerpt ?? null,
+        content: finalContent,
+        coverImage: cover?.urlArquivo ?? null,
+        coverImageDisplayMode: "natural",
+        coverImageMeta: cover ? JSON.stringify(cover) : null,
+        mediaItems: mediaItems.length > 0 ? JSON.stringify(mediaItems) : null,
+        tags: JSON.stringify(tags),
+        // Sempre rascunho — nunca publica sozinho, mesmo com mídia aprovada.
+        status: "draft",
+        metaDescription: article.metaDescription ?? null,
+      })
+      .returning();
+
+    await db.insert(fontesProcessadasTable).values({
+      fonteId: fonte.id,
+      url: article.sourceUrl,
+      postId: post.id,
+      status: "sucesso",
+    });
+
+    logger.info(
+      { postId: post.id, slug, sourceUrl: article.sourceUrl, totalMidia: mediaItems.length },
+      "[cron] Novo empreendimento descoberto e criado como rascunho",
+    );
+
+    res.json({ status: "ok", post: { id: post.id, slug: post.slug, status: post.status } });
+  } catch (err: any) {
+    logger.error({ err }, "[cron] Falha na descoberta de novo empreendimento");
+    res.status(500).json({ error: "Erro na descoberta de novo empreendimento: " + err.message });
   }
 });
 

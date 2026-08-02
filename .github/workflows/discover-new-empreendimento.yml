@@ -1,0 +1,25 @@
+name: Descobrir novo empreendimento (a cada 15 dias)
+
+# Roda no dia 1 e no dia 16 de cada mês (aproximação de "a cada 15 dias" com
+# datas fixas e previsíveis) às 12h UTC (9h em Brasília). Sempre cria o post
+# como rascunho — nunca publica sozinho.
+on:
+  schedule:
+    - cron: "0 12 1,16 * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: discover-new-empreendimento
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Buscar e criar rascunho de novo empreendimento
+        run: |
+          curl --fail --show-error --silent \
+            --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/discover-new-empreendimento
