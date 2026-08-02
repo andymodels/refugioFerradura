@@ -28,6 +28,6 @@ export interface InstagramPartner {
   marcacaoObrigatoria: boolean;
   createdAt: Date;
   updatedAt: Date;
-  postSlug: string;
-  postTitle: string;
+  postSlug?: string;
+  postTitle?: string;
 }

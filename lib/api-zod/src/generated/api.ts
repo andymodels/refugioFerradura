@@ -461,8 +461,8 @@ export const ListInstagramPartnersResponse = zod.object({
       marcacaoObrigatoria: zod.boolean(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
-      postSlug: zod.string(),
-      postTitle: zod.string(),
+      postSlug: zod.string().optional(),
+      postTitle: zod.string().optional(),
     }),
   ),
   total: zod.number(),
@@ -525,8 +525,8 @@ export const UpdateInstagramPartnerResponse = zod.object({
   marcacaoObrigatoria: zod.boolean(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
-  postSlug: zod.string(),
-  postTitle: zod.string(),
+  postSlug: zod.string().optional(),
+  postTitle: zod.string().optional(),
 });
 
 /**

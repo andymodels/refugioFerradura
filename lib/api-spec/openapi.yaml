@@ -804,8 +804,6 @@ components:
         - marcacaoObrigatoria
         - createdAt
         - updatedAt
-        - postSlug
-        - postTitle
 
     InstagramPartnerListResponse:
       type: object
