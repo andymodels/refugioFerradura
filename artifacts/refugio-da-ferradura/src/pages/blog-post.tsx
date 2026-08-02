@@ -44,6 +44,46 @@ function renderInstagramEmbeds(html: string): string {
   return holder.innerHTML;
 }
 
+// O carrossel publicado é só uma faixa com scroll horizontal — sem nenhuma
+// pista visual de que dá pra ver mais fotos. Envolve cada carrossel com
+// setas clicáveis (funcionam em toque e em mouse) que rolam a faixa.
+function enhanceCarousels(html: string): string {
+  if (typeof document === "undefined" || !html.includes("image-carousel-block")) return html;
+
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  holder.querySelectorAll(".image-carousel-block").forEach((track) => {
+    if (track.children.length < 2) return; // 1 foto não precisa de seta
+
+    const wrap = document.createElement("div");
+    wrap.className = "carousel-wrap";
+    track.replaceWith(wrap);
+
+    const prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "carousel-arrow carousel-arrow-prev";
+    prevBtn.setAttribute("aria-label", "Foto anterior");
+    prevBtn.innerHTML = "&#8249;";
+    prevBtn.setAttribute(
+      "onclick",
+      "this.nextElementSibling.scrollBy({left: -this.nextElementSibling.clientWidth * 0.85, behavior: 'smooth'})",
+    );
+
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "carousel-arrow carousel-arrow-next";
+    nextBtn.setAttribute("aria-label", "Próxima foto");
+    nextBtn.innerHTML = "&#8250;";
+    nextBtn.setAttribute(
+      "onclick",
+      "this.previousElementSibling.scrollBy({left: this.previousElementSibling.clientWidth * 0.85, behavior: 'smooth'})",
+    );
+
+    wrap.append(prevBtn, track, nextBtn);
+  });
+  return holder.innerHTML;
+}
+
 function isInstagramPostUrl(url?: string | null) {
   return !!url && /instagram\.com\/(p|reel|tv)\//i.test(url);
 }
@@ -194,7 +234,7 @@ export default function BlogPost() {
     );
   }
 
-  const cleanedContent = renderInstagramEmbeds(stripLeadingH1(post!.content || ""));
+  const cleanedContent = enhanceCarousels(renderInstagramEmbeds(stripLeadingH1(post!.content || "")));
 
   return (
     <Layout>
