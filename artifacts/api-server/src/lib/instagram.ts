@@ -106,27 +106,31 @@ function extractFirstMediaFromContent(content: string): MediaSource | null {
   if (!content) return null;
   const { document } = parseHTML(`<div>${content}</div>`);
 
-  const video = document.querySelector("video[src]");
-  const videoSrc = video?.getAttribute("src");
-  if (videoSrc) return { kind: "video", url: videoSrc };
+  // querySelectorAll com seletor combinado devolve os elementos na ORDEM real
+  // do documento — essencial aqui, porque a primeira mídia pode ser uma foto
+  // solta, um vídeo ou um carrossel, em qualquer ordem entre os blocos de
+  // texto. O primeiro elemento encontrado é sempre a primeira mídia de
+  // verdade do post, nunca a "melhor" ou a de um tipo específico.
+  const candidates = document.querySelectorAll("video[src], [data-carousel], img[src]");
 
-  // Carrossel guarda a lista de fotos em data-carousel (JSON), não em <img>.
-  const carousel = document.querySelector("[data-carousel]");
-  const carouselJson = carousel?.getAttribute("data-carousel");
-  if (carouselJson) {
-    try {
-      const urls: unknown = JSON.parse(carouselJson);
-      if (Array.isArray(urls) && typeof urls[0] === "string" && urls[0]) {
-        return { kind: "foto", url: urls[0] };
+  for (const el of candidates) {
+    if (el.hasAttribute("data-carousel")) {
+      try {
+        const urls: unknown = JSON.parse(el.getAttribute("data-carousel") || "[]");
+        if (Array.isArray(urls) && typeof urls[0] === "string" && urls[0]) {
+          return { kind: "foto", url: urls[0] };
+        }
+      } catch {
+        // carrossel malformado — segue pro próximo candidato na ordem
+        continue;
       }
-    } catch {
-      // ignora e segue pro <img> comum
+      continue;
     }
-  }
 
-  const img = document.querySelector("img[src]");
-  const imgSrc = img?.getAttribute("src");
-  if (imgSrc) return { kind: "foto", url: imgSrc };
+    const src = el.getAttribute("src");
+    if (!src) continue;
+    return { kind: el.tagName.toLowerCase() === "video" ? "video" : "foto", url: src };
+  }
 
   return null;
 }
