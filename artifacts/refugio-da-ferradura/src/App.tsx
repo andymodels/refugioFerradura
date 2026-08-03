@@ -24,6 +24,7 @@ import AdminSettings from "./pages/admin/settings";
 import AdminFontes from "./pages/admin/fontes";
 import AdminPartners from "./pages/admin/parceiros";
 import AdminStories from "./pages/admin/stories";
+import AdminRadar from "./pages/admin/radar";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +75,7 @@ function Router() {
 
       {/* Admin Stories */}
       <Route path="/admin/stories" component={AdminStories} />
+      <Route path="/admin/radar" component={AdminRadar} />
 
       <Route component={NotFound} />
     </Switch>
