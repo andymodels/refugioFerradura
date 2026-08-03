@@ -1146,4 +1146,56 @@ router.get("/assign-partner-schedule", async (req, res): Promise<void> => {
   }
 });
 
+// Cria um post já pronto (matéria da Rota da Ferradura) como rascunho, a
+// partir de um payload de artigo já redigido — usado pelo workflow "Criar
+// post em rascunho" (acionado manualmente via gh workflow run), pra não
+// depender de acesso local ao banco. Nunca aceita nem define status
+// "published" — publicar continua sendo sempre uma ação manual no painel,
+// depois de revisar e adicionar as fotos.
+router.post("/create-draft-post", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const { title, subtitle, excerpt, metaDescription, sections, servico, coverImage, tags } = req.body || {};
+
+  if (!title || !Array.isArray(sections) || sections.length === 0) {
+    res.status(400).json({ error: "title e sections (array não vazio) são obrigatórios." });
+    return;
+  }
+
+  try {
+    const slug = `${slugify(title)}-${Date.now().toString(36)}`;
+    const body = sections
+      .map((s: { heading: string; paragraphHtml: string }) => `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>`)
+      .join("\n");
+    const servicoHtml = renderServicoBlock(servico || {});
+    const content = servicoHtml ? `${body}\n${servicoHtml}` : body;
+
+    const [post] = await db
+      .insert(postsTable)
+      .values({
+        title,
+        subtitle: subtitle ?? null,
+        slug,
+        excerpt: excerpt ?? subtitle ?? null,
+        content,
+        coverImage: coverImage ?? null,
+        tags: tags ? JSON.stringify(tags) : null,
+        status: "draft",
+        metaDescription: metaDescription ?? null,
+      })
+      .returning();
+
+    logger.info({ postId: post.id, slug: post.slug }, "[cron] Rascunho criado via create-draft-post");
+    res.status(201).json({ id: post.id, slug: post.slug });
+  } catch (err) {
+    logger.error({ err }, "[cron] Falha ao criar rascunho via create-draft-post");
+    res.status(500).json({ status: "error" });
+  }
+});
+
 export default router;

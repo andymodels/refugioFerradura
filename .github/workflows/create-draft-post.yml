@@ -1,0 +1,29 @@
+name: Criar post em rascunho
+
+# Disparado manualmente (via GitHub Actions ou `gh workflow run`) para criar
+# uma nova matéria da Rota da Ferradura como rascunho no blog, sem depender
+# de acesso local ao banco. Sempre cria como rascunho — publicar continua
+# sendo uma ação manual no painel admin, depois de revisar e adicionar as
+# fotos.
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: "JSON do artigo (title, subtitle, excerpt, metaDescription, sections[], servico, coverImage, tags)"
+        required: true
+
+jobs:
+  create-draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Criar rascunho via API
+        env:
+          PAYLOAD: ${{ inputs.payload }}
+        run: |
+          curl --fail --show-error --silent \
+            --max-time 60 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" \
+            https://refugioferradura.com.br/api/cron/create-draft-post
