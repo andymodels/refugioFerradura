@@ -1146,4 +1146,59 @@ router.get("/assign-partner-schedule", async (req, res): Promise<void> => {
   }
 });
 
+// Teste único, só leitura — confere se o Business Discovery consegue ler o
+// feed público de um parceiro usando só a conta do Refúgio, sem o parceiro
+// autorizar nada. Não baixa mídia, não publica, não grava em nenhuma
+// tabela — só loga o resultado bruto da Meta pra diagnóstico.
+router.get("/test-business-discovery", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const username = String(req.query.username || "restauranteplanosdedeus");
+  const results: Record<string, any> = {};
+
+  // Tentativa 1: graph.facebook.com/business_discovery usando o ID que já
+  // temos configurado (INSTAGRAM_BUSINESS_ID) e o token da API com login do
+  // Instagram (INSTAGRAM_ACCESS_TOKEN) — pode não ser compatível, já que
+  // Business Discovery historicamente pede o produto "login do Facebook".
+  try {
+    const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+    const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+    const url = new URL(`https://graph.facebook.com/v21.0/${igUserId}`);
+    url.searchParams.set(
+      "fields",
+      `business_discovery.username(${username}){username,followers_count,media_count,media.limit(5){caption,media_type,media_product_type,media_url,permalink,timestamp}}`,
+    );
+    url.searchParams.set("access_token", token || "");
+    const r = await fetch(url);
+    results.tentativa1_graph_facebook_com = { status: r.status, body: await r.json() };
+  } catch (err: any) {
+    results.tentativa1_graph_facebook_com = { error: String(err?.message ?? err) };
+  }
+
+  // Tentativa 2: mesma chamada, mas em graph.instagram.com (produto que
+  // realmente configuramos) — só pra confirmar se o campo existe ali também.
+  try {
+    const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+    const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+    const url = new URL(`https://graph.instagram.com/v21.0/${igUserId}`);
+    url.searchParams.set(
+      "fields",
+      `business_discovery.username(${username}){username,followers_count,media_count,media.limit(5){caption,media_type,media_url,permalink,timestamp}}`,
+    );
+    url.searchParams.set("access_token", token || "");
+    const r = await fetch(url);
+    results.tentativa2_graph_instagram_com = { status: r.status, body: await r.json() };
+  } catch (err: any) {
+    results.tentativa2_graph_instagram_com = { error: String(err?.message ?? err) };
+  }
+
+  logger.info({ username, results }, "[cron] Teste de Business Discovery (somente leitura)");
+  res.json({ status: "ok", username, results });
+});
+
 export default router;
