@@ -199,7 +199,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
             <p>{footerCopyright}</p>
-            <p>Feito com amor pela natureza.</p>
+            <div className="flex items-center gap-4">
+              <Link href="/politica-de-privacidade" className="hover:text-muted transition-colors">Privacidade</Link>
+              <Link href="/termos-de-uso" className="hover:text-muted transition-colors">Termos de uso</Link>
+              <p>Feito com amor pela natureza.</p>
+            </div>
           </div>
         </div>
       </footer>

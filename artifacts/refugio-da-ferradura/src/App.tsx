@@ -11,6 +11,8 @@ import TagPage from "./pages/tag-page";
 import BlogPost from "./pages/blog-post";
 import Search from "./pages/search";
 import PartnerUpload from "./pages/partner-upload";
+import PrivacyPolicy from "./pages/privacy-policy";
+import TermsOfUse from "./pages/terms-of-use";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/login";
@@ -46,6 +48,8 @@ function Router() {
       <Route path="/eventos">{() => <TagPage tag="eventos" />}</Route>
       <Route path="/buscar" component={Search} />
       <Route path="/parceiro/:token" component={PartnerUpload} />
+      <Route path="/politica-de-privacidade" component={PrivacyPolicy} />
+      <Route path="/termos-de-uso" component={TermsOfUse} />
 
       {/* Admin Routes */}
       <Route path="/admin/login" component={AdminLogin} />
