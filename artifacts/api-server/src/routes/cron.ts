@@ -30,6 +30,7 @@ import {
 } from "../lib/media-pipeline";
 import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink, renderServicoBlock } from "../lib/contact-links";
 import { pollConnectedPartners } from "../lib/partner-content-poll";
+import { runRadarScan } from "../lib/radar";
 import { assignScheduleSlots } from "../lib/story-schedule";
 import { logger } from "../lib/logger";
 
@@ -1194,6 +1195,27 @@ router.post("/create-draft-post", async (req, res): Promise<void> => {
     res.status(201).json({ id: post.id, slug: post.slug });
   } catch (err) {
     logger.error({ err }, "[cron] Falha ao criar rascunho via create-draft-post");
+    res.status(500).json({ status: "error" });
+  }
+});
+
+// Rotina diária (11h de Brasília) do Radar: procura notícias regionais e
+// posts públicos recentes dos parceiros, registrando só o que for novo. Nunca
+// cria rascunho de post nem publica nada no Instagram — é o mesmo scan do
+// botão "Atualizar agora" no painel, só que agendado.
+router.get("/radar-scan", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  try {
+    const result = await runRadarScan();
+    res.json({ status: "ok", ...result });
+  } catch (err) {
+    logger.error({ err }, "[cron] Falha na varredura diária do Radar");
     res.status(500).json({ status: "error" });
   }
 });

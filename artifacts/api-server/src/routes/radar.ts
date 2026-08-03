@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
-import { db, fontesProcessadasTable, fontesTable, instagramPartnersTable } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { db, instagramPartnersTable, radarFindingsTable } from "@workspace/db";
+import { desc, isNotNull, sql } from "drizzle-orm";
+import { runRadarScan } from "../lib/radar";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-// Painel somente de leitura: reúne o que o blog já encontrou, sem criar
-// rascunhos, publicar posts ou alterar a fila de parceiros.
+// Painel somente de leitura: mostra só as novidades já registradas pelo
+// Radar, sem criar rascunhos, publicar posts ou alterar a fila de parceiros.
 router.get("/radar/admin", async (req, res): Promise<void> => {
   const session = req.session as any;
   if (!session?.adminId) {
@@ -13,34 +15,37 @@ router.get("/radar/admin", async (req, res): Promise<void> => {
     return;
   }
 
-  const [novidades, parceiros] = await Promise.all([
+  const [novidades, [{ count: parceirosMonitorados }]] = await Promise.all([
     db
-      .select({
-        id: fontesProcessadasTable.id,
-        url: fontesProcessadasTable.url,
-        status: fontesProcessadasTable.status,
-        detalhe: fontesProcessadasTable.detalhe,
-        criadoEm: fontesProcessadasTable.criadoEm,
-        fonteNome: fontesTable.nome,
-        fonteTipo: fontesTable.tipo,
-      })
-      .from(fontesProcessadasTable)
-      .innerJoin(fontesTable, eq(fontesProcessadasTable.fonteId, fontesTable.id))
-      .orderBy(desc(fontesProcessadasTable.criadoEm))
-      .limit(100),
+      .select()
+      .from(radarFindingsTable)
+      .orderBy(desc(radarFindingsTable.encontradoEm))
+      .limit(60),
     db
-      .select({
-        id: instagramPartnersTable.id,
-        nome: instagramPartnersTable.nomeEstabelecimento,
-        handle: instagramPartnersTable.instagramHandle,
-        ultimaVerificacao: instagramPartnersTable.ultimoPollEm,
-        atualizadoEm: instagramPartnersTable.updatedAt,
-      })
+      .select({ count: sql<number>`count(*)::int` })
       .from(instagramPartnersTable)
-      .orderBy(desc(instagramPartnersTable.updatedAt)),
+      .where(isNotNull(instagramPartnersTable.instagramHandle)),
   ]);
 
-  res.json({ novidades, parceiros, atualizadoEm: new Date().toISOString() });
+  res.json({ novidades, parceirosMonitorados, atualizadoEm: new Date().toISOString() });
+});
+
+// Dispara a varredura na hora, a pedido do admin (botão "Atualizar agora").
+// Mesma lógica da rotina diária — só descoberta, nunca publica nada sozinho.
+router.post("/radar/admin/scan", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  try {
+    const result = await runRadarScan();
+    res.json({ status: "ok", ...result });
+  } catch (err) {
+    logger.error({ err }, "[radar] Falha na varredura manual");
+    res.status(500).json({ status: "error", error: "Falha ao rodar a varredura." });
+  }
 });
 
 export default router;
