@@ -329,39 +329,6 @@ router.get("/partners/connect/callback", async (req, res): Promise<void> => {
   }
 });
 
-router.patch("/partners/admin/:id", async (req, res): Promise<void> => {
-  const session = req.session as any;
-  if (!session?.adminId) {
-    res.status(401).json({ error: "Não autenticado" });
-    return;
-  }
-
-  const params = UpdateInstagramPartnerParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const parsed = UpdateInstagramPartnerBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const [partner] = await db
-    .update(instagramPartnersTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(instagramPartnersTable.id, params.data.id))
-    .returning();
-
-  if (!partner) {
-    res.status(404).json({ error: "Parceiro não encontrado" });
-    return;
-  }
-
-  res.json(UpdateInstagramPartnerResponse.parse(partner));
-});
-
 // ─── Fila de conteúdo ────────────────────────────────────────────────────
 // O arquivo já foi enviado pelo parceiro (WhatsApp/e-mail) e subido pelo
 // admin via /media/upload — aqui só registra na fila. Entrar na fila já
@@ -633,6 +600,42 @@ router.get("/partners/admin/schedule-preview", async (req, res): Promise<void> =
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Falha ao gerar prévia." });
   }
+});
+
+// Genérica de propósito (:id) — precisa vir DEPOIS de toda rota PATCH mais
+// específica (schedule-settings, content/:id etc.), senão o Express casa
+// "schedule-settings" como se fosse o :id e devolve erro de "not a number".
+router.patch("/partners/admin/:id", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const params = UpdateInstagramPartnerParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = UpdateInstagramPartnerBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [partner] = await db
+    .update(instagramPartnersTable)
+    .set({ ...parsed.data, updatedAt: new Date() })
+    .where(eq(instagramPartnersTable.id, params.data.id))
+    .returning();
+
+  if (!partner) {
+    res.status(404).json({ error: "Parceiro não encontrado" });
+    return;
+  }
+
+  res.json(UpdateInstagramPartnerResponse.parse(partner));
 });
 
 export default router;
