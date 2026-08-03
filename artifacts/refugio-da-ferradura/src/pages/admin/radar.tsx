@@ -1,5 +1,5 @@
 import React from "react";
-import { BellRing, ExternalLink, Loader2, RefreshCw, Radar as RadarIcon } from "lucide-react";
+import { BellRing, ExternalLink, Loader2, RefreshCw, Radar as RadarIcon, X } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card } from "@/components/ui-elements";
 
@@ -32,6 +32,8 @@ export default function AdminRadar() {
   const [varrendo, setVarrendo] = React.useState(false);
   const [ultimoResultado, setUltimoResultado] = React.useState<ScanResult | null>(null);
   const [erroVarredura, setErroVarredura] = React.useState<string | null>(null);
+  const [removendo, setRemovendo] = React.useState<number | null>(null);
+  const [erroRemocao, setErroRemocao] = React.useState<string | null>(null);
 
   const carregar = React.useCallback(() => {
     setErro(false);
@@ -78,6 +80,20 @@ export default function AdminRadar() {
     }
   }
 
+  async function remover(id: number) {
+    setRemovendo(id);
+    setErroRemocao(null);
+    try {
+      const res = await fetch(`/api/radar/admin/${id}/descartar`, { method: "PATCH" });
+      if (!res.ok) throw new Error();
+      setRadar((atual) => (atual ? { ...atual, novidades: atual.novidades.filter((item) => item.id !== id) } : atual));
+    } catch {
+      setErroRemocao("Não foi possível remover esse item agora. Tente de novo.");
+    } finally {
+      setRemovendo(null);
+    }
+  }
+
   return (
     <AdminLayout>
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
@@ -96,6 +112,7 @@ export default function AdminRadar() {
       </div>
 
       {erroVarredura && <Card className="p-4 mb-6 text-destructive text-sm">{erroVarredura}</Card>}
+      {erroRemocao && <Card className="p-4 mb-6 text-destructive text-sm">{erroRemocao}</Card>}
       {ultimoResultado && (
         <Card className="p-4 mb-6 text-sm text-muted-foreground">
           {varrendo
@@ -124,7 +141,17 @@ export default function AdminRadar() {
                   {item.tipo === "noticia" ? "Notícia" : "Post de parceiro"}{item.fonte ? ` · ${item.fonte}` : ""} · {data(item.publicadoEm || item.encontradoEm)}
                 </p>
               </div>
-              <a className="text-primary text-sm flex items-center gap-1 whitespace-nowrap shrink-0" href={item.url} target="_blank" rel="noreferrer">Abrir <ExternalLink className="w-4 h-4" /></a>
+              <div className="flex items-center gap-3 shrink-0">
+                <a className="text-primary text-sm flex items-center gap-1 whitespace-nowrap" href={item.url} target="_blank" rel="noreferrer">Abrir <ExternalLink className="w-4 h-4" /></a>
+                <button
+                  onClick={() => remover(item.id)}
+                  disabled={removendo === item.id}
+                  title="Remover da lista"
+                  className="text-muted-foreground hover:text-destructive disabled:opacity-60 p-1"
+                >
+                  {removendo === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           ))}</div>}
         </Card>

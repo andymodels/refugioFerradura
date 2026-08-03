@@ -19,6 +19,9 @@ export const radarFindingsTable = pgTable("radar_findings", {
   parceiroId: integer("parceiro_id").references(() => instagramPartnersTable.id, { onDelete: "set null" }),
   publicadoEm: timestamp("publicado_em", { withTimezone: true }),
   encontradoEm: timestamp("encontrado_em", { withTimezone: true }).notNull().defaultNow(),
+  // Preenchido quando o admin remove o achado da lista (não usar / já usado).
+  // Some da listagem mas continua no banco pra não reaparecer numa varredura futura.
+  descartadoEm: timestamp("descartado_em", { withTimezone: true }),
 });
 
 export const insertRadarFindingSchema = createInsertSchema(radarFindingsTable).omit({ id: true, encontradoEm: true });
