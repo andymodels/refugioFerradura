@@ -40,7 +40,7 @@ router.post("/radar/admin/scan", async (req, res): Promise<void> => {
   }
 
   try {
-    const result = await runRadarScan();
+    const result = await runRadarScan({ incluirNoticias: req.body?.incluirNoticias !== false });
     res.json({ status: "ok", ...result });
   } catch (err) {
     logger.error({ err }, "[radar] Falha na varredura manual");

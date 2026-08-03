@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db, instagramPartnersTable, radarFindingsTable } from "@workspace/db";
-import { isNotNull, desc } from "drizzle-orm";
+import { isNotNull, desc, eq, sql } from "drizzle-orm";
 import { extractFeaturedMedia } from "./article-generation";
 import { searchInstagramPermalinks } from "./media-pipeline";
 import { logger } from "./logger";
@@ -68,48 +68,69 @@ export interface RadarScanResult {
   noticiasEncontradas: number;
   postsEncontrados: number;
   parceirosVarridos: number;
+  totalParceiros: number;
+  completo: boolean;
 }
+
+// Cloudflare corta a resposta em ~100s (erro 524) se o servidor demorar mais
+// que isso — varrer todos os parceiros numa só chamada, um por um com busca
+// na web, estoura esse limite facilmente. Por isso cada chamada processa só
+// o que couber dentro desse orçamento de tempo, e devolve `completo: false`
+// pra quem chamou saber que precisa chamar de novo (o botão e o cron fazem
+// isso em loop, até `completo: true`).
+const BATCH_TIME_BUDGET_MS = 45_000;
 
 // Varre notícias regionais + posts públicos recentes dos parceiros
 // cadastrados no painel — só descobre e registra achados novos (dedupe por
 // URL), nunca cria rascunho de post, nunca chama a API de publicação do
 // Instagram. Usada tanto pelo botão "Atualizar agora" (painel, sessão admin)
-// quanto pela rotina diária às 11h de Brasília (cron, CRON_SECRET).
-export async function runRadarScan(): Promise<RadarScanResult> {
+// quanto pela rotina diária às 11h de Brasília (cron, CRON_SECRET) — ambos
+// chamam repetidamente até a varredura ficar completa.
+export async function runRadarScan(options?: { incluirNoticias?: boolean }): Promise<RadarScanResult> {
+  const startedAt = Date.now();
+  const incluirNoticias = options?.incluirNoticias ?? true;
+
   const existing = await db
     .select({ url: radarFindingsTable.url, tipo: radarFindingsTable.tipo })
     .from(radarFindingsTable)
     .orderBy(desc(radarFindingsTable.id));
   const seen = new Set(existing.map((r) => r.url));
-  const recentNewsUrls = existing.filter((r) => r.tipo === "noticia").slice(0, 150).map((r) => r.url);
 
   let noticiasEncontradas = 0;
-  const noticias = await searchRegionalNews(recentNewsUrls);
-  for (const item of noticias) {
-    if (seen.has(item.url)) continue;
-    seen.add(item.url);
-    const publicadoEm = item.publicadoEm && !isNaN(Date.parse(item.publicadoEm)) ? new Date(item.publicadoEm) : null;
-    try {
-      await db.insert(radarFindingsTable).values({
-        tipo: "noticia",
-        titulo: item.titulo.slice(0, 300),
-        url: item.url,
-        fonte: item.fonte || new URL(item.url).hostname.replace(/^www\./, ""),
-        publicadoEm,
-      });
-      noticiasEncontradas++;
-    } catch (err) {
-      if (!isDuplicateKeyError(err)) logger.warn({ err, url: item.url }, "[radar] Falha ao gravar notícia");
+  if (incluirNoticias) {
+    const recentNewsUrls = existing.filter((r) => r.tipo === "noticia").slice(0, 150).map((r) => r.url);
+    const noticias = await searchRegionalNews(recentNewsUrls);
+    for (const item of noticias) {
+      if (seen.has(item.url)) continue;
+      seen.add(item.url);
+      const publicadoEm = item.publicadoEm && !isNaN(Date.parse(item.publicadoEm)) ? new Date(item.publicadoEm) : null;
+      try {
+        await db.insert(radarFindingsTable).values({
+          tipo: "noticia",
+          titulo: item.titulo.slice(0, 300),
+          url: item.url,
+          fonte: item.fonte || new URL(item.url).hostname.replace(/^www\./, ""),
+          publicadoEm,
+        });
+        noticiasEncontradas++;
+      } catch (err) {
+        if (!isDuplicateKeyError(err)) logger.warn({ err, url: item.url }, "[radar] Falha ao gravar notícia");
+      }
     }
   }
 
+  // Parceiros menos recentemente varridos primeiro, pra cada lote avançar
+  // por gente diferente em vez de sempre bater nos mesmos primeiros nomes.
   const partners = await db
     .select()
     .from(instagramPartnersTable)
-    .where(isNotNull(instagramPartnersTable.instagramHandle));
+    .where(isNotNull(instagramPartnersTable.instagramHandle))
+    .orderBy(sql`${instagramPartnersTable.ultimoPollEm} asc nulls first`);
 
   let postsEncontrados = 0;
+  let parceirosVarridos = 0;
   for (const partner of partners) {
+    if (Date.now() - startedAt > BATCH_TIME_BUDGET_MS) break;
     if (!partner.instagramHandle) continue;
     try {
       const permalinks = await searchInstagramPermalinks(partner.instagramHandle, partner.nomeEstabelecimento);
@@ -133,12 +154,20 @@ export async function runRadarScan(): Promise<RadarScanResult> {
       }
     } catch (err) {
       logger.warn({ err, partnerId: partner.id }, "[radar] Falha ao varrer parceiro");
+    } finally {
+      await db
+        .update(instagramPartnersTable)
+        .set({ ultimoPollEm: new Date() })
+        .where(eq(instagramPartnersTable.id, partner.id));
+      parceirosVarridos++;
     }
   }
 
+  const totalParceiros = partners.length;
+  const completo = parceirosVarridos >= totalParceiros;
   logger.info(
-    { noticiasEncontradas, postsEncontrados, parceirosVarridos: partners.length },
-    "[radar] Varredura concluída",
+    { noticiasEncontradas, postsEncontrados, parceirosVarridos, totalParceiros, completo },
+    "[radar] Lote de varredura concluído",
   );
-  return { noticiasEncontradas, postsEncontrados, parceirosVarridos: partners.length };
+  return { noticiasEncontradas, postsEncontrados, parceirosVarridos, totalParceiros, completo };
 }

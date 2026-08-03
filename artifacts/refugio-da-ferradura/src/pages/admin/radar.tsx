@@ -14,7 +14,13 @@ type Novidade = {
 };
 
 type RadarData = { novidades: Novidade[]; parceirosMonitorados: number; atualizadoEm: string };
-type ScanResult = { noticiasEncontradas: number; postsEncontrados: number; parceirosVarridos: number };
+type ScanResult = {
+  noticiasEncontradas: number;
+  postsEncontrados: number;
+  parceirosVarridos: number;
+  totalParceiros: number;
+  completo: boolean;
+};
 
 function data(value?: string | null) {
   return value ? new Date(value).toLocaleString("pt-BR") : "Data não informada";
@@ -43,11 +49,27 @@ export default function AdminRadar() {
     setVarrendo(true);
     setErroVarredura(null);
     setUltimoResultado(null);
+    const acumulado: ScanResult = { noticiasEncontradas: 0, postsEncontrados: 0, parceirosVarridos: 0, totalParceiros: 0, completo: false };
     try {
-      const res = await fetch("/api/radar/admin/scan", { method: "POST" });
-      if (!res.ok) throw new Error();
-      const result: ScanResult = await res.json();
-      setUltimoResultado(result);
+      // A varredura roda em lotes (cada chamada cobre só uma parte dos
+      // parceiros, pra não estourar o tempo de resposta) — repete
+      // automaticamente até `completo: true`, mostrando o total acumulado.
+      for (let lote = 0; lote < 15; lote++) {
+        const res = await fetch("/api/radar/admin/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ incluirNoticias: lote === 0 }),
+        });
+        if (!res.ok) throw new Error();
+        const result: ScanResult = await res.json();
+        acumulado.noticiasEncontradas += result.noticiasEncontradas;
+        acumulado.postsEncontrados += result.postsEncontrados;
+        acumulado.parceirosVarridos += result.parceirosVarridos;
+        acumulado.totalParceiros = result.totalParceiros;
+        acumulado.completo = result.completo;
+        setUltimoResultado({ ...acumulado });
+        if (result.completo) break;
+      }
       carregar();
     } catch {
       setErroVarredura("Não foi possível concluir a varredura agora. Tente de novo em instantes.");
@@ -74,9 +96,11 @@ export default function AdminRadar() {
       </div>
 
       {erroVarredura && <Card className="p-4 mb-6 text-destructive text-sm">{erroVarredura}</Card>}
-      {ultimoResultado && !varrendo && (
+      {ultimoResultado && (
         <Card className="p-4 mb-6 text-sm text-muted-foreground">
-          Varredura concluída: {ultimoResultado.noticiasEncontradas} notícia(s) e {ultimoResultado.postsEncontrados} post(s) de parceiro novos, entre {ultimoResultado.parceirosVarridos} parceiro(s) verificado(s).
+          {varrendo
+            ? `Varrendo... ${ultimoResultado.parceirosVarridos}/${ultimoResultado.totalParceiros} parceiro(s) verificado(s) até agora.`
+            : `Varredura concluída: ${ultimoResultado.noticiasEncontradas} notícia(s) e ${ultimoResultado.postsEncontrados} post(s) de parceiro novos, entre ${ultimoResultado.parceirosVarridos}/${ultimoResultado.totalParceiros} parceiro(s) verificado(s).`}
         </Card>
       )}
 

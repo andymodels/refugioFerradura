@@ -1212,7 +1212,7 @@ router.get("/radar-scan", async (req, res): Promise<void> => {
   }
 
   try {
-    const result = await runRadarScan();
+    const result = await runRadarScan({ incluirNoticias: req.query.incluirNoticias !== "false" });
     res.json({ status: "ok", ...result });
   } catch (err) {
     logger.error({ err }, "[cron] Falha na varredura diária do Radar");
