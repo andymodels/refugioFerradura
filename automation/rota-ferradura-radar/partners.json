@@ -1,0 +1,227 @@
+[
+  {
+    "nome": "Balaio Restaurante: Culinária Litorânea com Vista para a Pedra do Elefante",
+    "handle": "balaio.restaurante",
+    "status": "conferido"
+  },
+  {
+    "nome": "Bar e Restaurante do Ademir: Sabor e Tradição no Coração de Buenos Aires",
+    "handle": "rest.bardoademir",
+    "status": "conferido"
+  },
+  {
+    "nome": "Bosque das Pedras: um refúgio gastronômico em meio à natureza de Oratório",
+    "handle": "bosquedaspedras",
+    "status": "conferido"
+  },
+  {
+    "nome": "Boteco do Urso Beer: Cervejaria Artesanal e Chalés em Buenos Aires",
+    "handle": "botecodoursobeer",
+    "status": "conferido"
+  },
+  {
+    "nome": "Buena Villa Bistrô e Cervejaria Azzurra: Gastronomia Autoral em Buenos Aires",
+    "handle": "buenavillabistro",
+    "status": "conferido"
+  },
+  {
+    "nome": "Cachaça 3R: Alambique Artesanal desde 1990 em Barra do Limão",
+    "handle": "cachaca3r",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Cachoeira do Barbudo: A Queda D'Água Escondida em Buenos Aires",
+    "handle": "canalcomendoomundo",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Café com Foto: Cafeteria com Vista para a Pedra do Elefante",
+    "handle": "cafecomfoto.cafeteria",
+    "status": "conferido"
+  },
+  {
+    "nome": "Cantinho da Nonoca: Casa de Temporada às Margens do Rio Jabuti",
+    "handle": "cantinhodanonoca",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Cantinho da Tilápia: Restaurante Temático em Boa Esperança",
+    "handle": "cantinho.da.tilapia.oficial",
+    "status": "conferido"
+  },
+  {
+    "nome": "Cantinho do Job: Refúgio de Natureza e Eventos em Buenos Aires",
+    "handle": "recantodovovojob",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Casa da Figueira Café: Café Colonial na Br 101, km 339",
+    "handle": "casadafigueiracafe",
+    "status": "autorizado_repost"
+  },
+  {
+    "nome": "Cervejaria Speranza: Fábrica de Cervejas em Boa Esperança",
+    "handle": "cervejariasperanza",
+    "status": "conferido"
+  },
+  {
+    "nome": "Chalés da Ferradura: Hospedagem em Buenos Aires",
+    "handle": "chalesdaferradura",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Chalés da Figueira: Hidromassagem com Vista para as Montanhas em Jabuti",
+    "handle": "chalesfigueira",
+    "status": "conferido"
+  },
+  {
+    "nome": "Chalés das Goiabas: Hospedagem de Montanha em Buenos Aires",
+    "handle": "chalesdasgoiabas",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Dona Cotinha Pizzaria e Restaurante: Sabor Caseiro no Coração de Buenos Aires",
+    "handle": "donacotinharestepizzaria",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Empório Gramado: um pedaço da serra gaúcha na Rota da Ferradura",
+    "handle": "emporiogramadorsvix",
+    "status": "autorizado_repost"
+  },
+  {
+    "nome": "Estância Vila Anunciatta: Alambique, Cachaçaria e Pousada em Buenos Aires",
+    "handle": "estanciavilaanunciatta",
+    "status": "conferido"
+  },
+  {
+    "nome": "Hostel Sítio Moinho D'Água: hospedagem simples e acolhedora em Oratório",
+    "handle": "pousadamoinhodaguaguarapari",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Laticínios Marques: Queijo Frescal Artesanal em São João de Jabuti",
+    "handle": "sabordocamponatural",
+    "status": "encontrado"
+  },
+  {
+    "nome": "O Pereira Bar: Restaurante à Beira do Rio em Boa Esperança",
+    "handle": "opereira.oficial",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Quilombo Alto Iguape: Cultura e Tradição Quilombola na Rota da Ferradura",
+    "handle": "quilomboaltoiguape",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Rancho do Osmar: Hospedagem para Grupos em Boa Esperança",
+    "handle": "ranchodoosmar",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Restaurante Caminito Coccina Argentina: um pedaço da Argentina na Rota da Ferradura",
+    "handle": "lasmontanhasdelcaminito",
+    "status": "conferido"
+  },
+  {
+    "nome": "Restaurante Colher de Pau: Comida Brasileira à La Carte em Buenos Aires",
+    "handle": "colherdepaurestaurant",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Restaurante Planos de Deus: Comida Caseira e Hospedagem em Arraial de Jabuti",
+    "handle": "restauranteplanosdedeus",
+    "status": "autorizado_repost"
+  },
+  {
+    "nome": "Restaurante Vista da Floresta: Culinária Brasileira em Boa Esperança",
+    "handle": "vistadafloresta",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Buiú Eventos: Festas e Pousada à Beira do Rio Jabuti",
+    "handle": "buiueventos_",
+    "status": "conferido"
+  },
+  {
+    "nome": "Sítio Cantinho da Paz Suítes: Hospedagem e Canjiquinha em Boa Esperança",
+    "handle": "sitio.cantinho.da.paz.027",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Costa do Riacho: Espaço para Retiros e Eventos nas Montanhas de Guarapari",
+    "handle": "costadoriacho",
+    "status": "conferido"
+  },
+  {
+    "nome": "Sítio Paraíso Tropical: Mata Atlântica e Cachoeira no Alto Jabuti",
+    "handle": "sitioparaisotropical",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Raio de Luz: Aluguel para Grupos em Boa Esperança",
+    "handle": "sitioraiodeluz",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Recanto dos Lagos: Hospedagem com Lagos e Trilhas em Buenos Aires",
+    "handle": "sitiorecantodoslagos",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Retiro Rancho Novo I: acolhimento e espiritualidade no coração de Oratório",
+    "handle": "sitioretiroranchonovo",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Riacho das Pedras: Local  para Eventos em Boa Esperança",
+    "handle": "riachodaspedras",
+    "status": "conferido"
+  },
+  {
+    "nome": "Sítio Vai Saber: Estrutura para Grandes Grupos em Arraial do Jabuti",
+    "handle": "sitiovaisaber",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Vale a Pena Ver de Perto: Temporada à Beira do Rio Jabuti",
+    "handle": "sitiovaleverdeperto",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Vale da Realeza: Resort para Eventos e Grupos em Boa Esperança",
+    "handle": "sitiovalerealeza",
+    "status": "conferido"
+  },
+  {
+    "nome": "Sítio Vista Mar: Hospedagem em Casa de Campo em Guarapari",
+    "handle": "sitiovistamar",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Vovô Vitorino: Hospedagem para Grupos em Buenos Aires",
+    "handle": "vovo.vitorino",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Sítio Wandekoken: Aluguel de Temporada para Grupos em Arraial de Jabuti",
+    "handle": "sitiowandekoken",
+    "status": "autorizado_repost"
+  },
+  {
+    "nome": "Topo do Céu Hotel Resort: Aventura e Vista para o Oceano em Boa Esperança",
+    "handle": "topodoceuvalley",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Topo do Soly: refúgio de natureza e vista panorâmica em Buenos Aires",
+    "handle": "otopodosoly",
+    "status": "encontrado"
+  },
+  {
+    "nome": "Vila Anunciata: Tradição, Arte e Sabor no Coração de Buenos Aires",
+    "handle": "vilaanunciattacafeechopp",
+    "status": "conferido"
+  }
+]
