@@ -226,10 +226,14 @@ router.post("/partners/admin/:id/upload-link", async (req, res): Promise<void> =
 router.get("/partners/upload/:token", async (req, res): Promise<void> => {
   const [partner] = await db
     .select({
+      id: instagramPartnersTable.id,
       nomeEstabelecimento: instagramPartnersTable.nomeEstabelecimento,
       status: instagramPartnersTable.status,
       pausado: instagramPartnersTable.pausado,
       autorizacaoStories: instagramPartnersTable.autorizacaoStories,
+      autorizacaoFotos: instagramPartnersTable.autorizacaoFotos,
+      autorizacaoVideosReels: instagramPartnersTable.autorizacaoVideosReels,
+      igUserId: instagramPartnersTable.igUserId,
     })
     .from(instagramPartnersTable)
     .where(eq(instagramPartnersTable.uploadToken, String(req.params.token)));
@@ -239,7 +243,19 @@ router.get("/partners/upload/:token", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetPartnerUploadInfoResponse.parse({ nomeEstabelecimento: partner.nomeEstabelecimento, autorizacaoStories: partner.autorizacaoStories }));
+  const conectado = !!partner.igUserId;
+  const precisaConectar = !conectado && (partner.autorizacaoFotos || partner.autorizacaoVideosReels);
+
+  res.json(
+    GetPartnerUploadInfoResponse.parse({
+      nomeEstabelecimento: partner.nomeEstabelecimento,
+      autorizacaoStories: partner.autorizacaoStories,
+      autorizacaoFotos: partner.autorizacaoFotos,
+      autorizacaoVideosReels: partner.autorizacaoVideosReels,
+      conectado,
+      connectUrl: precisaConectar ? buildPartnerConnectUrl(partner.id) : null,
+    }),
+  );
 });
 
 router.post("/partners/upload/:token", publicUpload.single("file"), async (req, res): Promise<void> => {

@@ -9,4 +9,9 @@
 export interface PartnerUploadInfoResponse {
   nomeEstabelecimento: string;
   autorizacaoStories: boolean;
+  autorizacaoFotos: boolean;
+  autorizacaoVideosReels: boolean;
+  conectado: boolean;
+  /** @nullable */
+  connectUrl?: string | null;
 }

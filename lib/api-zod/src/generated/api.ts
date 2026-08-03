@@ -744,6 +744,10 @@ export const GetPartnerUploadInfoParams = zod.object({
 export const GetPartnerUploadInfoResponse = zod.object({
   nomeEstabelecimento: zod.string(),
   autorizacaoStories: zod.boolean(),
+  autorizacaoFotos: zod.boolean(),
+  autorizacaoVideosReels: zod.boolean(),
+  conectado: zod.boolean(),
+  connectUrl: zod.string().nullish(),
 });
 
 /**

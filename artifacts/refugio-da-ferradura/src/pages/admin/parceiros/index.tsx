@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "wouter";
-import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play, Link2, Unlink, Copy } from "lucide-react";
+import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play, Link2, Unlink } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui-elements";
 import {
@@ -8,7 +8,6 @@ import {
   useScanInstagramPartners,
   useUpdateInstagramPartner,
   useCreateInstagramPartner,
-  useCreatePartnerConnectLink,
   useDisconnectPartner,
   useCreatePartnerUploadLink,
 } from "@workspace/api-client-react";
@@ -53,7 +52,6 @@ export default function AdminPartners() {
   const scanMutation = useScanInstagramPartners();
   const updateMutation = useUpdateInstagramPartner();
   const createMutation = useCreateInstagramPartner();
-  const connectLinkMutation = useCreatePartnerConnectLink();
   const disconnectMutation = useDisconnectPartner();
   const uploadLinkMutation = useCreatePartnerUploadLink();
   const queryClient = useQueryClient();
@@ -101,16 +99,6 @@ export default function AdminPartners() {
     }
   };
 
-  const handleConnect = async (id: number) => {
-    try {
-      const result = await connectLinkMutation.mutateAsync({ id });
-      window.open(result.url, "_blank", "noopener,noreferrer");
-      toast({ title: "Link de conexão aberto", description: "Peça pro parceiro fazer login e autorizar na aba que abriu." });
-    } catch (e: any) {
-      toast({ title: "Erro ao gerar link", description: e?.message, variant: "destructive" });
-    }
-  };
-
   const handleDisconnect = async (id: number) => {
     if (!confirm("Desconectar a conta do Instagram desse parceiro? Ele para de ter conteúdo descoberto automaticamente.")) return;
     try {
@@ -122,11 +110,14 @@ export default function AdminPartners() {
     }
   };
 
-  const handleCopyUploadLink = async (id: number) => {
+  const handleCopyInviteLink = async (id: number) => {
     try {
       const result = await uploadLinkMutation.mutateAsync({ id });
       await navigator.clipboard.writeText(result.url);
-      toast({ title: "Link copiado", description: "Manda esse link pro parceiro enviar Stories direto pra fila dele." });
+      toast({
+        title: "Link copiado",
+        description: "Manda esse link pro parceiro — ele conecta o Instagram e/ou envia Stories, tudo na mesma página.",
+      });
     } catch (e: any) {
       toast({ title: "Erro ao gerar link", description: e?.message, variant: "destructive" });
     }
@@ -296,7 +287,7 @@ export default function AdminPartners() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1.5 text-xs">
-                          {p.conectadoEm ? (
+                          {p.conectadoEm && (
                             <div className="flex items-center gap-1.5">
                               <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">
                                 Conectado{p.igUsername ? ` @${p.igUsername}` : ""}
@@ -305,25 +296,17 @@ export default function AdminPartners() {
                                 <Unlink className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          ) : p.status === "autorizado_repost" ? (
+                          )}
+                          {p.status === "autorizado_repost" ? (
                             <button
-                              onClick={() => handleConnect(p.id)}
-                              disabled={connectLinkMutation.isPending}
+                              onClick={() => handleCopyInviteLink(p.id)}
+                              disabled={uploadLinkMutation.isPending}
                               className="flex items-center gap-1 text-primary hover:underline w-fit"
                             >
-                              <Link2 className="w-3.5 h-3.5" /> Conectar Instagram
+                              <Link2 className="w-3.5 h-3.5" /> {p.conectadoEm ? "Copiar link do parceiro" : "Copiar convite"}
                             </button>
                           ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                          {p.status === "autorizado_repost" && p.autorizacaoStories && (
-                            <button
-                              onClick={() => handleCopyUploadLink(p.id)}
-                              disabled={uploadLinkMutation.isPending}
-                              className="flex items-center gap-1 text-muted-foreground hover:text-primary w-fit"
-                            >
-                              <Copy className="w-3.5 h-3.5" /> Link de Stories
-                            </button>
+                            !p.conectadoEm && <span className="text-muted-foreground">—</span>
                           )}
                         </div>
                       </td>

@@ -1402,9 +1402,20 @@ components:
           type: string
         autorizacaoStories:
           type: boolean
+        autorizacaoFotos:
+          type: boolean
+        autorizacaoVideosReels:
+          type: boolean
+        conectado:
+          type: boolean
+        connectUrl:
+          type: ["string", "null"]
       required:
         - nomeEstabelecimento
         - autorizacaoStories
+        - autorizacaoFotos
+        - autorizacaoVideosReels
+        - conectado
 
     MediaUploadResponse:
       type: object
