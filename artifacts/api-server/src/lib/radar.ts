@@ -137,7 +137,14 @@ export async function runRadarScan(options?: { incluirNoticias?: boolean }): Pro
       for (const link of permalinks) {
         if (seen.has(link)) continue;
         seen.add(link);
+        // O post achado pela busca às vezes já saiu do ar (apagado, virou
+        // privado, ou o link que a busca indexou está errado) — Instagram
+        // devolve HTTP 200 mesmo assim, só sem og:image/og:video reais.
+        // Sem confirmar que a página realmente resolve pra conteúdo, o link
+        // aparece no Radar mas mostra "Esta página não está disponível" pro
+        // usuário. Só registra o achado se a checagem confirmar conteúdo.
         const media = await extractFeaturedMedia(link).catch(() => null);
+        if (!media?.imageUrl && !media?.videoUrl) continue;
         try {
           await db.insert(radarFindingsTable).values({
             tipo: "parceiro_post",
