@@ -15,8 +15,11 @@ export default function PrivacyPolicy() {
 
         <div className="post-content text-base leading-relaxed space-y-6">
           <p>
-            O Refúgio da Ferradura é um guia de turismo da Rota da Ferradura, em Guarapari-ES. Esta página explica,
-            em linguagem simples, quais dados coletamos, por que coletamos e o que fazemos (e não fazemos) com eles.
+            O Refúgio da Ferradura é um guia de turismo da Rota da Ferradura, em Guarapari-ES, operado pela{" "}
+            <strong>Mega Studio Ltda.</strong> (CNPJ 01.553.737/0001-02), responsável pelo site, pelo aplicativo de
+            integração com o Instagram e pelo tratamento dos dados dos parceiros que conectarem voluntariamente suas
+            contas. Esta página explica, em linguagem simples, quais dados coletamos, por que coletamos e o que
+            fazemos (e não fazemos) com eles.
           </p>
 
           <h2>Visitantes do site</h2>
@@ -46,6 +49,11 @@ export default function PrivacyPolicy() {
             A API oficial do Instagram não permite, sob nenhuma hipótese, que a gente leia Stories de nenhuma conta
             — nem da própria conta conectada. Por isso, conteúdo de Stories só entra em nosso sistema quando o
             próprio parceiro envia diretamente, pelo link pessoal que disponibilizamos a ele.
+          </p>
+          <p>
+            Em resumo: os dados e conteúdos do parceiro são usados <strong>somente</strong> para organizar e
+            divulgar, no Refúgio da Ferradura, o conteúdo que ele mesmo autorizou — sempre com crédito ao perfil
+            original, nunca pra qualquer outra finalidade.
           </p>
 
           <h2>O que NÃO fazemos</h2>
@@ -90,7 +98,8 @@ export default function PrivacyPolicy() {
 
           <h2>Contato</h2>
           <p>
-            Dúvidas sobre esta política: <a href="mailto:refugioferradura@gmail.com">refugioferradura@gmail.com</a>.
+            Mega Studio Ltda. (CNPJ 01.553.737/0001-02) — dúvidas sobre esta política:{" "}
+            <a href="mailto:refugioferradura@gmail.com">refugioferradura@gmail.com</a>.
           </p>
         </div>
       </article>

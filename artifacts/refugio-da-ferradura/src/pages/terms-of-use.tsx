@@ -17,8 +17,8 @@ export default function TermsOfUse() {
           <h2>1. Sobre o site</h2>
           <p>
             O Refúgio da Ferradura (refugioferradura.com.br) é um guia informativo e gratuito de turismo da Rota da
-            Ferradura, em Guarapari-ES, mantido de forma independente. Ao usar o site, você concorda com estes
-            termos.
+            Ferradura, em Guarapari-ES, operado pela <strong>Mega Studio Ltda.</strong> (CNPJ 01.553.737/0001-02).
+            Ao usar o site, você concorda com estes termos.
           </p>
 
           <h2>2. Conteúdo do blog</h2>
@@ -71,7 +71,8 @@ export default function TermsOfUse() {
 
           <h2>7. Contato</h2>
           <p>
-            Dúvidas sobre estes termos: <a href="mailto:refugioferradura@gmail.com">refugioferradura@gmail.com</a>.
+            Mega Studio Ltda. (CNPJ 01.553.737/0001-02) — dúvidas sobre estes termos:{" "}
+            <a href="mailto:refugioferradura@gmail.com">refugioferradura@gmail.com</a>.
           </p>
         </div>
       </article>
