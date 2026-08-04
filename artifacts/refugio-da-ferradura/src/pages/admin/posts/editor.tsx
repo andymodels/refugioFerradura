@@ -482,7 +482,7 @@ export default function AdminPostEditor() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6 bg-[#0a0a0a] min-h-screen text-white">
+      <div className="p-4 sm:p-6 space-y-6 bg-[#0a0a0a] min-h-screen text-white">
 
         {/* Local draft available banner — never applied automatically, to avoid
             a stale browser draft silently overwriting newer content saved by

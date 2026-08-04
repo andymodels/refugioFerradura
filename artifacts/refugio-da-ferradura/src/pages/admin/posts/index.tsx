@@ -63,20 +63,20 @@ export default function AdminPosts() {
 
   return (
     <AdminLayout>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-serif font-bold text-foreground">Postagens</h1>
           <p className="text-muted-foreground mt-1">Gerencie o conteúdo do blog</p>
         </div>
         <Link href="/admin/posts/novo">
-          <Button className="flex items-center gap-2">
+          <Button className="flex items-center gap-2 w-full sm:w-auto justify-center">
             <Plus className="w-4 h-4" /> Nova Postagem
           </Button>
         </Link>
       </div>
 
       {pendingDraft && (
-        <div className="mb-6 flex items-center justify-between gap-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
           <div className="flex items-center gap-2 text-amber-800">
             <FileEdit className="w-4 h-4 shrink-0" />
             <span>
@@ -100,7 +100,78 @@ export default function AdminPosts() {
         </div>
       )}
 
-      <Card className="overflow-hidden">
+      {/* Lista em cartões — celular/tablet, toque em vez de ícones minúsculos */}
+      <Card className="overflow-hidden md:hidden">
+        {isLoading ? (
+          <p className="text-center py-8 text-muted-foreground">Carregando...</p>
+        ) : posts.length === 0 ? (
+          <p className="text-center py-8 text-muted-foreground">Nenhuma postagem encontrada.</p>
+        ) : (
+          <div className="divide-y divide-border">
+            {posts.map((post) => (
+              <div key={post.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-medium text-foreground leading-snug">{post.title}</p>
+                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${post.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                    {post.status === 'published' ? 'Publicado' : 'Rascunho'}
+                  </span>
+                </div>
+
+                {(post.tags ? JSON.parse(post.tags) : []).length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {(post.tags ? JSON.parse(post.tags) : []).slice(0, 3).map((t: string) => (
+                      <span key={t} className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full capitalize">{t}</span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{new Date(post.createdAt).toLocaleDateString('pt-BR')}</span>
+                  {post.instagramPostedAt ? (
+                    <span className="text-green-700 font-medium">
+                      IG em {new Date(post.instagramPostedAt).toLocaleDateString('pt-BR')}
+                    </span>
+                  ) : post.status === 'published' ? (
+                    <span className="text-gray-500">IG pendente</span>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  {post.status === 'published' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-1.5"
+                      onClick={() => handlePublishInstagram(post.id, post.title, !!post.instagramPostedAt)}
+                      disabled={publishInstagramMutation.isPending}
+                    >
+                      <Instagram className="w-4 h-4" /> Instagram
+                    </Button>
+                  )}
+                  <Link href={`/admin/posts/${post.id}/editar`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full gap-1.5">
+                      <Edit className="w-4 h-4" /> Editar
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 gap-1.5 px-3"
+                    onClick={() => handleDelete(post.id)}
+                    disabled={deleteMutation.isPending}
+                    aria-label="Excluir"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Tabela — telas médias/grandes */}
+      <Card className="overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">

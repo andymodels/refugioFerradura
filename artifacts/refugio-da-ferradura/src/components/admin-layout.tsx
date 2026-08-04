@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, Image as ImageIcon, Settings, LogOut, ArrowLeft, Rss, Users, Sparkles, Radar } from "lucide-react";
+import { LayoutDashboard, FileText, Image as ImageIcon, Settings, LogOut, ArrowLeft, Rss, Users, Sparkles, Radar, Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "./ui-elements";
 
@@ -9,6 +9,12 @@ const logoImg = `${import.meta.env.BASE_URL}images/logo-refugio.png`;
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logout, isLoading } = useAuth();
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
+  // Fecha o menu (off-canvas no celular) sempre que a rota muda.
+  React.useEffect(() => {
+    setMenuOpen(false);
+  }, [location]);
 
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-muted/30">Carregando...</div>;
@@ -32,15 +38,53 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-muted/20">
-      {/* Sidebar */}
-      <aside className="w-64 bg-card border-r border-border flex flex-col fixed inset-y-0 z-10">
+      {/* Barra superior só no celular/tablet — a sidebar fixa vira menu off-canvas */}
+      <header className="lg:hidden fixed top-0 inset-x-0 z-20 h-14 bg-card border-b border-border flex items-center justify-between px-4">
+        <div className="flex items-center gap-2.5">
+          <img src={logoImg} alt="Refúgio da Ferradura" className="h-8 w-8 rounded-full object-cover shadow-sm" />
+          <p className="font-serif font-semibold text-sm text-foreground">Painel Admin</p>
+        </div>
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="p-2 -mr-2 text-foreground"
+          aria-label="Abrir menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </header>
+
+      {/* Fundo escurecido atrás do menu off-canvas */}
+      {menuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-30 bg-black/50"
+          onClick={() => setMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — fixa no desktop, menu deslizante (off-canvas) no celular/tablet */}
+      <aside
+        className={cn(
+          "w-64 bg-card border-r border-border flex flex-col fixed inset-y-0 z-40 transition-transform duration-200 ease-out",
+          "lg:translate-x-0",
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
         <div className="p-5 border-b border-border">
-          <div className="flex items-center gap-3 mb-4">
-            <img src={logoImg} alt="Refúgio da Ferradura" className="h-11 w-11 rounded-full object-cover shadow-sm" />
-            <div>
-              <p className="font-serif font-semibold text-sm text-foreground leading-tight">Refúgio da Ferradura</p>
-              <p className="text-xs text-muted-foreground">Painel Admin</p>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <img src={logoImg} alt="Refúgio da Ferradura" className="h-11 w-11 rounded-full object-cover shadow-sm" />
+              <div>
+                <p className="font-serif font-semibold text-sm text-foreground leading-tight">Refúgio da Ferradura</p>
+                <p className="text-xs text-muted-foreground">Painel Admin</p>
+              </div>
             </div>
+            <button
+              onClick={() => setMenuOpen(false)}
+              className="lg:hidden p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Fechar menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
           <Link href="/" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -91,8 +135,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-64 min-h-screen">
-        <div className="p-8 max-w-6xl mx-auto">
+      <main className="flex-1 lg:ml-64 min-h-screen pt-14 lg:pt-0">
+        <div className="p-4 md:p-8 max-w-6xl mx-auto">
           {children}
         </div>
       </main>
