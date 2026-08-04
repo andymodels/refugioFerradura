@@ -6,7 +6,7 @@ import { Button, Label, Card, Textarea } from "@/components/ui-elements";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store, ClipboardPaste, Archive } from "lucide-react";
+import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store } from "lucide-react";
 
 const PREDEFINED_TAGS = [
   { id: "lugares", label: "Lugares", icon: MapPin },
@@ -38,137 +38,8 @@ function draftKey(id: string | undefined) {
   return DRAFT_PREFIX + (id || "new");
 }
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"]/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;",
-  })[char] || char);
-}
-
 function isInstagramPostUrl(url: string) {
   return /instagram\.com\/(p|reel|tv)\//i.test(url);
-}
-
-function instagramPermalink(url: string) {
-  const match = url.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/i);
-  return match ? `https://www.instagram.com/${match[1]}/${match[2]}/` : null;
-}
-
-async function archiveInstagramEmbeds(html: string) {
-  const holder = document.createElement("div");
-  holder.innerHTML = html;
-  const frames = Array.from(holder.querySelectorAll<HTMLIFrameElement>('iframe[data-embed-type="instagram"]'));
-  if (!frames.length) return { html, count: 0 };
-
-  for (const frame of frames) {
-    const sourceUrl = instagramPermalink(frame.src);
-    if (!sourceUrl) throw new Error("Um dos links do Instagram é inválido.");
-    const response = await fetch("/api/media/import-instagram", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: sourceUrl }),
-    });
-    const media = await response.json();
-    if (!response.ok) throw new Error(media.error || "Não foi possível arquivar uma mídia.");
-
-    const figure = document.createElement("figure");
-    const link = document.createElement("a");
-    link.href = sourceUrl;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    if (media.type === "video") {
-      figure.className = "instagram-editorial-video";
-      const video = document.createElement("video");
-      video.controls = true;
-      video.playsInline = true;
-      video.preload = "metadata";
-      video.src = media.url;
-      figure.appendChild(video);
-      const badge = document.createElement("a");
-      badge.className = "instagram-editorial-video-badge";
-      badge.href = sourceUrl;
-      badge.target = "_blank";
-      badge.rel = "noopener noreferrer";
-      badge.textContent = "Instagram oficial ↗";
-      figure.appendChild(badge);
-    } else {
-      figure.className = "instagram-editorial-photo";
-      const image = document.createElement("img");
-      image.src = media.url;
-      image.alt = "";
-      image.loading = "lazy";
-      link.appendChild(image);
-      figure.appendChild(link);
-    }
-    frame.closest(".video-embed-wrap")?.replaceWith(figure);
-  }
-  return { html: holder.innerHTML, count: frames.length };
-}
-
-function formatInlineMarkdown(value: string) {
-  let html = escapeHtml(value);
-  html = html.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (_, label, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`,
-  );
-  return html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-}
-
-function importArticleText(source: string) {
-  const lines = source.replace(/\r\n/g, "\n").split("\n");
-  let title = "";
-  const blocks: string[] = [];
-  let paragraph: string[] = [];
-  let listItems: string[] = [];
-
-  const flushParagraph = () => {
-    if (paragraph.length) {
-      blocks.push(`<p>${formatInlineMarkdown(paragraph.join(" "))}</p>`);
-      paragraph = [];
-    }
-  };
-  const flushList = () => {
-    if (listItems.length) {
-      blocks.push(`<ul>${listItems.map((item) => `<li>${formatInlineMarkdown(item)}</li>`).join("")}</ul>`);
-      listItems = [];
-    }
-  };
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-    if (!title && /^#\s+/.test(line)) {
-      title = line.replace(/^#\s+/, "").trim();
-      continue;
-    }
-    if (/^##\s+/.test(line)) {
-      flushParagraph();
-      flushList();
-      blocks.push(`<h2>${formatInlineMarkdown(line.replace(/^##\s+/, ""))}</h2>`);
-      continue;
-    }
-    if (/^>\s*/.test(line)) {
-      flushParagraph();
-      flushList();
-      blocks.push(`<blockquote>${formatInlineMarkdown(line.replace(/^>\s*/, ""))}</blockquote>`);
-      continue;
-    }
-    if (/^-\s+/.test(line)) {
-      flushParagraph();
-      listItems.push(line.replace(/^-\s+/, ""));
-      continue;
-    }
-    flushList();
-    paragraph.push(line);
-  }
-  flushParagraph();
-  flushList();
-
-  return { title, content: blocks.join("") };
 }
 
 export default function AdminPostEditor() {
@@ -179,13 +50,11 @@ export default function AdminPostEditor() {
 
   const [aiUrl, setAiUrl] = useState("");
   const [aiInstructions, setAiInstructions] = useState("");
-  const [articleImport, setArticleImport] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiPhotos, setAiPhotos] = useState<File[]>([]);
   const [aiCreating, setAiCreating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [archivingMedia, setArchivingMedia] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [pendingLocalDraft, setPendingLocalDraft] = useState<Record<string, any> | null>(null);
 
@@ -206,20 +75,6 @@ export default function AdminPostEditor() {
 
   const currentStatus = watch("status");
   const selectedTags = (watch("tags") as string[]) || [];
-
-  const archiveArticleMedia = async () => {
-    setArchivingMedia(true);
-    try {
-      const result = await archiveInstagramEmbeds(getValues("content") || "");
-      if (!result.count) throw new Error("Não há links do Instagram para arquivar neste artigo.");
-      setValue("content", result.html, { shouldDirty: true });
-      toast({ title: `${result.count} mídia(s) arquivada(s) no Cloudinary` });
-    } catch (error: any) {
-      toast({ title: "A mídia não foi arquivada", description: error.message, variant: "destructive" });
-    } finally {
-      setArchivingMedia(false);
-    }
-  };
 
   const toggleTag = (id: string) => {
     const next = selectedTags.includes(id)
@@ -415,22 +270,6 @@ export default function AdminPostEditor() {
     }
   };
 
-  const handleArticleImport = () => {
-    const imported = importArticleText(articleImport);
-    if (!imported.title || !imported.content) {
-      toast({ title: "Cole um artigo com título e conteúdo", variant: "destructive" });
-      return;
-    }
-    const plainText = imported.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-    setValue("title", imported.title);
-    setValue("content", imported.content);
-    setValue("excerpt", plainText.slice(0, 160));
-    setValue("metaDescription", plainText.slice(0, 150));
-    setValue("slug", slugify(imported.title).slice(0, 60));
-    setArticleImport("");
-    toast({ title: "Artigo importado — confira e salve como rascunho ou publicado." });
-  };
-
   const onSubmit = async (data: any) => {
     setSaving(true);
     try {
@@ -510,32 +349,6 @@ export default function AdminPostEditor() {
             </span>
           </div>
         )}
-
-        {/* Paste-ready article importer */}
-        <div className="bg-emerald-500/5 border border-emerald-400/20 rounded-xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-widest">
-            <ClipboardPaste className="w-3.5 h-3.5" />
-            Colar artigo pronto
-          </div>
-          <p className="text-white/50 text-[11px] leading-relaxed">
-            Cole o artigo em texto simples. Links do Instagram entram como texto, sem virar embed — depois de importar, use o botão do Instagram na barra de ferramentas do editor pra inserir a foto/vídeo de verdade no lugar certo. O botão "Arquivar mídias" abaixo só é útil pra HTML colado que já tenha embeds antigos do Instagram.
-          </p>
-          <Textarea
-            value={articleImport}
-            onChange={(event) => setArticleImport(event.target.value)}
-            rows={8}
-            placeholder={'# Título do artigo\n\nTexto de abertura.\n\nMais texto...'}
-            className="bg-black/40 border-white/10 text-sm placeholder:text-white/20"
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={handleArticleImport} className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white">
-              <ClipboardPaste className="w-4 h-4" /> Importar para o editor
-            </Button>
-            <Button type="button" onClick={archiveArticleMedia} isLoading={archivingMedia} className="flex items-center gap-2">
-              <Archive className="w-4 h-4" /> Arquivar mídias no Cloudinary
-            </Button>
-          </div>
-        </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
