@@ -347,47 +347,54 @@
   margin: 0 !important;
 }
 
-/* ── Image carousel (published) ── */
-.post-content .image-carousel-block {
-  display: flex;
-  gap: 0.75rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding-bottom: 6px;
-  margin: 1rem 0;
-  border-radius: 0.75rem;
-}
-.post-content .carousel-slide-img {
-  flex: 0 0 auto;
-  height: clamp(220px, 55vw, 420px);
-  width: auto;
-  max-width: 90%;
-  object-fit: contain;
-  border-radius: 0.75rem;
-  scroll-snap-align: start;
-  margin: 0 !important;
-  background: var(--color-muted);
-}
-/* ── Video carousel (published) — mesmo tratamento do carrossel de fotos ── */
+/* ── Carrossel de fotos/vídeos (publicado) — estilo Instagram: um item por
+   vez, ocupando o espaço de acordo com a própria proporção (retrato ou
+   paisagem), em vez da faixa horizontal antiga com vários itens pequenos
+   lado a lado. Troca de slide é feita por enhanceCarousels (blog-post.tsx). ── */
+.post-content .image-carousel-block,
 .post-content .video-carousel-block {
   display: flex;
-  gap: 0.75rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding-bottom: 6px;
+  justify-content: center;
+  align-items: center;
   margin: 1rem 0;
   border-radius: 0.75rem;
+  overflow: hidden;
 }
-.post-content .carousel-slide-video {
-  flex: 0 0 auto;
-  height: clamp(220px, 55vw, 420px);
+.post-content .image-carousel-block { background: var(--color-muted); }
+.post-content .video-carousel-block { background: #000; }
+
+.post-content .carousel-slide {
+  display: none;
+  height: clamp(260px, 70vh, 640px);
   width: auto;
-  max-width: 90%;
-  object-fit: contain;
-  border-radius: 0.75rem;
-  scroll-snap-align: start;
+  max-width: 100%;
   margin: 0 !important;
-  background: #000;
+}
+.post-content .carousel-slide.is-active {
+  display: block;
+}
+.post-content .carousel-slide-img { object-fit: contain; background: var(--color-muted); }
+.post-content .carousel-slide-video { background: #000; }
+.post-content .carousel-dots {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  gap: 0.4rem;
+}
+.post-content .carousel-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.post-content .carousel-dot.is-active {
+  background: #fff;
+  transform: scale(1.2);
 }
 .post-content .carousel-wrap {
   position: relative;

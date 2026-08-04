@@ -44,43 +44,71 @@ function renderInstagramEmbeds(html: string): string {
   return holder.innerHTML;
 }
 
-// O carrossel publicado (fotos ou vídeos) é só uma faixa com scroll
-// horizontal — sem nenhuma pista visual de que dá pra ver mais itens. Envolve
-// cada carrossel com setas clicáveis (funcionam em toque e em mouse) que
-// rolam a faixa.
+// Carrossel publicado (fotos ou vídeos), estilo Instagram: um item por vez,
+// ocupando o espaço de acordo com a própria proporção (retrato ou
+// paisagem), com setas e bolinhas pra trocar — em vez da faixa horizontal
+// antiga, que deixava vários itens pequenos lado a lado (ruim principalmente
+// pra vídeo vertical/Reels, a maioria hoje). Os cliques usam onclick como
+// string porque este HTML vira string (innerHTML) antes de ser injetado na
+// página, perdendo qualquer closure de JS.
 function enhanceCarousels(html: string): string {
   if (typeof document === "undefined" || (!html.includes("image-carousel-block") && !html.includes("video-carousel-block"))) return html;
 
+  const NAV = {
+    prev: "var w=this.closest('[data-carousel-nav]'),v=[].slice.call(w.querySelectorAll('.carousel-slide')),d=[].slice.call(w.querySelectorAll('.carousel-dot')),c=v.findIndex(function(x){return x.classList.contains('is-active')}),n=(c-1+v.length)%v.length;v[c].classList.remove('is-active');if(v[c].pause)v[c].pause();v[n].classList.add('is-active');if(d[c])d[c].classList.remove('is-active');if(d[n])d[n].classList.add('is-active');",
+    next: "var w=this.closest('[data-carousel-nav]'),v=[].slice.call(w.querySelectorAll('.carousel-slide')),d=[].slice.call(w.querySelectorAll('.carousel-dot')),c=v.findIndex(function(x){return x.classList.contains('is-active')}),n=(c+1)%v.length;v[c].classList.remove('is-active');if(v[c].pause)v[c].pause();v[n].classList.add('is-active');if(d[c])d[c].classList.remove('is-active');if(d[n])d[n].classList.add('is-active');",
+    dot: "var w=this.closest('[data-carousel-nav]'),v=[].slice.call(w.querySelectorAll('.carousel-slide')),d=[].slice.call(w.querySelectorAll('.carousel-dot')),c=v.findIndex(function(x){return x.classList.contains('is-active')}),n=parseInt(this.dataset.index,10);if(n===c)return;v[c].classList.remove('is-active');if(v[c].pause)v[c].pause();v[n].classList.add('is-active');d[c].classList.remove('is-active');d[n].classList.add('is-active');",
+  };
+
   const holder = document.createElement("div");
   holder.innerHTML = html;
-  holder.querySelectorAll(".image-carousel-block, .video-carousel-block").forEach((track) => {
-    if (track.children.length < 2) return; // 1 item não precisa de seta
+  holder.querySelectorAll(".image-carousel-block, .video-carousel-block").forEach((block) => {
+    const isVideo = block.classList.contains("video-carousel-block");
+    // Posts salvos antes dessa mudança têm um <style> antigo (faixa
+    // horizontal) gravado no HTML, que tem prioridade sobre a classe CSS
+    // nova — remove pra deixar a folha de estilo atual assumir o layout. Os
+    // slides desses posts antigos também não têm a classe .carousel-slide
+    // (só .carousel-slide-img/-video), então usa os filhos diretos do bloco
+    // em vez de depender da classe, e adiciona ela aqui — assim tanto posts
+    // antigos quanto novos ficam compatíveis com o carrossel atual sem
+    // precisar reabrir e salvar cada post de novo.
+    block.removeAttribute("style");
+    const slides = Array.from(block.children) as HTMLElement[];
+    if (slides.length === 0) return;
+    slides.forEach((el) => el.classList.add("carousel-slide"));
+    slides[0].classList.add("is-active");
+    if (slides.length < 2) return; // 1 item não precisa de navegação
 
     const wrap = document.createElement("div");
     wrap.className = "carousel-wrap";
-    track.replaceWith(wrap);
+    wrap.setAttribute("data-carousel-nav", "");
+    block.replaceWith(wrap);
 
     const prevBtn = document.createElement("button");
     prevBtn.type = "button";
     prevBtn.className = "carousel-arrow carousel-arrow-prev";
-    prevBtn.setAttribute("aria-label", "Item anterior");
+    prevBtn.setAttribute("aria-label", isVideo ? "Vídeo anterior" : "Foto anterior");
     prevBtn.innerHTML = "&#8249;";
-    prevBtn.setAttribute(
-      "onclick",
-      "this.nextElementSibling.scrollBy({left: -this.nextElementSibling.clientWidth * 0.85, behavior: 'smooth'})",
-    );
+    prevBtn.setAttribute("onclick", NAV.prev);
 
     const nextBtn = document.createElement("button");
     nextBtn.type = "button";
     nextBtn.className = "carousel-arrow carousel-arrow-next";
-    nextBtn.setAttribute("aria-label", "Próximo item");
+    nextBtn.setAttribute("aria-label", isVideo ? "Próximo vídeo" : "Próxima foto");
     nextBtn.innerHTML = "&#8250;";
-    nextBtn.setAttribute(
-      "onclick",
-      "this.previousElementSibling.scrollBy({left: this.previousElementSibling.clientWidth * 0.85, behavior: 'smooth'})",
-    );
+    nextBtn.setAttribute("onclick", NAV.next);
 
-    wrap.append(prevBtn, track, nextBtn);
+    const dots = document.createElement("div");
+    dots.className = "carousel-dots";
+    slides.forEach((_, i) => {
+      const dot = document.createElement("span");
+      dot.className = "carousel-dot" + (i === 0 ? " is-active" : "");
+      dot.setAttribute("data-index", String(i));
+      dot.setAttribute("onclick", NAV.dot);
+      dots.appendChild(dot);
+    });
+
+    wrap.append(prevBtn, block, nextBtn, dots);
   });
   return holder.innerHTML;
 }

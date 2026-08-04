@@ -936,7 +936,7 @@ const ImageCarousel = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-image-carousel': '',
         class: 'image-carousel-block',
-        style: 'display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px',
+        style: 'display:flex;justify-content:center;align-items:center;border-radius:0.75rem;overflow:hidden',
       }),
       // Sem style inline aqui de propósito: .post-content .carousel-slide-img
       // (index.css) já define object-fit:contain pra nunca cortar a foto —
@@ -944,7 +944,7 @@ const ImageCarousel = Node.create({
       // sobrescreveria isso silenciosamente (era exatamente esse o bug:
       // o inline antigo tinha object-fit:cover, cortando a foto mesmo com
       // a regra certa já existindo na folha de estilo).
-      ...imgs.map((src) => ['img', { src, class: 'carousel-slide-img', alt: '' }]),
+      ...imgs.map((src, i) => ['img', { src, class: 'carousel-slide carousel-slide-img' + (i === 0 ? ' is-active' : ''), alt: '' }]),
     ];
   },
 
@@ -1148,10 +1148,13 @@ const VideoCarousel = Node.create({
       mergeAttributes(HTMLAttributes, {
         'data-video-carousel': '',
         class: 'video-carousel-block',
-        style: 'display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px',
+        style: 'display:flex;justify-content:center;align-items:center;border-radius:0.75rem;overflow:hidden;background:#000',
       }),
-      ...videos.map((v) => {
-        const attrs: Record<string, string> = { src: v.src, controls: '', playsinline: '', class: 'carousel-slide-video' };
+      ...videos.map((v, i) => {
+        const attrs: Record<string, string> = {
+          src: v.src, controls: '', playsinline: '',
+          class: 'carousel-slide carousel-slide-video' + (i === 0 ? ' is-active' : ''),
+        };
         if (v.poster) attrs.poster = v.poster;
         return ['video', attrs];
       }),
