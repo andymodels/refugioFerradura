@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Instagram } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Button, Card } from "@/components/ui-elements";
 import { useListPosts } from "@workspace/api-client-react";
@@ -156,6 +156,15 @@ export default function Home() {
           <div className="absolute inset-0" style={getOverlayStyle(heroStyle, heroOpacity)} />
           <div className="absolute inset-x-0 bottom-0 h-10 md:h-14 bg-gradient-to-t from-background/70 to-transparent" />
         </div>
+        <a
+          href={s.footer_instagram || "https://www.instagram.com/refugioferradura/"}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Instagram do Refúgio da Ferradura"
+          className="absolute bottom-4 right-4 md:bottom-6 md:right-6 z-10 p-2.5 bg-black/40 backdrop-blur-sm rounded-full text-white hover:bg-primary transition-colors"
+        >
+          <Instagram className="w-5 h-5" />
+        </a>
         {activeBanner && (activeBanner.title || activeBanner.subtitle || (activeBanner.buttonText && activeBanner.buttonLink)) && (
           <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
             {activeBanner.subtitle && (
