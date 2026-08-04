@@ -19,7 +19,7 @@ import {
   Bold, Italic, UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
   Undo, Redo, Minus, Code, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal,
+  Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal, Film,
   ChevronLeft, ChevronRight, Plus, Trash2, Eraser, Upload, Video, Loader2, Instagram,
 } from 'lucide-react';
 import { cn } from './ui-elements';
@@ -892,6 +892,19 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
   );
 }
 
+// Nível do módulo porque tanto o botão avulso de vídeo (dentro de
+// RichTextEditor) quanto o carrossel de vídeos (view separada, fora do
+// componente) precisam das mesmas transformações Cloudinary.
+function cappedCloudinaryUrl(url: string): string {
+  return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
+}
+
+function cloudinaryVideoPoster(url: string): string {
+  return url
+    .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
+    .replace(/\.\w+(\?.*)?$/, '.jpg');
+}
+
 const ImageCarousel = Node.create({
   name: 'imageCarousel',
   group: 'block',
@@ -937,6 +950,216 @@ const ImageCarousel = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ImageCarouselView);
+  },
+});
+
+// ─── Video Carousel Node ──────────────────────────────────────────────────────
+// Como o carrossel de fotos, mas cada slide é um vídeo importado colando o
+// link de um post/Reel do Instagram — o servidor baixa e arquiva no
+// Cloudinary (mesmo endpoint /api/media/import-instagram do botão de vídeo
+// avulso), e o resultado entra como mais um slide aqui.
+
+interface CarouselVideo { src: string; poster: string | null; sourceUrl: string | null }
+
+function parseCarouselVideos(raw: string | null | undefined): CarouselVideo[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v) => v && v.src) : [];
+  } catch { return []; }
+}
+
+function VideoCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
+  const [index, setIndex] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const videos = parseCarouselVideos(node.attrs.videos as string);
+  const current = videos[index];
+
+  const addFromLink = async () => {
+    const url = (window.prompt('Cole o link do post ou Reel do Instagram:') || '').trim();
+    if (!url) return;
+    setImporting(true);
+    try {
+      const res = await fetch('/api/media/import-instagram', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Falha ao importar (HTTP ${res.status})`);
+      if (data.type !== 'video') throw new Error('Esse link não é de um vídeo/Reel.');
+      const next: CarouselVideo[] = [
+        ...videos,
+        { src: cappedCloudinaryUrl(data.url), poster: cloudinaryVideoPoster(data.url), sourceUrl: data.sourceUrl || null },
+      ];
+      updateAttributes({ videos: JSON.stringify(next) });
+      setIndex(next.length - 1);
+    } catch (err) {
+      alert('Não consegui importar esse vídeo: ' + (err as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const removeCurrentVideo = () => {
+    if (videos.length === 0) return;
+    const next = videos.filter((_, i) => i !== index);
+    updateAttributes({ videos: JSON.stringify(next) });
+    setIndex(Math.max(0, index - 1));
+  };
+
+  const prev = () => setIndex((i) => (i - 1 + Math.max(1, videos.length)) % Math.max(1, videos.length));
+  const next = () => setIndex((i) => (i + 1) % Math.max(1, videos.length));
+
+  return (
+    <NodeViewWrapper data-drag-handle className="my-4">
+      <div className={cn('rounded-xl overflow-hidden bg-muted border border-border', selected && 'outline outline-2 outline-blue-500')}>
+        <div className="relative bg-black flex items-center justify-center" style={{ minHeight: 220 }}>
+          {importing ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-white/70">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <p className="text-xs">Importando vídeo do Instagram…</p>
+            </div>
+          ) : current ? (
+            <video
+              key={current.src}
+              src={current.src}
+              poster={current.poster || undefined}
+              controls
+              playsInline
+              preload="metadata"
+              className="max-w-full h-auto"
+              style={{ maxHeight: 480 }}
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-white/50 gap-2">
+              <Film className="w-10 h-10 opacity-30" />
+              <p className="text-sm">Carrossel de vídeos vazio — cole um link do Instagram</p>
+            </div>
+          )}
+
+          {videos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prev}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={next}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </>
+          )}
+
+          {videos.length > 0 && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {videos.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setIndex(i)}
+                  className={cn(
+                    'w-2 h-2 rounded-full transition-all',
+                    i === index ? 'bg-white scale-110' : 'bg-white/50 hover:bg-white/80'
+                  )}
+                />
+              ))}
+            </div>
+          )}
+
+          {current?.sourceUrl && (
+            <a
+              href={current.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full hover:bg-black/80 transition-colors"
+            >
+              Instagram oficial ↗
+            </a>
+          )}
+        </div>
+
+        {/* Controls bar */}
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-background/80">
+          <span className="text-xs text-muted-foreground flex-1">
+            Carrossel de vídeos · {videos.length} vídeo{videos.length !== 1 ? 's' : ''}
+          </span>
+          {videos.length > 0 && (
+            <button
+              type="button"
+              disabled={importing}
+              onClick={removeCurrentVideo}
+              className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"
+              title="Remover vídeo atual"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={importing}
+            onClick={addFromLink}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
+          >
+            {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Instagram className="w-3.5 h-3.5" />}
+            Colar link do Instagram
+          </button>
+        </div>
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+const VideoCarousel = Node.create({
+  name: 'videoCarousel',
+  group: 'block',
+  atom: true,
+  draggable: true,
+
+  addAttributes() {
+    return {
+      videos: {
+        default: JSON.stringify([]),
+        renderHTML: (attrs) => ({
+          'data-video-carousel-items': attrs.videos || JSON.stringify([]),
+        }),
+        parseHTML: (el) =>
+          (el as HTMLElement).getAttribute('data-video-carousel-items') || JSON.stringify([]),
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-video-carousel]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const raw = (HTMLAttributes as Record<string, string>)['data-video-carousel-items'] || JSON.stringify([]);
+    const videos = parseCarouselVideos(raw);
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        'data-video-carousel': '',
+        class: 'video-carousel-block',
+        style: 'display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px',
+      }),
+      ...videos.map((v) => {
+        const attrs: Record<string, string> = { src: v.src, controls: '', playsinline: '', class: 'carousel-slide-video' };
+        if (v.poster) attrs.poster = v.poster;
+        return ['video', attrs];
+      }),
+    ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(VideoCarouselView);
   },
 });
 
@@ -1087,6 +1310,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       VideoEmbed,
       ImageGrid,
       ImageCarousel,
+      VideoCarousel,
       Underline,
       Highlight.configure({ multicolor: false }),
       Youtube.configure({
@@ -1183,20 +1407,6 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingKind, setUploadingKind] = useState<'photo' | 'video' | null>(null);
-
-  // Aplica o limite de 640px na maior dimensão via transformação do
-  // Cloudinary (sem corte, sem upscale) — mesmo padrão usado no resto do site.
-  function cappedCloudinaryUrl(url: string): string {
-    return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
-  }
-
-  // Frame estático gerado pelo próprio Cloudinary a partir do vídeo (1s de
-  // duração), sem precisar enviar uma imagem de capa separada.
-  function cloudinaryVideoPoster(url: string): string {
-    return url
-      .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
-      .replace(/\.\w+(\?.*)?$/, '.jpg');
-  }
 
   const addEditorialPhoto = useCallback(() => photoInputRef.current?.click(), []);
   const addEditorialVideo = useCallback(() => videoInputRef.current?.click(), []);
@@ -1349,6 +1559,14 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     }).run();
   }, [editor]);
 
+  const addVideoCarousel = useCallback(() => {
+    if (!editor) return;
+    (editor.chain().focus() as any).insertContent({
+      type: 'videoCarousel',
+      attrs: { videos: JSON.stringify([]) },
+    }).run();
+  }, [editor]);
+
   if (!editor) return null;
 
   return (
@@ -1454,6 +1672,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={addImage} icon={<ImageIcon className="w-4 h-4" />} title="Imagem" />
         <ToolbarButton onClick={addImageGrid} icon={<LayoutGrid className="w-4 h-4" />} title="Grade 2 imagens lado a lado" />
         <ToolbarButton onClick={addImageCarousel} icon={<GalleryHorizontal className="w-4 h-4" />} title="Carrossel de fotos" />
+        <ToolbarButton onClick={addVideoCarousel} icon={<Film className="w-4 h-4" />} title="Carrossel de vídeos (colando links do Instagram)" />
         <ToolbarButton onClick={addVideo} icon={<YoutubeIcon className="w-4 h-4" />} title="Inserir vídeo (YouTube ou link direto)" />
         <Divider />
 

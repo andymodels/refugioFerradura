@@ -368,11 +368,33 @@
   margin: 0 !important;
   background: var(--color-muted);
 }
+/* ── Video carousel (published) — mesmo tratamento do carrossel de fotos ── */
+.post-content .video-carousel-block {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 6px;
+  margin: 1rem 0;
+  border-radius: 0.75rem;
+}
+.post-content .carousel-slide-video {
+  flex: 0 0 auto;
+  height: clamp(220px, 55vw, 420px);
+  width: auto;
+  max-width: 90%;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  scroll-snap-align: start;
+  margin: 0 !important;
+  background: #000;
+}
 .post-content .carousel-wrap {
   position: relative;
   margin: 1rem 0;
 }
-.post-content .carousel-wrap .image-carousel-block {
+.post-content .carousel-wrap .image-carousel-block,
+.post-content .carousel-wrap .video-carousel-block {
   margin: 0;
 }
 .post-content .carousel-arrow {
