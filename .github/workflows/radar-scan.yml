@@ -4,9 +4,12 @@ name: Radar da Rota da Ferradura (diário 11h)
 # desde 2019). Só descobre e registra novidades (notícias regionais + posts
 # públicos de parceiros) — nunca cria rascunho de post nem publica nada no
 # Instagram.
+# Pausado em 05/08/2026: não uso mais a geração automática de matérias via
+# busca na web. O schedule foi desativado para evitar custo desnecessário de
+# API. Mantido o workflow_dispatch para rodar manualmente se precisar.
 on:
-  schedule:
-    - cron: "0 14 * * *"
+  # schedule:
+  #   - cron: "0 14 * * *"
   workflow_dispatch: {}
 
 concurrency:
