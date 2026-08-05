@@ -33,33 +33,60 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+const FALLBACK_HASHTAGS = "#RotaDaFerradura #Guarapari #TurismoCapixaba #EspiritoSanto #VisiteGuarapari";
+
+// Legenda simples sem IA — usada quando a API da Anthropic está indisponível
+// (rate limit, erro, etc), pra nunca bloquear a publicação no Instagram.
+function buildFallbackCaption(post: Post, featuredHandle: string | null): string {
+  const lines = [post.title.trim()];
+  // Subtítulo tem prioridade; sem ele, cai pro resumo (excerpt) do post.
+  const secondLine = post.subtitle?.trim() || post.excerpt?.trim() || "";
+  if (secondLine && secondLine !== post.title.trim()) {
+    lines.push(secondLine);
+  }
+  if (featuredHandle) {
+    lines.push(`📍 @${featuredHandle}`);
+  }
+  lines.push("", FALLBACK_HASHTAGS);
+  return lines.join("\n").slice(0, 2200);
+}
+
 export async function generateInstagramCaption(post: Post): Promise<string> {
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const plainText = stripHtml(post.content).slice(0, 4000);
   const featuredHandle = extractInstagramHandle(post.content);
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-5",
-    max_tokens: 1024,
-    system: CAPTION_SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Título: ${post.title}\n${post.subtitle ? `Subtítulo: ${post.subtitle}\n` : ""}${featuredHandle ? `Instagram do local/negócio: @${featuredHandle} (marque esse perfil na legenda, é obrigatório)\n` : ""}Texto do post:\n${plainText}`,
-      },
-    ],
-  });
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const plainText = stripHtml(post.content).slice(0, 4000);
 
-  let caption = getTextBlock(message).trim();
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 1024,
+      system: CAPTION_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Título: ${post.title}\n${post.subtitle ? `Subtítulo: ${post.subtitle}\n` : ""}${featuredHandle ? `Instagram do local/negócio: @${featuredHandle} (marque esse perfil na legenda, é obrigatório)\n` : ""}Texto do post:\n${plainText}`,
+        },
+      ],
+    });
 
-  // Rede de segurança: se a IA esquecer de marcar, garante que o @ do local
-  // sempre apareça na legenda — isso é regra, não opcional.
-  if (featuredHandle && !caption.toLowerCase().includes(`@${featuredHandle.toLowerCase()}`)) {
-    caption = `${caption}\n\n📍 @${featuredHandle}`;
+    let caption = getTextBlock(message).trim();
+
+    // Rede de segurança: se a IA esquecer de marcar, garante que o @ do local
+    // sempre apareça na legenda — isso é regra, não opcional.
+    if (featuredHandle && !caption.toLowerCase().includes(`@${featuredHandle.toLowerCase()}`)) {
+      caption = `${caption}\n\n📍 @${featuredHandle}`;
+    }
+
+    // O Instagram rejeita legendas acima de 2200 caracteres.
+    return caption.slice(0, 2200);
+  } catch (error) {
+    logger.error(
+      { err: error, postId: post.id },
+      "Falha ao gerar legenda via IA, usando legenda simples de fallback",
+    );
+    return buildFallbackCaption(post, featuredHandle);
   }
-
-  // O Instagram rejeita legendas acima de 2200 caracteres.
-  return caption.slice(0, 2200);
 }
 
 export interface InstagramPublishResult {
