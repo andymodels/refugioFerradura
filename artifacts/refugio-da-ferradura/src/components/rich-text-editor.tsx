@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui-elements';
 import { compressImageFile } from '@/lib/image-compression';
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 
 // ─── FontSize extension ────────────────────────────────────────────────────────
 const FontSize = Extension.create({
@@ -1219,76 +1220,69 @@ function Divider() {
 
 function ColorPicker({ editor }: { editor: ReturnType<typeof useEditor> }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   if (!editor) return null;
 
   const currentColor = editor.getAttributes('textStyle').color || '#000000';
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        title="Cor do texto"
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'p-1.5 rounded-md text-sm transition-all flex flex-col items-center gap-0.5',
-          open ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-        )}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Cor do texto"
+          className={cn(
+            'p-1.5 rounded-md text-sm transition-all flex flex-col items-center gap-0.5',
+            open ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          )}
+        >
+          <Palette className="w-4 h-4" />
+          <div className="w-4 h-1 rounded-full" style={{ backgroundColor: currentColor }} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-44 bg-background border border-border rounded-xl shadow-xl p-3"
       >
-        <Palette className="w-4 h-4" />
-        <div className="w-4 h-1 rounded-full" style={{ backgroundColor: currentColor }} />
-      </button>
-
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-background border border-border rounded-xl shadow-xl p-3 w-44">
-          <p className="text-xs font-medium text-muted-foreground mb-2">Cor do texto</p>
-          <div className="grid grid-cols-5 gap-1.5 mb-2">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                title={c.label}
-                onClick={() => {
-                  editor.chain().focus().setColor(c.value).run();
-                  setOpen(false);
-                }}
-                className={cn(
-                  'w-6 h-6 rounded-full border-2 transition-transform hover:scale-110',
-                  currentColor === c.value ? 'border-primary scale-110' : 'border-transparent'
-                )}
-                style={{ backgroundColor: c.value, boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #e5e7eb' : undefined }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={currentColor.startsWith('#') ? currentColor : '#000000'}
-              onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
-              className="w-7 h-7 rounded cursor-pointer border border-border"
-              title="Cor personalizada"
+        <p className="text-xs font-medium text-muted-foreground mb-2">Cor do texto</p>
+        <div className="grid grid-cols-5 gap-1.5 mb-2">
+          {PRESET_COLORS.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              title={c.label}
+              onClick={() => {
+                editor.chain().focus().setColor(c.value).run();
+                setOpen(false);
+              }}
+              className={cn(
+                'w-6 h-6 rounded-full border-2 transition-transform hover:scale-110',
+                currentColor === c.value ? 'border-primary scale-110' : 'border-transparent'
+              )}
+              style={{ backgroundColor: c.value, boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #e5e7eb' : undefined }}
             />
-            <span className="text-xs text-muted-foreground">Personalizada</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => { editor.chain().focus().unsetColor().run(); setOpen(false); }}
-            className="mt-2 w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 justify-center"
-          >
-            <X className="w-3 h-3" /> Remover cor
-          </button>
+          ))}
         </div>
-      )}
-    </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={currentColor.startsWith('#') ? currentColor : '#000000'}
+            onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+            className="w-7 h-7 rounded cursor-pointer border border-border"
+            title="Cor personalizada"
+          />
+          <span className="text-xs text-muted-foreground">Personalizada</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => { editor.chain().focus().unsetColor().run(); setOpen(false); }}
+          className="mt-2 w-full text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 justify-center"
+        >
+          <X className="w-3 h-3" /> Remover cor
+        </button>
+      </PopoverContent>
+    </Popover>
   );
 }
 
