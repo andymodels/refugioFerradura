@@ -296,7 +296,7 @@ export default function BlogPost() {
         })()}
 
         {/* Title */}
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-semibold leading-tight tracking-tight text-foreground mb-4">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-semibold leading-tight tracking-tight text-primary mb-4">
           {post.title}
         </h1>
 

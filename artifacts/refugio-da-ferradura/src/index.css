@@ -66,6 +66,17 @@
   }
 }
 
+/* Títulos públicos usam o terracota editorial do tema. O escopo exclui o
+   painel administrativo e mantém a mesma cor em páginas, cards e matérias. */
+.site-shell h1,
+.site-shell h2,
+.site-shell h3,
+.site-shell h4,
+.site-shell h5,
+.site-shell h6 {
+  @apply text-primary;
+}
+
 /* Tiptap / ProseMirror Editor Styles */
 .ProseMirror {
   @apply outline-none min-h-[380px] text-foreground;

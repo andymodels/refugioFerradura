@@ -39,7 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const instagramUrl = s.footer_instagram || "https://www.instagram.com/refugioferradura/";
 
   return (
-    <div className="min-h-screen flex flex-col bg-background selection:bg-primary/20">
+    <div className="site-shell min-h-screen flex flex-col bg-background selection:bg-primary/20">
       {/* Header */}
       <header
         className={cn("inset-x-0 top-0 z-50", isSticky ? "fixed" : "absolute")}

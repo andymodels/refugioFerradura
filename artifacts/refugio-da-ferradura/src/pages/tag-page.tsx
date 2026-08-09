@@ -89,7 +89,7 @@ export default function TagPage({ tag }: TagPageProps) {
           <span className="text-primary font-medium tracking-wider uppercase text-xs mb-2 block">
             {meta.subtitle}
           </span>
-          <h1 className="text-4xl md:text-5xl font-serif text-foreground mb-4">{meta.displayTitle}</h1>
+          <h1 className="text-4xl md:text-5xl font-serif text-primary mb-4">{meta.displayTitle}</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{meta.description}</p>
         </div>
       </div>

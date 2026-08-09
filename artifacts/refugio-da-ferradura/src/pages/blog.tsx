@@ -52,7 +52,7 @@ export default function Blog() {
     <Layout>
       <div className="bg-primary/5 pt-32 pb-16 border-b border-border/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-serif text-foreground mb-4">Conteúdo & Histórias</h1>
+          <h1 className="text-4xl md:text-5xl font-serif text-primary mb-4">Conteúdo & Histórias</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Lugares, experiências, gastronomia e tudo que a Rota da Ferradura tem a oferecer.
           </p>

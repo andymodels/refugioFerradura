@@ -26,7 +26,7 @@ export default function Places() {
       <div className="bg-muted/30 pt-32 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h1 className="text-4xl md:text-5xl font-serif text-foreground mb-4">Descubra Lugares</h1>
+            <h1 className="text-4xl md:text-5xl font-serif text-primary mb-4">Descubra Lugares</h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Explore os melhores encantos da Rota da Ferradura e planeje seu roteiro.
             </p>
@@ -68,7 +68,7 @@ export default function Places() {
           <div className="text-center py-20 text-muted-foreground">Buscando lugares...</div>
         ) : posts.length === 0 ? (
           <div className="text-center py-20">
-            <h3 className="text-xl font-serif text-foreground mb-2">Nenhum lugar encontrado.</h3>
+            <h3 className="text-xl font-serif text-primary mb-2">Nenhum lugar encontrado.</h3>
             <p className="text-muted-foreground">Tente ajustar seus filtros de busca.</p>
           </div>
         ) : (
