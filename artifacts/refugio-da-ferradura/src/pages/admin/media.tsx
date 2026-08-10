@@ -4,12 +4,12 @@ import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button, Input } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
 import { useDropzone } from "react-dropzone";
-import { compressImageFile } from "@/lib/image-compression";
+import { uploadMedia } from "@/lib/media-upload";
 
 interface MediaItem {
   url: string;
   filename: string;
-  publicId: string;
+  publicId?: string;
   type: "image" | "video";
 }
 
@@ -38,6 +38,7 @@ export default function AdminMedia() {
   }, []);
 
   const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState<"compressing" | "uploading">("uploading");
   const [instagramUrl, setInstagramUrl] = useState("");
   const [importingInstagram, setImportingInstagram] = useState(false);
 
@@ -45,23 +46,9 @@ export default function AdminMedia() {
     if (acceptedFiles.length === 0) return;
     setUploading(true);
     try {
-      const compressedFiles = await Promise.all(acceptedFiles.map((file) => compressImageFile(file)));
-      const formData = new FormData();
-      compressedFiles.forEach((file) => formData.append("file", file));
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        if (res.status === 413) {
-          throw new Error("Arquivo grande demais para a hospedagem (máx. ~4MB), mesmo depois de comprimido.");
-        }
-        throw new Error(data?.error || `Erro no upload (HTTP ${res.status})`);
-      }
-      const data = await res.json();
-      const uploaded: MediaItem[] = data.images || [{ url: data.url, filename: data.filename, type: data.type || "image" }];
+      const uploaded = await Promise.all(
+        acceptedFiles.map((file) => uploadMedia(file, setUploadPhase))
+      );
       const videoCount = uploaded.filter((u) => u.type === "video").length;
       const imageCount = uploaded.length - videoCount;
       const parts = [];
@@ -119,7 +106,7 @@ export default function AdminMedia() {
 
   const handleDelete = async (item: MediaItem) => {
     if (!confirm(`Excluir permanentemente "${item.filename}"?\n\nEsta ação não pode ser desfeita.`)) return;
-    setDeletingId(item.publicId);
+    setDeletingId(item.publicId ?? null);
     try {
       const res = await fetch(`/api/media`, {
         method: "DELETE",
@@ -188,16 +175,16 @@ export default function AdminMedia() {
               </div>
               <p className="font-medium mb-1">Clique ou arraste os arquivos</p>
               <p className="text-xs text-muted-foreground mb-1">
-                <strong>Imagens:</strong> JPG, PNG, WEBP, GIF (máx. 20 MB)
+                <strong>Imagens:</strong> JPG, PNG, WEBP, GIF, HEIC (comprimidas automaticamente se necessário)
               </p>
               <p className="text-xs text-muted-foreground">
-                <strong>Vídeos:</strong> MP4, WEBM, MOV (máx. 100 MB)
+                <strong>Vídeos:</strong> MP4, WEBM, MOV (compactados automaticamente antes do envio)
               </p>
 
               {uploading && (
                 <div className="mt-4 flex items-center justify-center gap-2 text-sm text-primary font-medium">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Enviando para Cloudinary...
+                  {uploadPhase === "compressing" ? "Compactando..." : "Enviando..."}
                 </div>
               )}
             </div>

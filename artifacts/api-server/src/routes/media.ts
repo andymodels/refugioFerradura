@@ -108,6 +108,32 @@ router.get("/media/list", async (req, res): Promise<void> => {
   }
 });
 
+// Gera uma assinatura de upload direto pro Cloudinary. Não recebe nem
+// encaminha o arquivo — o navegador usa isso pra subir direto pro Cloudinary
+// sem passar pela função serverless da Vercel, que corta qualquer corpo de
+// requisição acima de ~4,5MB (ver MAX_UPLOAD_BYTES acima). Mantém a rota
+// /media/upload existente intacta como caminho alternativo.
+router.get("/media/upload-signature", (req, res): void => {
+  const session = (req as any).session;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  const timestamp = Math.round(Date.now() / 1000);
+  const folder = "refugio-da-ferradura";
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder },
+    process.env.CLOUDINARY_API_SECRET as string
+  );
+  res.json({
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    timestamp,
+    signature,
+    folder,
+  });
+});
+
 router.post("/media/upload", (req, res, next) => {
   // Checa a sessão ANTES do multer processar o arquivo — sem isso qualquer
   // pessoa (sem estar logada) conseguia subir arquivo pro Cloudinary do site,

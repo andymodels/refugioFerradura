@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui-elements';
 import { compressImageFile } from '@/lib/image-compression';
+import { uploadMedia } from '@/lib/media-upload';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 
 // ─── FontSize extension ────────────────────────────────────────────────────────
@@ -247,18 +248,8 @@ function isDirectVideoUrl(url: string): boolean {
 // carrossel de imagens também precisam fazer upload de arquivo, não só
 // aceitar URL colada.
 async function uploadMediaFile(file: File): Promise<string> {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch('/api/media/upload', { method: 'POST', body: form });
-  if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    if (res.status === 413) {
-      throw new Error('Arquivo grande demais para a hospedagem (máx. ~4MB). Tente uma foto/vídeo menor.');
-    }
-    throw new Error(body?.error || `Falha no upload (HTTP ${res.status})`);
-  }
-  const data = await res.json();
-  return data.url as string;
+  const result = await uploadMedia(file);
+  return result.url;
 }
 
 type VideoAlign = 'left' | 'center' | 'right';
@@ -1486,13 +1477,6 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !editor) return;
-    if (file.size > 4 * 1024 * 1024) {
-      alert(
-        `Vídeo muito grande (${Math.round(file.size / 1024 / 1024)}MB). ` +
-          'Comprima pra no máximo uns 4MB antes de enviar (limite do servidor de upload).',
-      );
-      return;
-    }
     setUploadingKind('video');
     try {
       const url = await uploadMediaFile(file);
