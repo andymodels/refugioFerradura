@@ -35,11 +35,13 @@ const postOrder = [
 // A listagem do admin usa uma ordem diferente da pública: rascunho antigo não
 // pode ficar enterrado embaixo de publicados recentes, senão a pessoa tem que
 // rolar a página inteira pra achar o que estava escrevendo. Rascunhos sempre
-// aparecem primeiro (mais recente editado no topo), e só depois vêm os
-// publicados na ordem normal (fixados/arrastados).
+// aparecem primeiro (mais recente editado no topo). O "-infinity" garante que
+// esse critério de data só decide a ordem ENTRE rascunhos — pros publicados
+// ele sempre empata no menor valor possível, caindo pro próximo critério
+// (fixado/arrastado), sem interferir na ordem que a pessoa já definiu.
 const adminPostOrder = [
   desc(sql`(${postsTable.status} = 'draft')`),
-  desc(postsTable.updatedAt),
+  desc(sql`(case when ${postsTable.status} = 'draft' then ${postsTable.updatedAt} else '-infinity'::timestamptz end)`),
   ...postOrder,
 ];
 
@@ -126,12 +128,18 @@ router.post("/posts/admin/reorder", async (req, res): Promise<void> => {
     return;
   }
 
+  // displayOrder de posts nunca arrastados usa segundos desde epoch (criação
+  // ou publicação — ver POST /create e o PATCH acima), um número bem grande.
+  // Reindexar com valores pequenos (1, 2, 3...) fazia um post recém-arrastado
+  // nunca superar, na prática, qualquer post intocado. Usar a mesma escala
+  // (epoch "agora" menos a posição) mantém o arraste comparável com o resto.
   const { ids } = parsed.data;
+  const base = Math.floor(Date.now() / 1000);
   await Promise.all(
     ids.map((id, index) =>
       db
         .update(postsTable)
-        .set({ displayOrder: ids.length - index })
+        .set({ displayOrder: base - index })
         .where(eq(postsTable.id, id))
     )
   );
