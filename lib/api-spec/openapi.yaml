@@ -246,6 +246,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/Post"
 
+  /posts/admin/reorder:
+    post:
+      operationId: reorderPosts
+      tags: [posts]
+      summary: Set the manual display order of posts (drag-and-drop in the admin list)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderPostsBody"
+      responses:
+        "200":
+          description: New order applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostListResponse"
+
   /posts/admin/{id}/publish-instagram:
     post:
       operationId: publishPostInstagram
@@ -707,7 +726,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UpdatePartnerContentItemResponse"
+                $ref: "#/components/schemas/PartnerContentItem"
         "400":
           description: Failed to publish
           content:
@@ -867,6 +886,13 @@ components:
           type: string
         metaDescription:
           type: ["string", "null"]
+        displayOrder:
+          type: integer
+          description: Manual position in listings, higher shows first
+        pinnedUntil:
+          type: ["string", "null"]
+          format: date-time
+          description: While in the future, this post is forced to the top of listings
         instagramPostedAt:
           type: ["string", "null"]
           format: date-time
@@ -968,6 +994,21 @@ components:
           type: string
         metaDescription:
           type: ["string", "null"]
+        pinnedUntil:
+          type: ["string", "null"]
+          format: date-time
+          description: While in the future, this post is forced to the top of listings. Send null to unpin.
+
+    ReorderPostsBody:
+      type: object
+      properties:
+        ids:
+          type: array
+          description: Post IDs in the desired order, top to bottom
+          items:
+            type: integer
+      required:
+        - ids
 
     Fonte:
       type: object

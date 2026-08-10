@@ -83,6 +83,16 @@ export const ListPostsResponse = zod.object({
       tags: zod.string().nullish().describe("JSON array of tag strings"),
       status: zod.string(),
       metaDescription: zod.string().nullish(),
+      displayOrder: zod
+        .number()
+        .optional()
+        .describe("Manual position in listings, higher shows first"),
+      pinnedUntil: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "While in the future, this post is forced to the top of listings",
+        ),
       instagramPostedAt: zod.coerce
         .date()
         .nullish()
@@ -133,6 +143,16 @@ export const ListPostsAdminResponse = zod.object({
       tags: zod.string().nullish().describe("JSON array of tag strings"),
       status: zod.string(),
       metaDescription: zod.string().nullish(),
+      displayOrder: zod
+        .number()
+        .optional()
+        .describe("Manual position in listings, higher shows first"),
+      pinnedUntil: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "While in the future, this post is forced to the top of listings",
+        ),
       instagramPostedAt: zod.coerce
         .date()
         .nullish()
@@ -185,6 +205,16 @@ export const GetPostResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  displayOrder: zod
+    .number()
+    .optional()
+    .describe("Manual position in listings, higher shows first"),
+  pinnedUntil: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "While in the future, this post is forced to the top of listings",
+    ),
   instagramPostedAt: zod.coerce
     .date()
     .nullish()
@@ -234,6 +264,16 @@ export const GetPostAdminResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  displayOrder: zod
+    .number()
+    .optional()
+    .describe("Manual position in listings, higher shows first"),
+  pinnedUntil: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "While in the future, this post is forced to the top of listings",
+    ),
   instagramPostedAt: zod.coerce
     .date()
     .nullish()
@@ -271,6 +311,12 @@ export const UpdatePostBody = zod.object({
   tags: zod.string().nullish(),
   status: zod.string().optional(),
   metaDescription: zod.string().nullish(),
+  pinnedUntil: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "While in the future, this post is forced to the top of listings. Send null to unpin.",
+    ),
 });
 
 export const UpdatePostResponse = zod.object({
@@ -299,6 +345,16 @@ export const UpdatePostResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  displayOrder: zod
+    .number()
+    .optional()
+    .describe("Manual position in listings, higher shows first"),
+  pinnedUntil: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "While in the future, this post is forced to the top of listings",
+    ),
   instagramPostedAt: zod.coerce
     .date()
     .nullish()
@@ -342,6 +398,72 @@ export const CreatePostBody = zod.object({
 });
 
 /**
+ * @summary Set the manual display order of posts (drag-and-drop in the admin list)
+ */
+export const ReorderPostsBody = zod.object({
+  ids: zod
+    .array(zod.number())
+    .describe("Post IDs in the desired order, top to bottom"),
+});
+
+export const ReorderPostsResponse = zod.object({
+  posts: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      subtitle: zod.string().nullish(),
+      slug: zod.string(),
+      excerpt: zod.string().nullish(),
+      content: zod.string(),
+      coverImage: zod.string().nullish(),
+      coverImageDisplayMode: zod
+        .enum(["cover", "natural"])
+        .optional()
+        .describe("How the cover image is shown inside the article"),
+      coverImagePosition: zod
+        .string()
+        .optional()
+        .describe(
+          'CSS object-position for the cover image\/video, e.g. \"center top\"',
+        ),
+      gallery: zod.string().nullish().describe("JSON array of image URLs"),
+      videoEmbeds: zod
+        .string()
+        .nullish()
+        .describe("JSON array of video embed URLs"),
+      tags: zod.string().nullish().describe("JSON array of tag strings"),
+      status: zod.string(),
+      metaDescription: zod.string().nullish(),
+      displayOrder: zod
+        .number()
+        .optional()
+        .describe("Manual position in listings, higher shows first"),
+      pinnedUntil: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "While in the future, this post is forced to the top of listings",
+        ),
+      instagramPostedAt: zod.coerce
+        .date()
+        .nullish()
+        .describe(
+          "When this post was published to the official Instagram feed, if ever",
+        ),
+      instagramMediaId: zod
+        .string()
+        .nullish()
+        .describe(
+          "Instagram media ID returned when the post was published to Instagram",
+        ),
+      createdAt: zod.coerce.date(),
+      updatedAt: zod.coerce.date(),
+    }),
+  ),
+  total: zod.number(),
+});
+
+/**
  * @summary Publish a post to the official Instagram feed (manual trigger only, never automatic)
  */
 export const PublishPostInstagramParams = zod.object({
@@ -374,6 +496,16 @@ export const PublishPostInstagramResponse = zod.object({
   tags: zod.string().nullish().describe("JSON array of tag strings"),
   status: zod.string(),
   metaDescription: zod.string().nullish(),
+  displayOrder: zod
+    .number()
+    .optional()
+    .describe("Manual position in listings, higher shows first"),
+  pinnedUntil: zod.coerce
+    .date()
+    .nullish()
+    .describe(
+      "While in the future, this post is forced to the top of listings",
+    ),
   instagramPostedAt: zod.coerce
     .date()
     .nullish()
@@ -806,7 +938,22 @@ export const PublishPartnerContentNowParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const PublishPartnerContentNowResponse = zod.unknown();
+export const PublishPartnerContentNowResponse = zod.object({
+  id: zod.number(),
+  partnerId: zod.number(),
+  mediaUrl: zod.string(),
+  mediaType: zod.enum(["foto", "video"]),
+  tipoConteudo: zod.enum(["story", "feed", "reel"]),
+  status: zod.enum(["na_fila", "agendado", "publicado", "cancelado"]),
+  scheduledFor: zod.coerce.date().nullish(),
+  publishedAt: zod.coerce.date().nullish(),
+  publishedMediaId: zod.string().nullish(),
+  notas: zod.string().nullish(),
+  origem: zod.enum(["conexao", "link_parceiro", "manual"]),
+  createdAt: zod.coerce.date(),
+  nomeEstabelecimento: zod.string().optional(),
+  instagramHandle: zod.string().nullish(),
+});
 
 /**
  * @summary Upload media file

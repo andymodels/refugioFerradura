@@ -41,6 +41,7 @@ import type {
   PartnerUploadLinkResponse,
   Post,
   PostListResponse,
+  ReorderPostsBody,
   ScanInstagramPartnersResponse,
   SchedulePreviewResponse,
   ScheduleSettingsResponse,
@@ -49,7 +50,6 @@ import type {
   UpdateFonteBody,
   UpdateInstagramPartnerBody,
   UpdatePartnerContentItemBody,
-  UpdatePartnerContentItemResponse,
   UpdatePostBody,
   UpdateScheduleSettingsBody,
   UploadMediaBody,
@@ -957,6 +957,92 @@ export const useCreatePost = <
   TContext
 > => {
   return useMutation(getCreatePostMutationOptions(options));
+};
+
+/**
+ * @summary Set the manual display order of posts (drag-and-drop in the admin list)
+ */
+export const getReorderPostsUrl = () => {
+  return `/api/posts/admin/reorder`;
+};
+
+export const reorderPosts = async (
+  reorderPostsBody: ReorderPostsBody,
+  options?: RequestInit,
+): Promise<PostListResponse> => {
+  return customFetch<PostListResponse>(getReorderPostsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reorderPostsBody),
+  });
+};
+
+export const getReorderPostsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderPosts>>,
+    TError,
+    { data: BodyType<ReorderPostsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof reorderPosts>>,
+  TError,
+  { data: BodyType<ReorderPostsBody> },
+  TContext
+> => {
+  const mutationKey = ["reorderPosts"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof reorderPosts>>,
+    { data: BodyType<ReorderPostsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return reorderPosts(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderPostsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderPosts>>
+>;
+export type ReorderPostsMutationBody = BodyType<ReorderPostsBody>;
+export type ReorderPostsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set the manual display order of posts (drag-and-drop in the admin list)
+ */
+export const useReorderPosts = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof reorderPosts>>,
+    TError,
+    { data: BodyType<ReorderPostsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof reorderPosts>>,
+  TError,
+  { data: BodyType<ReorderPostsBody> },
+  TContext
+> => {
+  return useMutation(getReorderPostsMutationOptions(options));
 };
 
 /**
@@ -2653,14 +2739,11 @@ export const getPublishPartnerContentNowUrl = (id: number) => {
 export const publishPartnerContentNow = async (
   id: number,
   options?: RequestInit,
-): Promise<UpdatePartnerContentItemResponse> => {
-  return customFetch<UpdatePartnerContentItemResponse>(
-    getPublishPartnerContentNowUrl(id),
-    {
-      ...options,
-      method: "POST",
-    },
-  );
+): Promise<PartnerContentItem> => {
+  return customFetch<PartnerContentItem>(getPublishPartnerContentNowUrl(id), {
+    ...options,
+    method: "POST",
+  });
 };
 
 export const getPublishPartnerContentNowMutationOptions = <

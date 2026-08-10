@@ -28,4 +28,9 @@ export interface UpdatePostBody {
   status?: string;
   /** @nullable */
   metaDescription?: string | null;
+  /**
+   * While in the future, this post is forced to the top of listings. Send null to unpin.
+   * @nullable
+   */
+  pinnedUntil?: Date | null;
 }

@@ -40,6 +40,13 @@ export interface Post {
   status: string;
   /** @nullable */
   metaDescription?: string | null;
+  /** Manual position in listings, higher shows first */
+  displayOrder?: number;
+  /**
+   * While in the future, this post is forced to the top of listings
+   * @nullable
+   */
+  pinnedUntil?: Date | null;
   /**
    * When this post was published to the official Instagram feed, if ever
    * @nullable

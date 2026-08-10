@@ -76,6 +76,13 @@ export interface Post {
   status: string;
   /** @nullable */
   metaDescription?: string | null;
+  /** Manual position in listings, higher shows first */
+  displayOrder?: number;
+  /**
+   * While in the future, this post is forced to the top of listings
+   * @nullable
+   */
+  pinnedUntil?: string | null;
   /**
    * When this post was published to the official Instagram feed, if ever
    * @nullable
@@ -155,6 +162,16 @@ export interface UpdatePostBody {
   status?: string;
   /** @nullable */
   metaDescription?: string | null;
+  /**
+   * While in the future, this post is forced to the top of listings. Send null to unpin.
+   * @nullable
+   */
+  pinnedUntil?: string | null;
+}
+
+export interface ReorderPostsBody {
+  /** Post IDs in the desired order, top to bottom */
+  ids: number[];
 }
 
 export interface Fonte {

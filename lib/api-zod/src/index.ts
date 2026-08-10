@@ -10,6 +10,7 @@ export {
   UpdateFonteBody,
   CreatePostBody,
   UpdatePostBody,
+  ReorderPostsBody,
   GenerateFromUrlBody,
   UploadMediaBody,
   UpdateInstagramPartnerBody,

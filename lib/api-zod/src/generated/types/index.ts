@@ -41,6 +41,7 @@ export * from "./partnerUploadLinkResponse";
 export * from "./post";
 export * from "./postCoverImageDisplayMode";
 export * from "./postListResponse";
+export * from "./reorderPostsBody";
 export * from "./scanInstagramPartnersResponse";
 export * from "./schedulePreviewResponse";
 export * from "./scheduleSettingsResponse";

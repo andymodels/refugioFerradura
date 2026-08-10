@@ -1,21 +1,86 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { Plus, Edit, Trash2, FileEdit, Instagram } from "lucide-react";
+import { Plus, Edit, Trash2, FileEdit, Instagram, GripVertical, Pin, PinOff } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card } from "@/components/ui-elements";
-import { useListPostsAdmin, useDeletePost, usePublishPostInstagram } from "@workspace/api-client-react";
+import { useListPostsAdmin, useDeletePost, usePublishPostInstagram, useUpdatePost, useReorderPosts, type Post } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 const NEW_DRAFT_KEY = "refugio-editor-draft-new";
+const PIN_DAYS = 7;
+
+function isPinned(post: Post) {
+  return !!post.pinnedUntil && new Date(post.pinnedUntil).getTime() > Date.now();
+}
+
+function pinDaysLeft(post: Post) {
+  const ms = new Date(post.pinnedUntil as string).getTime() - Date.now();
+  return Math.max(1, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
 
 export default function AdminPosts() {
   const { data, isLoading } = useListPostsAdmin();
   const deleteMutation = useDeletePost();
   const publishInstagramMutation = usePublishPostInstagram();
+  const updateMutation = useUpdatePost();
+  const reorderMutation = useReorderPosts();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [pendingDraft, setPendingDraft] = React.useState<{ title?: string } | null>(null);
+
+  // Lista local reordenável por arrastar — sincroniza com o servidor sempre
+  // que a busca original muda, mas durante o arraste o reordenamento é só
+  // local (instantâneo) até soltar, quando persiste de uma vez.
+  const [orderedPosts, setOrderedPosts] = useState<Post[]>([]);
+  useEffect(() => {
+    setOrderedPosts(data?.posts || []);
+  }, [data]);
+  const dragIdRef = useRef<number | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+
+  const handleDragStart = (id: number) => {
+    dragIdRef.current = id;
+    setDraggingId(id);
+  };
+
+  const handleDragOverRow = (e: React.DragEvent, overId: number) => {
+    e.preventDefault();
+    const draggedId = dragIdRef.current;
+    if (draggedId === null || draggedId === overId) return;
+    setOrderedPosts((prev) => {
+      const from = prev.findIndex((p) => p.id === draggedId);
+      const to = prev.findIndex((p) => p.id === overId);
+      if (from === -1 || to === -1 || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  const handleDragEnd = async () => {
+    dragIdRef.current = null;
+    setDraggingId(null);
+    try {
+      await reorderMutation.mutateAsync({ data: { ids: orderedPosts.map((p) => p.id) } });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts/admin"] });
+    } catch {
+      toast({ title: "Erro ao salvar a nova ordem", variant: "destructive" });
+    }
+  };
+
+  const handleTogglePin = async (post: Post) => {
+    const pinned = isPinned(post);
+    const pinnedUntil = pinned ? null : new Date(Date.now() + PIN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      await updateMutation.mutateAsync({ id: post.id, data: { pinnedUntil } });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts/admin"] });
+      toast({ title: pinned ? "Post desafixado" : `Post fixado no topo por ${PIN_DAYS} dias` });
+    } catch {
+      toast({ title: "Erro ao fixar postagem", variant: "destructive" });
+    }
+  };
 
   // Check for unsaved new-post draft on mount
   React.useEffect(() => {
@@ -33,7 +98,7 @@ export default function AdminPosts() {
     setPendingDraft(null);
   };
 
-  const posts = data?.posts || [];
+  const posts = orderedPosts;
 
   const handleDelete = async (id: number) => {
     if (confirm("Tem certeza que deseja excluir esta postagem?")) {
@@ -112,9 +177,16 @@ export default function AdminPosts() {
               <div key={post.id} className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium text-foreground leading-snug">{post.title}</p>
-                  <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-medium ${post.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                    {post.status === 'published' ? 'Publicado' : 'Rascunho'}
-                  </span>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${post.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {post.status === 'published' ? 'Publicado' : 'Rascunho'}
+                    </span>
+                    {isPinned(post) && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 flex items-center gap-1">
+                        <Pin className="w-3 h-3" /> Fixado ({pinDaysLeft(post)}d)
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {(post.tags ? JSON.parse(post.tags) : []).length > 0 && (
@@ -156,6 +228,17 @@ export default function AdminPosts() {
                   <Button
                     variant="outline"
                     size="sm"
+                    className={`gap-1.5 px-3 ${isPinned(post) ? "text-orange-600 border-orange-300" : ""}`}
+                    onClick={() => handleTogglePin(post)}
+                    disabled={updateMutation.isPending}
+                    aria-label={isPinned(post) ? "Desafixar" : "Fixar no topo"}
+                    title={isPinned(post) ? "Desafixar" : `Fixar no topo por ${PIN_DAYS} dias`}
+                  >
+                    {isPinned(post) ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="text-destructive hover:bg-destructive/10 gap-1.5 px-3"
                     onClick={() => handleDelete(post.id)}
                     disabled={deleteMutation.isPending}
@@ -176,6 +259,7 @@ export default function AdminPosts() {
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
               <tr>
+                <th className="w-8 px-2 py-4" aria-label="Arrastar para reordenar" />
                 <th className="px-6 py-4 font-medium">Título</th>
                 <th className="px-6 py-4 font-medium">Tags</th>
                 <th className="px-6 py-4 font-medium">Status</th>
@@ -186,12 +270,22 @@ export default function AdminPosts() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Carregando...</td></tr>
               ) : posts.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Nenhuma postagem encontrada.</td></tr>
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Nenhuma postagem encontrada.</td></tr>
               ) : (
                 posts.map(post => (
-                  <tr key={post.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                  <tr
+                    key={post.id}
+                    draggable
+                    onDragStart={() => handleDragStart(post.id)}
+                    onDragOver={(e) => handleDragOverRow(e, post.id)}
+                    onDragEnd={handleDragEnd}
+                    className={`border-b border-border last:border-0 hover:bg-muted/20 transition-colors ${draggingId === post.id ? "opacity-40" : ""}`}
+                  >
+                    <td className="px-2 py-4 text-muted-foreground cursor-grab active:cursor-grabbing" title="Arrastar para reordenar">
+                      <GripVertical className="w-4 h-4" />
+                    </td>
                     <td className="px-6 py-4 font-medium text-foreground">{post.title}</td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
@@ -201,9 +295,16 @@ export default function AdminPosts() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${post.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {post.status === 'published' ? 'Publicado' : 'Rascunho'}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${post.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {post.status === 'published' ? 'Publicado' : 'Rascunho'}
+                        </span>
+                        {isPinned(post) && (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 flex items-center gap-1">
+                            <Pin className="w-3 h-3" /> Fixado ({pinDaysLeft(post)}d)
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       {post.instagramPostedAt ? (
@@ -235,6 +336,16 @@ export default function AdminPosts() {
                           <Edit className="w-4 h-4" />
                         </Button>
                       </Link>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 w-8 p-0 ${isPinned(post) ? "text-orange-600" : "text-muted-foreground hover:text-orange-600"}`}
+                        onClick={() => handleTogglePin(post)}
+                        disabled={updateMutation.isPending}
+                        title={isPinned(post) ? "Desafixar" : `Fixar no topo por ${PIN_DAYS} dias`}
+                      >
+                        {isPinned(post) ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"

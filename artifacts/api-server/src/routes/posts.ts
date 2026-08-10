@@ -14,6 +14,7 @@ import {
   UpdatePostResponse,
   DeletePostParams,
   CreatePostBody,
+  ReorderPostsBody,
   PublishPostInstagramParams,
   PublishPostInstagramResponse,
 } from "@workspace/api-zod";
@@ -21,6 +22,15 @@ import { publishPostToInstagram } from "../lib/instagram";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+// Posts com pinnedUntil no futuro sobem pro topo sozinhos; passado esse
+// prazo, a mesma linha volta a cair pra ordem normal (displayOrder) sem
+// precisar de nenhuma rotina agendada — a comparação com now() é feita a
+// cada busca.
+const postOrder = [
+  desc(sql`(${postsTable.pinnedUntil} is not null and ${postsTable.pinnedUntil} > now())`),
+  desc(postsTable.displayOrder),
+];
 
 router.get("/posts", async (req, res): Promise<void> => {
   const query = ListPostsQueryParams.safeParse(req.query);
@@ -49,7 +59,7 @@ router.get("/posts", async (req, res): Promise<void> => {
     .select()
     .from(postsTable)
     .where(and(...conditions))
-    .orderBy(desc(postsTable.createdAt));
+    .orderBy(...postOrder);
 
   const posts = limit ? await (q as any).limit(limit) : await q;
 
@@ -63,7 +73,7 @@ router.get("/posts/admin", async (req, res): Promise<void> => {
     return;
   }
 
-  const posts = await db.select().from(postsTable).orderBy(desc(postsTable.createdAt));
+  const posts = await db.select().from(postsTable).orderBy(...postOrder);
   res.json(ListPostsAdminResponse.parse({ posts, total: posts.length }));
 });
 
@@ -80,8 +90,43 @@ router.post("/posts/admin/create", async (req, res): Promise<void> => {
     return;
   }
 
-  const [post] = await db.insert(postsTable).values(parsed.data).returning();
+  // Post novo entra no topo da listagem (mesmo critério usado ao publicar um
+  // rascunho existente — ver PATCH abaixo).
+  const [post] = await db
+    .insert(postsTable)
+    .values({ ...parsed.data, displayOrder: Math.floor(Date.now() / 1000) })
+    .returning();
   res.status(201).json(GetPostResponse.parse(post));
+});
+
+// Reatribui displayOrder pra refletir a ordem arrastada no admin. Reindexa
+// só os posts recebidos (contagem tipicamente pequena) em vez de fazer
+// ordenação fracionária — mais simples e sem casos extremos pra depurar.
+router.post("/posts/admin/reorder", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+
+  const parsed = ReorderPostsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { ids } = parsed.data;
+  await Promise.all(
+    ids.map((id, index) =>
+      db
+        .update(postsTable)
+        .set({ displayOrder: ids.length - index })
+        .where(eq(postsTable.id, id))
+    )
+  );
+
+  const posts = await db.select().from(postsTable).orderBy(...postOrder);
+  res.json(ListPostsAdminResponse.parse({ posts, total: posts.length }));
 });
 
 router.get("/posts/admin/:id", async (req, res): Promise<void> => {
@@ -125,9 +170,19 @@ router.patch("/posts/admin/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  // Ativar um rascunho (status vira "published" agora) leva o post pro topo
+  // da listagem — sem isso ele ficava na posição da data de criação
+  // original, enterrado embaixo de posts mais recentes.
+  const [existing] = await db.select({ status: postsTable.status }).from(postsTable).where(eq(postsTable.id, params.data.id));
+  const isBeingPublished = existing?.status !== "published" && parsed.data.status === "published";
+
   const [post] = await db
     .update(postsTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set({
+      ...parsed.data,
+      ...(isBeingPublished ? { displayOrder: Math.floor(Date.now() / 1000) } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(postsTable.id, params.data.id))
     .returning();
 

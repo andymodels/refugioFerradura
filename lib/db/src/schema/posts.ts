@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -40,6 +40,16 @@ export const postsTable = pgTable("posts", {
   // painel admin (sempre uma ação manual, nunca automática).
   instagramPostedAt: timestamp("instagram_posted_at", { withTimezone: true }),
   instagramMediaId: text("instagram_media_id"),
+  // Posição manual na listagem (segundos desde epoch por padrão, maior =
+  // mais acima). Arrastar no admin reatribui este valor pra todos os posts
+  // reordenados; publicar um rascunho também o atualiza pra "agora", pra ele
+  // aparecer no topo em vez de sumir na posição da data de criação original.
+  displayOrder: integer("display_order").notNull().default(0),
+  // Quando preenchido e no futuro, o post fica fixo no topo da listagem até
+  // essa data — depois volta sozinho pra posição normal (displayOrder), sem
+  // precisar de nenhuma rotina agendada: a query de ordenação já checa se
+  // ainda está no futuro toda vez que a lista é buscada.
+  pinnedUntil: timestamp("pinned_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
