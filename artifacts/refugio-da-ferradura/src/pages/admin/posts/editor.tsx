@@ -1,5 +1,5 @@
 import { useParams } from "wouter";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Label, Card, Textarea } from "@/components/ui-elements";
@@ -9,62 +9,74 @@ import { useLocation } from "wouter";
 import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store } from "lucide-react";
 import { isVideoUrl, cloudinaryVideoPoster } from "@/lib/utils";
 
-const POSITION_X = [
-  { value: "left", label: "Esquerda" },
-  { value: "center", label: "Centro" },
-  { value: "right", label: "Direita" },
-] as const;
-const POSITION_Y = [
-  { value: "top", label: "Topo" },
-  { value: "center", label: "Centro" },
-  { value: "bottom", label: "Base" },
-] as const;
+const POSITION_KEYWORD_X: Record<string, number> = { left: 0, center: 50, right: 100 };
+const POSITION_KEYWORD_Y: Record<string, number> = { top: 0, center: 50, bottom: 100 };
+
+// Aceita tanto o formato antigo (palavras-chave: "left top", "center center")
+// quanto o novo (percentuais livres: "37% 82%"), pra não quebrar posts que já
+// tinham um valor salvo antes desta mudança.
+function parseCoverPosition(value: string): { x: number; y: number } {
+  const [xRaw, yRaw] = (value || "center center").trim().split(/\s+/);
+  const x = xRaw?.endsWith("%") ? parseFloat(xRaw) : POSITION_KEYWORD_X[xRaw];
+  const y = yRaw?.endsWith("%") ? parseFloat(yRaw) : POSITION_KEYWORD_Y[yRaw];
+  return { x: Number.isFinite(x) ? x : 50, y: Number.isFinite(y) ? y : 50 };
+}
 
 // Enquadramento da capa (foto ou vídeo): o corte é sempre feito no CSS
 // (object-position), nunca no Cloudinary — um vídeo nunca é recortado lá, só
 // redimensionado. Por isso o mesmo valor resolve o corte pra foto e pra
-// vídeo ao mesmo tempo. Grade de 9 posições em vez de um seletor livre por
-// ser suficiente pro caso real (assunto fora do centro) e muito mais simples
-// de implementar e usar do que um focal point arrastável.
+// vídeo ao mesmo tempo. Marcador arrastável (percentual livre) em vez de
+// posições fixas, porque 9 pontos fixos cortavam demais nos extremos.
 function CoverPositionPicker({ coverUrl, value, onChange }: { coverUrl: string; value: string; onChange: (v: string) => void }) {
+  const boxRef = useRef<HTMLDivElement>(null);
   if (!coverUrl.trim()) return null;
   const video = isVideoUrl(coverUrl);
   const previewSrc = video ? cloudinaryVideoPoster(coverUrl) : coverUrl;
-  const [x, y] = (value || "center center").split(" ");
+  const { x, y } = parseCoverPosition(value);
+
+  const setFromPoint = (clientX: number, clientY: number) => {
+    const rect = boxRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
+    const nx = Math.min(100, Math.max(0, Math.round(((clientX - rect.left) / rect.width) * 100)));
+    const ny = Math.min(100, Math.max(0, Math.round(((clientY - rect.top) / rect.height) * 100)));
+    onChange(`${nx}% ${ny}%`);
+  };
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setFromPoint(e.clientX, e.clientY);
+    const onMove = (me: MouseEvent) => setFromPoint(me.clientX, me.clientY);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   return (
     <div className="space-y-1.5">
       <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">
         Enquadramento da capa {video && "(vídeo)"}
       </label>
-      <div className="relative w-full max-w-xs aspect-video rounded-lg overflow-hidden border border-white/10 bg-black/40">
-        <img src={previewSrc} alt="Prévia da capa" className="w-full h-full object-cover" style={{ objectPosition: value }} />
-        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-          {POSITION_Y.map((py) =>
-            POSITION_X.map((px) => {
-              const selected = px.value === x && py.value === y;
-              return (
-                <button
-                  key={`${px.value}-${py.value}`}
-                  type="button"
-                  title={`${py.label} ${px.label}`}
-                  onClick={() => onChange(`${px.value} ${py.value}`)}
-                  className="flex items-center justify-center group"
-                >
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full border transition-all ${
-                      selected
-                        ? "bg-orange-500 border-orange-500 scale-125"
-                        : "bg-white/20 border-white/40 group-hover:bg-white/60"
-                    }`}
-                  />
-                </button>
-              );
-            })
-          )}
-        </div>
+      <div
+        ref={boxRef}
+        onMouseDown={onMouseDown}
+        className="relative w-full max-w-xs aspect-video rounded-lg overflow-hidden border border-white/10 bg-black/40 cursor-crosshair select-none"
+      >
+        <img
+          src={previewSrc}
+          alt="Prévia da capa"
+          className="w-full h-full object-cover pointer-events-none"
+          style={{ objectPosition: `${x}% ${y}%` }}
+          draggable={false}
+        />
+        <div
+          className="absolute w-4 h-4 -ml-2 -mt-2 rounded-full border-2 border-orange-500 bg-white/90 shadow-md pointer-events-none"
+          style={{ left: `${x}%`, top: `${y}%` }}
+        />
       </div>
-      <p className="text-[10px] text-white/30">Clique num ponto pra escolher o que aparece nos cards e na página do post.</p>
+      <p className="text-[10px] text-white/30">Clique e arraste o ponto até enquadrar certinho o que vai aparecer nos cards e na página do post.</p>
     </div>
   );
 }
