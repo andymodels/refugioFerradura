@@ -85,13 +85,13 @@
   @apply mb-4 leading-relaxed;
 }
 .ProseMirror h1 {
-  @apply text-3xl font-serif mt-10 mb-4;
+  @apply text-3xl font-serif text-primary mt-10 mb-4;
 }
 .ProseMirror h2 {
-  @apply text-2xl font-serif mt-8 mb-4;
+  @apply text-2xl font-serif text-primary mt-8 mb-4;
 }
 .ProseMirror h3 {
-  @apply text-xl font-serif mt-6 mb-3;
+  @apply text-xl font-serif text-primary mt-6 mb-3;
 }
 .ProseMirror ul {
   @apply list-disc pl-6 mb-4 space-y-1;
@@ -140,16 +140,16 @@
   @apply mb-4 leading-relaxed text-muted-foreground;
 }
 .post-content h1 {
-  @apply text-3xl font-serif text-foreground font-semibold mt-8 mb-4 leading-tight tracking-tight;
+  @apply text-3xl font-serif text-primary font-semibold mt-8 mb-4 leading-tight tracking-tight;
 }
 .post-content h2 {
   @apply text-2xl font-serif text-primary font-semibold mt-7 mb-3 leading-tight tracking-tight;
 }
 .post-content h3 {
-  @apply text-xl font-serif text-foreground font-semibold mt-6 mb-2 leading-snug;
+  @apply text-xl font-serif text-primary font-semibold mt-6 mb-2 leading-snug;
 }
 .post-content h4 {
-  @apply text-lg font-serif text-foreground font-medium mt-5 mb-2;
+  @apply text-lg font-serif text-primary font-medium mt-5 mb-2;
 }
 .post-content strong {
   @apply font-semibold text-foreground;
