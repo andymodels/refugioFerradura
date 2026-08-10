@@ -1221,12 +1221,14 @@ router.get("/radar-scan", async (req, res): Promise<void> => {
   }
 });
 
-// Publica no Instagram o post publicado mais antigo que ainda está
+// Publica no Instagram o post publicado mais RECENTE que ainda está
 // pendente (nunca foi postado lá) — 1 por chamada, mesmo padrão das demais
-// rotas de cron (ver comentário em /reconcile-media). Rodando 2x por dia
-// (workflow "publish-oldest-post-instagram"), o acúmulo represado esvazia
-// aos poucos em vez de postar tudo de uma vez só. Sem revisão manual: se o
-// post está publicado no blog e tem mídia aprovada, publica direto.
+// rotas de cron (ver comentário em /reconcile-media). Do mais novo pro mais
+// velho de propósito: matérias antigas estão sendo revisadas aos poucos e
+// não devem ser postadas ainda. Rodando 2x por dia (workflow
+// "publish-oldest-post-instagram"), o acúmulo recente vai sendo publicado
+// sem nunca puxar o backlog antigo. Sem revisão manual: se o post está
+// publicado no blog e tem mídia aprovada, publica direto.
 router.get("/publish-oldest-to-instagram", async (req, res): Promise<void> => {
   const expected = process.env.CRON_SECRET;
   const authHeader = req.headers.authorization;
@@ -1245,7 +1247,7 @@ router.get("/publish-oldest-to-instagram", async (req, res): Promise<void> => {
         sql`(${postsTable.coverImage} is not null or ${postsTable.mediaItems} is not null)`
       )
     )
-    .orderBy(postsTable.createdAt)
+    .orderBy(desc(postsTable.createdAt))
     .limit(1);
 
   if (!post) {
