@@ -32,6 +32,7 @@ import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink, renderServicoB
 import { pollConnectedPartners } from "../lib/partner-content-poll";
 import { runRadarScan } from "../lib/radar";
 import { assignScheduleSlots } from "../lib/story-schedule";
+import { publishPostToInstagram } from "../lib/instagram";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -1217,6 +1218,52 @@ router.get("/radar-scan", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "[cron] Falha na varredura diária do Radar");
     res.status(500).json({ status: "error" });
+  }
+});
+
+// Publica no Instagram o post publicado mais antigo que ainda está
+// pendente (nunca foi postado lá) — 1 por chamada, mesmo padrão das demais
+// rotas de cron (ver comentário em /reconcile-media). Rodando 2x por dia
+// (workflow "publish-oldest-post-instagram"), o acúmulo represado esvazia
+// aos poucos em vez de postar tudo de uma vez só. Sem revisão manual: se o
+// post está publicado no blog e tem mídia aprovada, publica direto.
+router.get("/publish-oldest-to-instagram", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const [post] = await db
+    .select()
+    .from(postsTable)
+    .where(
+      and(
+        eq(postsTable.status, "published"),
+        sql`${postsTable.instagramPostedAt} is null`,
+        sql`(${postsTable.coverImage} is not null or ${postsTable.mediaItems} is not null)`
+      )
+    )
+    .orderBy(postsTable.createdAt)
+    .limit(1);
+
+  if (!post) {
+    res.json({ status: "ok", message: "Nenhum post pendente de publicação no Instagram" });
+    return;
+  }
+
+  try {
+    const result = await publishPostToInstagram(post);
+    await db
+      .update(postsTable)
+      .set({ instagramPostedAt: new Date(), instagramMediaId: result.mediaId })
+      .where(eq(postsTable.id, post.id));
+    logger.info({ postId: post.id, slug: post.slug, mediaId: result.mediaId }, "[cron] Post publicado no Instagram");
+    res.json({ status: "ok", postId: post.id, title: post.title, mediaId: result.mediaId });
+  } catch (err: any) {
+    logger.error({ postId: post.id, error: String(err?.message ?? err) }, "[cron] Falha ao publicar post no Instagram");
+    res.status(500).json({ status: "error", postId: post.id, error: err?.message ?? "Falha ao publicar no Instagram" });
   }
 });
 
