@@ -32,6 +32,17 @@ const postOrder = [
   desc(postsTable.displayOrder),
 ];
 
+// A listagem do admin usa uma ordem diferente da pública: rascunho antigo não
+// pode ficar enterrado embaixo de publicados recentes, senão a pessoa tem que
+// rolar a página inteira pra achar o que estava escrevendo. Rascunhos sempre
+// aparecem primeiro (mais recente editado no topo), e só depois vêm os
+// publicados na ordem normal (fixados/arrastados).
+const adminPostOrder = [
+  desc(sql`(${postsTable.status} = 'draft')`),
+  desc(postsTable.updatedAt),
+  ...postOrder,
+];
+
 router.get("/posts", async (req, res): Promise<void> => {
   const query = ListPostsQueryParams.safeParse(req.query);
   const search = query.success ? query.data.search : undefined;
@@ -73,7 +84,7 @@ router.get("/posts/admin", async (req, res): Promise<void> => {
     return;
   }
 
-  const posts = await db.select().from(postsTable).orderBy(...postOrder);
+  const posts = await db.select().from(postsTable).orderBy(...adminPostOrder);
   res.json(ListPostsAdminResponse.parse({ posts, total: posts.length }));
 });
 
@@ -125,7 +136,7 @@ router.post("/posts/admin/reorder", async (req, res): Promise<void> => {
     )
   );
 
-  const posts = await db.select().from(postsTable).orderBy(...postOrder);
+  const posts = await db.select().from(postsTable).orderBy(...adminPostOrder);
   res.json(ListPostsAdminResponse.parse({ posts, total: posts.length }));
 });
 
