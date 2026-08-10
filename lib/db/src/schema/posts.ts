@@ -11,6 +11,12 @@ export const postsTable = pgTable("posts", {
   content: text("content").notNull().default(""),
   coverImage: text("cover_image"),
   coverImageDisplayMode: text("cover_image_display_mode").notNull().default("cover"),
+  // Enquadramento CSS (object-position) da capa, ex. "center top", "center
+  // bottom" — corrige o corte de foto/vídeo de capa quando o assunto não
+  // está centralizado no quadro. Vídeo nunca é recortado no Cloudinary (o
+  // poster sai inteiro), então este valor resolve o corte pra foto e vídeo
+  // ao mesmo tempo, sempre no CSS.
+  coverImagePosition: text("cover_image_position").notNull().default("center center"),
   // JSON com a proveniência da imagem de capa: tipo de origem
   // (instagram_oficial/site_oficial/pdf/licenciada), URL original, URL de
   // destino do clique, crédito exibido, data de verificação e se é embed.

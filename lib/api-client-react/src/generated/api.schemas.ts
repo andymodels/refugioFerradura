@@ -56,6 +56,8 @@ export interface Post {
   coverImage?: string | null;
   /** How the cover image is shown inside the article */
   coverImageDisplayMode?: PostCoverImageDisplayMode;
+  /** CSS object-position for the cover image/video, e.g. "center top" */
+  coverImagePosition?: string;
   /**
    * JSON array of image URLs
    * @nullable
@@ -112,6 +114,7 @@ export interface CreatePostBody {
   /** @nullable */
   coverImage?: string | null;
   coverImageDisplayMode?: CreatePostBodyCoverImageDisplayMode;
+  coverImagePosition?: string;
   /** @nullable */
   gallery?: string | null;
   /** @nullable */
@@ -142,6 +145,7 @@ export interface UpdatePostBody {
   /** @nullable */
   coverImage?: string | null;
   coverImageDisplayMode?: UpdatePostBodyCoverImageDisplayMode;
+  coverImagePosition?: string;
   /** @nullable */
   gallery?: string | null;
   /** @nullable */

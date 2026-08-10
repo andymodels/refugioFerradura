@@ -7,6 +7,67 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store } from "lucide-react";
+import { isVideoUrl, cloudinaryVideoPoster } from "@/lib/utils";
+
+const POSITION_X = [
+  { value: "left", label: "Esquerda" },
+  { value: "center", label: "Centro" },
+  { value: "right", label: "Direita" },
+] as const;
+const POSITION_Y = [
+  { value: "top", label: "Topo" },
+  { value: "center", label: "Centro" },
+  { value: "bottom", label: "Base" },
+] as const;
+
+// Enquadramento da capa (foto ou vídeo): o corte é sempre feito no CSS
+// (object-position), nunca no Cloudinary — um vídeo nunca é recortado lá, só
+// redimensionado. Por isso o mesmo valor resolve o corte pra foto e pra
+// vídeo ao mesmo tempo. Grade de 9 posições em vez de um seletor livre por
+// ser suficiente pro caso real (assunto fora do centro) e muito mais simples
+// de implementar e usar do que um focal point arrastável.
+function CoverPositionPicker({ coverUrl, value, onChange }: { coverUrl: string; value: string; onChange: (v: string) => void }) {
+  if (!coverUrl.trim()) return null;
+  const video = isVideoUrl(coverUrl);
+  const previewSrc = video ? cloudinaryVideoPoster(coverUrl) : coverUrl;
+  const [x, y] = (value || "center center").split(" ");
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] uppercase text-white/30 font-bold tracking-widest">
+        Enquadramento da capa {video && "(vídeo)"}
+      </label>
+      <div className="relative w-full max-w-xs aspect-video rounded-lg overflow-hidden border border-white/10 bg-black/40">
+        <img src={previewSrc} alt="Prévia da capa" className="w-full h-full object-cover" style={{ objectPosition: value }} />
+        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+          {POSITION_Y.map((py) =>
+            POSITION_X.map((px) => {
+              const selected = px.value === x && py.value === y;
+              return (
+                <button
+                  key={`${px.value}-${py.value}`}
+                  type="button"
+                  title={`${py.label} ${px.label}`}
+                  onClick={() => onChange(`${px.value} ${py.value}`)}
+                  className="flex items-center justify-center group"
+                >
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full border transition-all ${
+                      selected
+                        ? "bg-orange-500 border-orange-500 scale-125"
+                        : "bg-white/20 border-white/40 group-hover:bg-white/60"
+                    }`}
+                  />
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+      <p className="text-[10px] text-white/30">Clique num ponto pra escolher o que aparece nos cards e na página do post.</p>
+    </div>
+  );
+}
 
 const PREDEFINED_TAGS = [
   { id: "lugares", label: "Lugares", icon: MapPin },
@@ -70,6 +131,7 @@ export default function AdminPostEditor() {
       tags: [] as string[],
       coverImage: "",
       coverImageDisplayMode: "natural" as "cover" | "natural",
+      coverImagePosition: "center center",
     },
   });
 
@@ -142,6 +204,7 @@ export default function AdminPostEditor() {
           // supplied by the administrator, including posts created before this
           // setting existed. Automated publishing never passes through here.
           coverImageDisplayMode: post.coverImage ? "natural" : "cover",
+          coverImagePosition: post.coverImagePosition || "center center",
         };
         // Server content always wins by default — a stale local draft must never
         // silently overwrite newer edits saved by someone else (or by an earlier
@@ -288,6 +351,7 @@ export default function AdminPostEditor() {
         status: data.status || "draft",
         coverImage: directCoverImage,
         coverImageDisplayMode: directCoverImage ? data.coverImageDisplayMode || "natural" : "cover",
+        coverImagePosition: data.coverImagePosition || "center center",
         tags: JSON.stringify(data.tags || []),
       };
 
@@ -360,6 +424,11 @@ export default function AdminPostEditor() {
               {...register("coverImage")}
               placeholder="Deixe vazio para links do Instagram; eles entram como mídia dentro do artigo"
               className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder:text-white/20 outline-none focus:border-orange-500/50 transition-colors"
+            />
+            <CoverPositionPicker
+              coverUrl={watch("coverImage") || ""}
+              value={watch("coverImagePosition") || "center center"}
+              onChange={(v) => setValue("coverImagePosition", v)}
             />
           </div>
 

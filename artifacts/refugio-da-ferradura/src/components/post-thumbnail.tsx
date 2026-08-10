@@ -25,7 +25,7 @@ export function getPostThumbnailSource(src?: string | null, content?: string | n
   return candidate && isDirectImageUrl(candidate) ? candidate : null;
 }
 
-export function PostThumbnail({ src, content, alt, className }: { src?: string | null; content?: string | null; alt: string; className?: string }) {
+export function PostThumbnail({ src, content, alt, className, position }: { src?: string | null; content?: string | null; alt: string; className?: string; position?: string | null }) {
   const [failed, setFailed] = useState(false);
   const rawSrc = !failed ? getPostThumbnailSource(src, content) : null;
   // Capa em vídeo (comum em posts importados do Instagram) nunca deve virar
@@ -47,6 +47,7 @@ export function PostThumbnail({ src, content, alt, className }: { src?: string |
       src={imageSrc}
       alt={alt}
       className={isVideo ? "w-full h-full object-cover" : className}
+      style={{ objectPosition: position || "center center" }}
       onError={() => setFailed(true)}
     />
   );

@@ -350,6 +350,7 @@ export default function BlogPost() {
                       ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain"
                       : "w-full max-h-[480px] object-cover"
                   }
+                  style={{ objectPosition: post.coverImagePosition || "center center" }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                   <div className="bg-black/50 rounded-full p-4">
@@ -368,6 +369,7 @@ export default function BlogPost() {
                     ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain"
                     : "w-full max-h-[480px] object-cover"
                 }
+                style={{ objectPosition: post.coverImagePosition || "center center" }}
               />
             ) : (
               <img
@@ -378,6 +380,7 @@ export default function BlogPost() {
                     ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain"
                     : "w-full max-h-[480px] object-cover"
                 }
+                style={{ objectPosition: post.coverImagePosition || "center center" }}
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}

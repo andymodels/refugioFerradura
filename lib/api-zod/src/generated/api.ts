@@ -69,6 +69,12 @@ export const ListPostsResponse = zod.object({
         .enum(["cover", "natural"])
         .optional()
         .describe("How the cover image is shown inside the article"),
+      coverImagePosition: zod
+        .string()
+        .optional()
+        .describe(
+          'CSS object-position for the cover image\/video, e.g. \"center top\"',
+        ),
       gallery: zod.string().nullish().describe("JSON array of image URLs"),
       videoEmbeds: zod
         .string()
@@ -113,6 +119,12 @@ export const ListPostsAdminResponse = zod.object({
         .enum(["cover", "natural"])
         .optional()
         .describe("How the cover image is shown inside the article"),
+      coverImagePosition: zod
+        .string()
+        .optional()
+        .describe(
+          'CSS object-position for the cover image\/video, e.g. \"center top\"',
+        ),
       gallery: zod.string().nullish().describe("JSON array of image URLs"),
       videoEmbeds: zod
         .string()
@@ -159,6 +171,12 @@ export const GetPostResponse = zod.object({
     .enum(["cover", "natural"])
     .optional()
     .describe("How the cover image is shown inside the article"),
+  coverImagePosition: zod
+    .string()
+    .optional()
+    .describe(
+      'CSS object-position for the cover image\/video, e.g. \"center top\"',
+    ),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -202,6 +220,12 @@ export const GetPostAdminResponse = zod.object({
     .enum(["cover", "natural"])
     .optional()
     .describe("How the cover image is shown inside the article"),
+  coverImagePosition: zod
+    .string()
+    .optional()
+    .describe(
+      'CSS object-position for the cover image\/video, e.g. \"center top\"',
+    ),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -241,6 +265,7 @@ export const UpdatePostBody = zod.object({
   content: zod.string().optional(),
   coverImage: zod.string().nullish(),
   coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+  coverImagePosition: zod.string().optional(),
   gallery: zod.string().nullish(),
   videoEmbeds: zod.string().nullish(),
   tags: zod.string().nullish(),
@@ -260,6 +285,12 @@ export const UpdatePostResponse = zod.object({
     .enum(["cover", "natural"])
     .optional()
     .describe("How the cover image is shown inside the article"),
+  coverImagePosition: zod
+    .string()
+    .optional()
+    .describe(
+      'CSS object-position for the cover image\/video, e.g. \"center top\"',
+    ),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()
@@ -302,6 +333,7 @@ export const CreatePostBody = zod.object({
   content: zod.string(),
   coverImage: zod.string().nullish(),
   coverImageDisplayMode: zod.enum(["cover", "natural"]).optional(),
+  coverImagePosition: zod.string().optional(),
   gallery: zod.string().nullish(),
   videoEmbeds: zod.string().nullish(),
   tags: zod.string().nullish(),
@@ -328,6 +360,12 @@ export const PublishPostInstagramResponse = zod.object({
     .enum(["cover", "natural"])
     .optional()
     .describe("How the cover image is shown inside the article"),
+  coverImagePosition: zod
+    .string()
+    .optional()
+    .describe(
+      'CSS object-position for the cover image\/video, e.g. \"center top\"',
+    ),
   gallery: zod.string().nullish().describe("JSON array of image URLs"),
   videoEmbeds: zod
     .string()

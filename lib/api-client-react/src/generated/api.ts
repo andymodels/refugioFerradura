@@ -49,6 +49,7 @@ import type {
   UpdateFonteBody,
   UpdateInstagramPartnerBody,
   UpdatePartnerContentItemBody,
+  UpdatePartnerContentItemResponse,
   UpdatePostBody,
   UpdateScheduleSettingsBody,
   UploadMediaBody,
@@ -2652,8 +2653,8 @@ export const getPublishPartnerContentNowUrl = (id: number) => {
 export const publishPartnerContentNow = async (
   id: number,
   options?: RequestInit,
-): Promise<PartnerContentItem> => {
-  return customFetch<PartnerContentItem>(
+): Promise<UpdatePartnerContentItemResponse> => {
+  return customFetch<UpdatePartnerContentItemResponse>(
     getPublishPartnerContentNowUrl(id),
     {
       ...options,

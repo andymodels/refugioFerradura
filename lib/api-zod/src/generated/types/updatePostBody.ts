@@ -18,6 +18,7 @@ export interface UpdatePostBody {
   /** @nullable */
   coverImage?: string | null;
   coverImageDisplayMode?: UpdatePostBodyCoverImageDisplayMode;
+  coverImagePosition?: string;
   /** @nullable */
   gallery?: string | null;
   /** @nullable */

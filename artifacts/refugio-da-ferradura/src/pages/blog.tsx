@@ -104,6 +104,7 @@ export default function Blog() {
                       content={post.content}
                       alt={post.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      position={post.coverImagePosition}
                     />
                     <div className="absolute top-4 left-4 flex gap-2 flex-wrap">
                       {postTags.slice(0, 2).map(t => (

@@ -851,6 +851,9 @@ components:
           type: string
           enum: [cover, natural]
           description: How the cover image is shown inside the article
+        coverImagePosition:
+          type: string
+          description: CSS object-position for the cover image/video, e.g. "center top"
         gallery:
           type: ["string", "null"]
           description: JSON array of image URLs
@@ -917,6 +920,8 @@ components:
         coverImageDisplayMode:
           type: string
           enum: [cover, natural]
+        coverImagePosition:
+          type: string
         gallery:
           type: ["string", "null"]
         videoEmbeds:
@@ -951,6 +956,8 @@ components:
         coverImageDisplayMode:
           type: string
           enum: [cover, natural]
+        coverImagePosition:
+          type: string
         gallery:
           type: ["string", "null"]
         videoEmbeds:
