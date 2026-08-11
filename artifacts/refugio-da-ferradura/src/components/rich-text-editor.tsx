@@ -1033,8 +1033,21 @@ const MediaCarousel = Node.create({
       {
         tag: 'div[data-image-carousel]',
         getAttrs: (el) => {
-          const raw = (el as HTMLElement).getAttribute('data-carousel');
-          const items: CarouselItem[] = parseLegacyCarouselImages(raw).map((src) => ({
+          const container = el as HTMLElement;
+          const raw = container.getAttribute('data-carousel');
+          let urls = parseLegacyCarouselImages(raw);
+          // Se o atributo JSON vier ausente/corrompido (posts bem antigos, ou
+          // qualquer falha de parsing), os <img> já publicados dentro do
+          // bloco são a fonte de verdade — mesma tolerância que o carrossel
+          // público (enhanceCarousels em blog-post.tsx) já usa. Sem isso, um
+          // atributo ilegível vira carrossel VAZIO e apaga as fotos de verdade
+          // assim que o post é salvo de novo.
+          if (urls.length === 0) {
+            urls = Array.from(container.querySelectorAll('img'))
+              .map((img) => img.getAttribute('src') || '')
+              .filter(Boolean);
+          }
+          const items: CarouselItem[] = urls.map((src) => ({
             kind: 'photo', src, poster: null, sourceUrl: null,
           }));
           return { items: JSON.stringify(items) };
@@ -1043,8 +1056,19 @@ const MediaCarousel = Node.create({
       {
         tag: 'div[data-video-carousel]',
         getAttrs: (el) => {
-          const raw = (el as HTMLElement).getAttribute('data-video-carousel-items');
-          const items: CarouselItem[] = parseLegacyCarouselVideos(raw).map((v) => ({
+          const container = el as HTMLElement;
+          const raw = container.getAttribute('data-video-carousel-items');
+          let videos = parseLegacyCarouselVideos(raw);
+          if (videos.length === 0) {
+            videos = Array.from(container.querySelectorAll('video'))
+              .map((v) => ({
+                src: v.getAttribute('src') || '',
+                poster: v.getAttribute('poster') || null,
+                sourceUrl: null,
+              }))
+              .filter((v) => v.src);
+          }
+          const items: CarouselItem[] = videos.map((v) => ({
             kind: 'video', src: v.src, poster: v.poster, sourceUrl: v.sourceUrl,
           }));
           return { items: JSON.stringify(items) };
