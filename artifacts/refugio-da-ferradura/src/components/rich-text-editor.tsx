@@ -19,7 +19,7 @@ import {
   Bold, Italic, UnderlineIcon, Strikethrough, Heading1, Heading2, Heading3,
   List, ListOrdered, Quote, Link as LinkIcon, Image as ImageIcon,
   Undo, Redo, Minus, Code, Highlighter, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal, Film,
+  Youtube as YoutubeIcon, LayoutGrid, Palette, X, GalleryHorizontal,
   ChevronLeft, ChevronRight, Plus, Trash2, Eraser, Upload, Video, Loader2, Instagram,
 } from 'lucide-react';
 import { cn } from './ui-elements';
@@ -684,10 +684,34 @@ const ImageGrid = Node.create({
   },
 });
 
-// ─── Image Carousel Node ──────────────────────────────────────────────────────
-// Stores an array of image URLs as JSON in data-carousel attribute.
+// ─── Media Carousel Node ──────────────────────────────────────────────────────
+// Um único carrossel que aceita fotos e vídeos misturados, cada item vindo
+// de upload de arquivo OU de link do Instagram (o servidor baixa e arquiva
+// no Cloudinary via /api/media/import-instagram, detectando foto ou vídeo
+// automaticamente). Substitui os antigos carrosséis separados de foto/vídeo.
 
-function parseCarouselImages(raw: string | null | undefined): string[] {
+interface CarouselItem { kind: 'photo' | 'video'; src: string; poster: string | null; sourceUrl: string | null }
+
+function parseCarouselItems(raw: string | null | undefined): CarouselItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((v) => v && v.src)
+      .map((v) => ({
+        kind: v.kind === 'video' ? 'video' : 'photo',
+        src: v.src,
+        poster: v.poster ?? null,
+        sourceUrl: v.sourceUrl ?? null,
+      }));
+  } catch { return []; }
+}
+
+// Formatos legados (carrossel de fotos e de vídeos separados) — mantidos só
+// pra migrar posts antigos já publicados pro formato unificado ao reabrir no
+// editor, sem precisar de migração de banco de dados.
+function parseLegacyCarouselImages(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -695,27 +719,54 @@ function parseCarouselImages(raw: string | null | undefined): string[] {
   } catch { return []; }
 }
 
-function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
+interface LegacyCarouselVideo { src: string; poster: string | null; sourceUrl: string | null }
+
+function parseLegacyCarouselVideos(raw: string | null | undefined): LegacyCarouselVideo[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v) => v && v.src) : [];
+  } catch { return []; }
+}
+
+// Nível do módulo porque tanto o botão avulso de vídeo (dentro de
+// RichTextEditor) quanto o carrossel de mídia (view separada, fora do
+// componente) precisam das mesmas transformações Cloudinary.
+function cappedCloudinaryUrl(url: string): string {
+  return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
+}
+
+function cloudinaryVideoPoster(url: string): string {
+  return url
+    .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
+    .replace(/\.\w+(\?.*)?$/, '.jpg');
+}
+
+function MediaCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
   const [index, setIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
-  const addInputRef = useRef<HTMLInputElement>(null);
-  const replaceInputRef = useRef<HTMLInputElement>(null);
-  const images = parseCarouselImages(node.attrs.images as string);
+  const [importing, setImporting] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const items = parseCarouselItems(node.attrs.items as string);
+  const current = items[index];
+  const busy = uploading || importing;
 
-  const addImage = () => addInputRef.current?.click();
+  const addPhotos = () => photoInputRef.current?.click();
+  const addVideoFile = () => videoInputRef.current?.click();
 
-  const onAddFilesSelected = async (files: File[]) => {
+  const onPhotosSelected = async (files: File[]) => {
     if (files.length === 0) return;
     setUploading(true);
-    let next = images;
+    let next = items;
     try {
       for (let i = 0; i < files.length; i++) {
         setUploadProgress({ done: i, total: files.length });
         const compressed = await compressImageFile(files[i]);
         const url = await uploadMediaFile(compressed);
-        next = [...next, url];
-        updateAttributes({ images: JSON.stringify(next) });
+        next = [...next, { kind: 'photo', src: url, poster: null, sourceUrl: null }];
+        updateAttributes({ items: JSON.stringify(next) });
       }
       setIndex(next.length - 1);
     } catch (err) {
@@ -726,61 +777,111 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
     }
   };
 
-  const removeCurrentImage = () => {
-    if (images.length === 0) return;
-    const next = images.filter((_, i) => i !== index);
-    updateAttributes({ images: JSON.stringify(next) });
-    setIndex(Math.max(0, index - 1));
-  };
-
-  const replaceCurrentImage = () => replaceInputRef.current?.click();
-
-  const onReplaceFileSelected = async (file: File | undefined) => {
-    if (!file || images.length === 0) return;
+  const onVideoSelected = async (file: File | undefined) => {
+    if (!file) return;
     setUploading(true);
     try {
-      const compressed = await compressImageFile(file);
-      const url = await uploadMediaFile(compressed);
-      const next = images.map((img, i) => (i === index ? url : img));
-      updateAttributes({ images: JSON.stringify(next) });
+      const url = await uploadMediaFile(file);
+      const next: CarouselItem[] = [
+        ...items,
+        { kind: 'video', src: cappedCloudinaryUrl(url), poster: cloudinaryVideoPoster(url), sourceUrl: null },
+      ];
+      updateAttributes({ items: JSON.stringify(next) });
+      setIndex(next.length - 1);
     } catch (err) {
-      alert('Erro ao enviar a foto: ' + (err as Error).message);
+      alert('Erro ao enviar o vídeo: ' + (err as Error).message);
     } finally {
       setUploading(false);
     }
   };
 
-  const prev = () => setIndex((i) => (i - 1 + Math.max(1, images.length)) % Math.max(1, images.length));
-  const next = () => setIndex((i) => (i + 1) % Math.max(1, images.length));
+  const addFromLink = async () => {
+    const url = (window.prompt('Cole o link do post ou Reel do Instagram:') || '').trim();
+    if (!url) return;
+    setImporting(true);
+    try {
+      const res = await fetch('/api/media/import-instagram', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Falha ao importar (HTTP ${res.status})`);
+      const kind: 'photo' | 'video' = data.type === 'video' ? 'video' : 'photo';
+      const next: CarouselItem[] = [
+        ...items,
+        {
+          kind,
+          src: cappedCloudinaryUrl(data.url),
+          poster: kind === 'video' ? cloudinaryVideoPoster(data.url) : null,
+          sourceUrl: data.sourceUrl || null,
+        },
+      ];
+      updateAttributes({ items: JSON.stringify(next) });
+      setIndex(next.length - 1);
+    } catch (err) {
+      alert('Não consegui importar essa mídia: ' + (err as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const removeCurrent = () => {
+    if (items.length === 0) return;
+    const next = items.filter((_, i) => i !== index);
+    updateAttributes({ items: JSON.stringify(next) });
+    setIndex(Math.max(0, index - 1));
+  };
+
+  const prev = () => setIndex((i) => (i - 1 + Math.max(1, items.length)) % Math.max(1, items.length));
+  const next = () => setIndex((i) => (i + 1) % Math.max(1, items.length));
 
   return (
     <NodeViewWrapper data-drag-handle className="my-4">
       <div className={cn('rounded-xl overflow-hidden bg-muted border border-border', selected && 'outline outline-2 outline-blue-500')}>
-        {/* Carousel display — height adapts to each photo's own aspect ratio instead of cropping */}
-        <div className="relative bg-muted/50 overflow-hidden flex items-center justify-center" style={{ minHeight: 220 }}>
-          {uploading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+        <div className="relative bg-black/90 flex items-center justify-center" style={{ minHeight: 220 }}>
+          {importing ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-white/70">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <p className="text-xs">Importando do Instagram…</p>
+            </div>
+          ) : uploading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-white/70">
               <Loader2 className="w-8 h-8 animate-spin" />
               {uploadProgress && uploadProgress.total > 1 && (
                 <p className="text-xs">Enviando foto {uploadProgress.done + 1} de {uploadProgress.total}…</p>
               )}
             </div>
-          ) : images.length > 0 ? (
-            <img
-              src={images[index]}
-              alt={`Slide ${index + 1}`}
-              className="max-w-full h-auto object-contain"
-              style={{ maxHeight: 480 }}
-            />
+          ) : current ? (
+            current.kind === 'video' ? (
+              <video
+                key={current.src}
+                src={current.src}
+                poster={current.poster || undefined}
+                controls
+                playsInline
+                preload="metadata"
+                className="max-w-full h-auto"
+                style={{ maxHeight: 480 }}
+              />
+            ) : (
+              <img
+                src={current.src}
+                alt={`Slide ${index + 1}`}
+                className="max-w-full h-auto object-contain"
+                style={{ maxHeight: 480 }}
+              />
+            )
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2">
+            <div className="flex flex-col items-center justify-center py-16 text-white/50 gap-2">
               <GalleryHorizontal className="w-10 h-10 opacity-30" />
-              <p className="text-sm">Carrossel vazio — clique em + para enviar fotos</p>
+              <p className="text-sm">Carrossel vazio — adicione fotos, vídeos ou cole um link do Instagram</p>
             </div>
           )}
 
           {/* Nav arrows */}
-          {images.length > 1 && (
+          {items.length > 1 && (
             <>
               <button
                 type="button"
@@ -800,259 +901,9 @@ function ImageCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
           )}
 
           {/* Counter */}
-          {images.length > 0 && (
+          {items.length > 0 && (
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {images.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setIndex(i)}
-                  className={cn(
-                    'w-2 h-2 rounded-full transition-all',
-                    i === index ? 'bg-white scale-110' : 'bg-white/50 hover:bg-white/80'
-                  )}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Controls bar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-background/80">
-          <span className="text-xs text-muted-foreground flex-1">
-            Carrossel · {images.length} foto{images.length !== 1 ? 's' : ''}
-          </span>
-          {images.length > 0 && (
-            <button
-              type="button"
-              disabled={uploading}
-              onClick={replaceCurrentImage}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors disabled:opacity-40"
-            >
-              Trocar foto atual
-            </button>
-          )}
-          {images.length > 0 && (
-            <button
-              type="button"
-              disabled={uploading}
-              onClick={removeCurrentImage}
-              className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"
-              title="Remover foto atual"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={addImage}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
-          >
-            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            Adicionar fotos
-          </button>
-        </div>
-      </div>
-      <input
-        ref={addInputRef}
-        type="file"
-        accept="image/*,.heic,.heif"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          // Precisa converter pra array ANTES de limpar e.target.value — files
-          // é uma FileList "viva" ligada ao input, então limpar o value zera
-          // a lista também (e o upload silenciosamente não faz nada).
-          const files = Array.from(e.target.files ?? []);
-          e.target.value = '';
-          onAddFilesSelected(files);
-        }}
-      />
-      <input
-        ref={replaceInputRef}
-        type="file"
-        accept="image/*,.heic,.heif"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          onReplaceFileSelected(file);
-        }}
-      />
-    </NodeViewWrapper>
-  );
-}
-
-// Nível do módulo porque tanto o botão avulso de vídeo (dentro de
-// RichTextEditor) quanto o carrossel de vídeos (view separada, fora do
-// componente) precisam das mesmas transformações Cloudinary.
-function cappedCloudinaryUrl(url: string): string {
-  return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
-}
-
-function cloudinaryVideoPoster(url: string): string {
-  return url
-    .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
-    .replace(/\.\w+(\?.*)?$/, '.jpg');
-}
-
-const ImageCarousel = Node.create({
-  name: 'imageCarousel',
-  group: 'block',
-  atom: true,
-  draggable: true,
-
-  addAttributes() {
-    return {
-      images: {
-        default: JSON.stringify([]),
-        renderHTML: (attrs) => ({
-          'data-carousel': attrs.images || JSON.stringify([]),
-        }),
-        parseHTML: (el) =>
-          (el as HTMLElement).getAttribute('data-carousel') || JSON.stringify([]),
-      },
-    };
-  },
-
-  parseHTML() {
-    return [{ tag: 'div[data-image-carousel]' }];
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    const raw = (HTMLAttributes as Record<string, string>)['data-carousel'] || JSON.stringify([]);
-    const imgs = parseCarouselImages(raw);
-    return [
-      'div',
-      mergeAttributes(HTMLAttributes, {
-        'data-image-carousel': '',
-        class: 'image-carousel-block',
-        style: 'display:flex;justify-content:center;align-items:center;border-radius:0.75rem;overflow:hidden',
-      }),
-      // Sem style inline aqui de propósito: .post-content .carousel-slide-img
-      // (index.css) já define object-fit:contain pra nunca cortar a foto —
-      // um style inline no <img> teria especificidade maior que a classe e
-      // sobrescreveria isso silenciosamente (era exatamente esse o bug:
-      // o inline antigo tinha object-fit:cover, cortando a foto mesmo com
-      // a regra certa já existindo na folha de estilo).
-      ...imgs.map((src, i) => ['img', { src, class: 'carousel-slide carousel-slide-img' + (i === 0 ? ' is-active' : ''), alt: '' }]),
-    ];
-  },
-
-  addNodeView() {
-    return ReactNodeViewRenderer(ImageCarouselView);
-  },
-});
-
-// ─── Video Carousel Node ──────────────────────────────────────────────────────
-// Como o carrossel de fotos, mas cada slide é um vídeo importado colando o
-// link de um post/Reel do Instagram — o servidor baixa e arquiva no
-// Cloudinary (mesmo endpoint /api/media/import-instagram do botão de vídeo
-// avulso), e o resultado entra como mais um slide aqui.
-
-interface CarouselVideo { src: string; poster: string | null; sourceUrl: string | null }
-
-function parseCarouselVideos(raw: string | null | undefined): CarouselVideo[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((v) => v && v.src) : [];
-  } catch { return []; }
-}
-
-function VideoCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
-  const [index, setIndex] = useState(0);
-  const [importing, setImporting] = useState(false);
-  const videos = parseCarouselVideos(node.attrs.videos as string);
-  const current = videos[index];
-
-  const addFromLink = async () => {
-    const url = (window.prompt('Cole o link do post ou Reel do Instagram:') || '').trim();
-    if (!url) return;
-    setImporting(true);
-    try {
-      const res = await fetch('/api/media/import-instagram', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Falha ao importar (HTTP ${res.status})`);
-      if (data.type !== 'video') throw new Error('Esse link não é de um vídeo/Reel.');
-      const next: CarouselVideo[] = [
-        ...videos,
-        { src: cappedCloudinaryUrl(data.url), poster: cloudinaryVideoPoster(data.url), sourceUrl: data.sourceUrl || null },
-      ];
-      updateAttributes({ videos: JSON.stringify(next) });
-      setIndex(next.length - 1);
-    } catch (err) {
-      alert('Não consegui importar esse vídeo: ' + (err as Error).message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const removeCurrentVideo = () => {
-    if (videos.length === 0) return;
-    const next = videos.filter((_, i) => i !== index);
-    updateAttributes({ videos: JSON.stringify(next) });
-    setIndex(Math.max(0, index - 1));
-  };
-
-  const prev = () => setIndex((i) => (i - 1 + Math.max(1, videos.length)) % Math.max(1, videos.length));
-  const next = () => setIndex((i) => (i + 1) % Math.max(1, videos.length));
-
-  return (
-    <NodeViewWrapper data-drag-handle className="my-4">
-      <div className={cn('rounded-xl overflow-hidden bg-muted border border-border', selected && 'outline outline-2 outline-blue-500')}>
-        <div className="relative bg-black flex items-center justify-center" style={{ minHeight: 220 }}>
-          {importing ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-2 text-white/70">
-              <Loader2 className="w-8 h-8 animate-spin" />
-              <p className="text-xs">Importando vídeo do Instagram…</p>
-            </div>
-          ) : current ? (
-            <video
-              key={current.src}
-              src={current.src}
-              poster={current.poster || undefined}
-              controls
-              playsInline
-              preload="metadata"
-              className="max-w-full h-auto"
-              style={{ maxHeight: 480 }}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-white/50 gap-2">
-              <Film className="w-10 h-10 opacity-30" />
-              <p className="text-sm">Carrossel de vídeos vazio — cole um link do Instagram</p>
-            </div>
-          )}
-
-          {videos.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={prev}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={next}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1.5 transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </>
-          )}
-
-          {videos.length > 0 && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {videos.map((_, i) => (
+              {items.map((_, i) => (
                 <button
                   key={i}
                   type="button"
@@ -1079,24 +930,42 @@ function VideoCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
         </div>
 
         {/* Controls bar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-background/80">
+        <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-background/80 flex-wrap">
           <span className="text-xs text-muted-foreground flex-1">
-            Carrossel de vídeos · {videos.length} vídeo{videos.length !== 1 ? 's' : ''}
+            Carrossel · {items.length} item{items.length !== 1 ? 's' : ''}
           </span>
-          {videos.length > 0 && (
+          {items.length > 0 && (
             <button
               type="button"
-              disabled={importing}
-              onClick={removeCurrentVideo}
+              disabled={busy}
+              onClick={removeCurrent}
               className="p-1 rounded hover:bg-red-100 text-red-500 transition-colors disabled:opacity-40"
-              title="Remover vídeo atual"
+              title="Remover item atual"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
           <button
             type="button"
-            disabled={importing}
+            disabled={busy}
+            onClick={addPhotos}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors disabled:opacity-40"
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+            Adicionar fotos
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={addVideoFile}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground transition-colors disabled:opacity-40"
+          >
+            <Video className="w-3.5 h-3.5" />
+            Adicionar vídeo
+          </button>
+          <button
+            type="button"
+            disabled={busy}
             onClick={addFromLink}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
           >
@@ -1105,56 +974,116 @@ function VideoCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
           </button>
         </div>
       </div>
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*,.heic,.heif"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          // Precisa converter pra array ANTES de limpar e.target.value — files
+          // é uma FileList "viva" ligada ao input, então limpar o value zera
+          // a lista também (e o upload silenciosamente não faz nada).
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          onPhotosSelected(files);
+        }}
+      />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          onVideoSelected(file);
+        }}
+      />
     </NodeViewWrapper>
   );
 }
 
-const VideoCarousel = Node.create({
-  name: 'videoCarousel',
+const MediaCarousel = Node.create({
+  name: 'mediaCarousel',
   group: 'block',
   atom: true,
   draggable: true,
 
   addAttributes() {
     return {
-      videos: {
+      items: {
         default: JSON.stringify([]),
         renderHTML: (attrs) => ({
-          'data-video-carousel-items': attrs.videos || JSON.stringify([]),
+          'data-media-items': attrs.items || JSON.stringify([]),
         }),
         parseHTML: (el) =>
-          (el as HTMLElement).getAttribute('data-video-carousel-items') || JSON.stringify([]),
+          (el as HTMLElement).getAttribute('data-media-items') || JSON.stringify([]),
       },
     };
   },
 
   parseHTML() {
-    return [{ tag: 'div[data-video-carousel]' }];
+    return [
+      { tag: 'div[data-media-carousel]' },
+      // Posts publicados antes dessa mudança gravaram HTML com os dois
+      // blocos separados — reconhece as tags antigas e converte pro formato
+      // unificado assim que o post é reaberto no editor, sem migração de
+      // banco de dados.
+      {
+        tag: 'div[data-image-carousel]',
+        getAttrs: (el) => {
+          const raw = (el as HTMLElement).getAttribute('data-carousel');
+          const items: CarouselItem[] = parseLegacyCarouselImages(raw).map((src) => ({
+            kind: 'photo', src, poster: null, sourceUrl: null,
+          }));
+          return { items: JSON.stringify(items) };
+        },
+      },
+      {
+        tag: 'div[data-video-carousel]',
+        getAttrs: (el) => {
+          const raw = (el as HTMLElement).getAttribute('data-video-carousel-items');
+          const items: CarouselItem[] = parseLegacyCarouselVideos(raw).map((v) => ({
+            kind: 'video', src: v.src, poster: v.poster, sourceUrl: v.sourceUrl,
+          }));
+          return { items: JSON.stringify(items) };
+        },
+      },
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    const raw = (HTMLAttributes as Record<string, string>)['data-video-carousel-items'] || JSON.stringify([]);
-    const videos = parseCarouselVideos(raw);
+    const raw = (HTMLAttributes as Record<string, string>)['data-media-items'] || JSON.stringify([]);
+    const items = parseCarouselItems(raw);
     return [
       'div',
       mergeAttributes(HTMLAttributes, {
-        'data-video-carousel': '',
-        class: 'video-carousel-block',
-        style: 'display:flex;justify-content:center;align-items:center;border-radius:0.75rem;overflow:hidden;background:#000',
+        'data-media-carousel': '',
+        class: 'media-carousel-block',
+        style: 'display:flex;justify-content:center;align-items:center;border-radius:0.75rem;overflow:hidden',
       }),
-      ...videos.map((v, i) => {
-        const attrs: Record<string, string> = {
-          src: v.src, controls: '', playsinline: '',
-          class: 'carousel-slide carousel-slide-video' + (i === 0 ? ' is-active' : ''),
-        };
-        if (v.poster) attrs.poster = v.poster;
-        return ['video', attrs];
+      // Sem style inline nos itens de propósito: .post-content .carousel-slide-img
+      // (index.css) já define object-fit:contain pra nunca cortar a foto —
+      // um style inline teria especificidade maior que a classe e
+      // sobrescreveria isso silenciosamente.
+      ...items.map((item, i) => {
+        const active = i === 0 ? ' is-active' : '';
+        if (item.kind === 'video') {
+          const attrs: Record<string, string> = {
+            src: item.src, controls: '', playsinline: '',
+            class: 'carousel-slide carousel-slide-video' + active,
+          };
+          if (item.poster) attrs.poster = item.poster;
+          return ['video', attrs];
+        }
+        return ['img', { src: item.src, class: 'carousel-slide carousel-slide-img' + active, alt: '' }];
       }),
     ];
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(VideoCarouselView);
+    return ReactNodeViewRenderer(MediaCarouselView);
   },
 });
 
@@ -1297,8 +1226,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
       ResizableImage,
       VideoEmbed,
       ImageGrid,
-      ImageCarousel,
-      VideoCarousel,
+      MediaCarousel,
       Underline,
       Highlight.configure({ multicolor: false }),
       Youtube.configure({
@@ -1532,19 +1460,11 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     }).run();
   }, [editor]);
 
-  const addImageCarousel = useCallback(() => {
+  const addMediaCarousel = useCallback(() => {
     if (!editor) return;
     (editor.chain().focus() as any).insertContent({
-      type: 'imageCarousel',
-      attrs: { images: JSON.stringify([]) },
-    }).run();
-  }, [editor]);
-
-  const addVideoCarousel = useCallback(() => {
-    if (!editor) return;
-    (editor.chain().focus() as any).insertContent({
-      type: 'videoCarousel',
-      attrs: { videos: JSON.stringify([]) },
+      type: 'mediaCarousel',
+      attrs: { items: JSON.stringify([]) },
     }).run();
   }, [editor]);
 
@@ -1652,8 +1572,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         <ToolbarButton onClick={addLink} active={editor.isActive('link')} icon={<LinkIcon className="w-4 h-4" />} title="Link" />
         <ToolbarButton onClick={addImage} icon={<ImageIcon className="w-4 h-4" />} title="Imagem" />
         <ToolbarButton onClick={addImageGrid} icon={<LayoutGrid className="w-4 h-4" />} title="Grade 2 imagens lado a lado" />
-        <ToolbarButton onClick={addImageCarousel} icon={<GalleryHorizontal className="w-4 h-4" />} title="Carrossel de fotos" />
-        <ToolbarButton onClick={addVideoCarousel} icon={<Film className="w-4 h-4" />} title="Carrossel de vídeos (colando links do Instagram)" />
+        <ToolbarButton onClick={addMediaCarousel} icon={<GalleryHorizontal className="w-4 h-4" />} title="Carrossel (fotos, vídeos e links do Instagram, tudo misturado)" />
         <ToolbarButton onClick={addVideo} icon={<YoutubeIcon className="w-4 h-4" />} title="Inserir vídeo (YouTube ou link direto)" />
         <Divider />
 

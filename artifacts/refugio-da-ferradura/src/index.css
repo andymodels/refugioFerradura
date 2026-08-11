@@ -363,7 +363,8 @@
    paisagem), em vez da faixa horizontal antiga com vários itens pequenos
    lado a lado. Troca de slide é feita por enhanceCarousels (blog-post.tsx). ── */
 .post-content .image-carousel-block,
-.post-content .video-carousel-block {
+.post-content .video-carousel-block,
+.post-content .media-carousel-block {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -373,6 +374,7 @@
 }
 .post-content .image-carousel-block { background: var(--color-muted); }
 .post-content .video-carousel-block { background: #000; }
+.post-content .media-carousel-block { background: #000; }
 
 .post-content .carousel-slide {
   display: none;
@@ -412,7 +414,8 @@
   margin: 1rem 0;
 }
 .post-content .carousel-wrap .image-carousel-block,
-.post-content .carousel-wrap .video-carousel-block {
+.post-content .carousel-wrap .video-carousel-block,
+.post-content .carousel-wrap .media-carousel-block {
   margin: 0;
 }
 .post-content .carousel-arrow {

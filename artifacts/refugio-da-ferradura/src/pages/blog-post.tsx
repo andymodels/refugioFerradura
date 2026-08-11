@@ -55,7 +55,10 @@ function renderInstagramEmbeds(html: string): string {
 // string porque este HTML vira string (innerHTML) antes de ser injetado na
 // página, perdendo qualquer closure de JS.
 function enhanceCarousels(html: string): string {
-  if (typeof document === "undefined" || (!html.includes("image-carousel-block") && !html.includes("video-carousel-block"))) return html;
+  if (
+    typeof document === "undefined" ||
+    (!html.includes("image-carousel-block") && !html.includes("video-carousel-block") && !html.includes("media-carousel-block"))
+  ) return html;
 
   const NAV = {
     prev: "var w=this.closest('[data-carousel-nav]'),v=[].slice.call(w.querySelectorAll('.carousel-slide')),d=[].slice.call(w.querySelectorAll('.carousel-dot')),c=v.findIndex(function(x){return x.classList.contains('is-active')}),n=(c-1+v.length)%v.length;v[c].classList.remove('is-active');if(v[c].pause)v[c].pause();v[n].classList.add('is-active');if(d[c])d[c].classList.remove('is-active');if(d[n])d[n].classList.add('is-active');",
@@ -65,8 +68,7 @@ function enhanceCarousels(html: string): string {
 
   const holder = document.createElement("div");
   holder.innerHTML = html;
-  holder.querySelectorAll(".image-carousel-block, .video-carousel-block").forEach((block) => {
-    const isVideo = block.classList.contains("video-carousel-block");
+  holder.querySelectorAll(".image-carousel-block, .video-carousel-block, .media-carousel-block").forEach((block) => {
     // Posts salvos antes dessa mudança têm um <style> antigo (faixa
     // horizontal) gravado no HTML, que tem prioridade sobre a classe CSS
     // nova — remove pra deixar a folha de estilo atual assumir o layout. Os
@@ -90,14 +92,14 @@ function enhanceCarousels(html: string): string {
     const prevBtn = document.createElement("button");
     prevBtn.type = "button";
     prevBtn.className = "carousel-arrow carousel-arrow-prev";
-    prevBtn.setAttribute("aria-label", isVideo ? "Vídeo anterior" : "Foto anterior");
+    prevBtn.setAttribute("aria-label", "Item anterior");
     prevBtn.innerHTML = "&#8249;";
     prevBtn.setAttribute("onclick", NAV.prev);
 
     const nextBtn = document.createElement("button");
     nextBtn.type = "button";
     nextBtn.className = "carousel-arrow carousel-arrow-next";
-    nextBtn.setAttribute("aria-label", isVideo ? "Próximo vídeo" : "Próxima foto");
+    nextBtn.setAttribute("aria-label", "Próximo item");
     nextBtn.innerHTML = "&#8250;";
     nextBtn.setAttribute("onclick", NAV.next);
 
