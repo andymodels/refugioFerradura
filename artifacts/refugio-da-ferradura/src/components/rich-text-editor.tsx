@@ -1017,8 +1017,54 @@ const MediaCarousel = Node.create({
         renderHTML: (attrs) => ({
           'data-media-items': attrs.items || JSON.stringify([]),
         }),
-        parseHTML: (el) =>
-          (el as HTMLElement).getAttribute('data-media-items') || JSON.stringify([]),
+        // IMPORTANTE: o Tiptap sempre deixa o resultado do parseHTML de cada
+        // atributo (aqui embaixo) sobrescrever o que um getAttrs por tag em
+        // parseHTML() (mais abaixo) tiver calculado — nunca o contrário. Por
+        // isso toda a migração dos formatos antigos (carrossel de fotos e de
+        // vídeos separados) precisa acontecer AQUI, e não num getAttrs por
+        // tag: colocar lá fazia essa função rodar por último e sobrescrever
+        // a migração com "[]" sempre que a div não tivesse data-media-items
+        // (todo post antigo), apagando a mídia real ao salvar de novo.
+        parseHTML: (el) => {
+          const container = el as HTMLElement;
+          const current = container.getAttribute('data-media-items');
+          if (current) return current;
+
+          if (container.hasAttribute('data-image-carousel')) {
+            let urls = parseLegacyCarouselImages(container.getAttribute('data-carousel'));
+            if (urls.length === 0) {
+              // Atributo JSON ausente/corrompido — os <img> já publicados
+              // dentro do bloco são a fonte de verdade, mesma tolerância que
+              // o carrossel público (enhanceCarousels em blog-post.tsx) usa.
+              urls = Array.from(container.querySelectorAll('img'))
+                .map((img) => img.getAttribute('src') || '')
+                .filter(Boolean);
+            }
+            const items: CarouselItem[] = urls.map((src) => ({
+              kind: 'photo', src, poster: null, sourceUrl: null,
+            }));
+            return JSON.stringify(items);
+          }
+
+          if (container.hasAttribute('data-video-carousel')) {
+            let videos = parseLegacyCarouselVideos(container.getAttribute('data-video-carousel-items'));
+            if (videos.length === 0) {
+              videos = Array.from(container.querySelectorAll('video'))
+                .map((v) => ({
+                  src: v.getAttribute('src') || '',
+                  poster: v.getAttribute('poster') || null,
+                  sourceUrl: null,
+                }))
+                .filter((v) => v.src);
+            }
+            const items: CarouselItem[] = videos.map((v) => ({
+              kind: 'video', src: v.src, poster: v.poster, sourceUrl: v.sourceUrl,
+            }));
+            return JSON.stringify(items);
+          }
+
+          return JSON.stringify([]);
+        },
       },
     };
   },
@@ -1027,53 +1073,10 @@ const MediaCarousel = Node.create({
     return [
       { tag: 'div[data-media-carousel]' },
       // Posts publicados antes dessa mudança gravaram HTML com os dois
-      // blocos separados — reconhece as tags antigas e converte pro formato
-      // unificado assim que o post é reaberto no editor, sem migração de
-      // banco de dados.
-      {
-        tag: 'div[data-image-carousel]',
-        getAttrs: (el) => {
-          const container = el as HTMLElement;
-          const raw = container.getAttribute('data-carousel');
-          let urls = parseLegacyCarouselImages(raw);
-          // Se o atributo JSON vier ausente/corrompido (posts bem antigos, ou
-          // qualquer falha de parsing), os <img> já publicados dentro do
-          // bloco são a fonte de verdade — mesma tolerância que o carrossel
-          // público (enhanceCarousels em blog-post.tsx) já usa. Sem isso, um
-          // atributo ilegível vira carrossel VAZIO e apaga as fotos de verdade
-          // assim que o post é salvo de novo.
-          if (urls.length === 0) {
-            urls = Array.from(container.querySelectorAll('img'))
-              .map((img) => img.getAttribute('src') || '')
-              .filter(Boolean);
-          }
-          const items: CarouselItem[] = urls.map((src) => ({
-            kind: 'photo', src, poster: null, sourceUrl: null,
-          }));
-          return { items: JSON.stringify(items) };
-        },
-      },
-      {
-        tag: 'div[data-video-carousel]',
-        getAttrs: (el) => {
-          const container = el as HTMLElement;
-          const raw = container.getAttribute('data-video-carousel-items');
-          let videos = parseLegacyCarouselVideos(raw);
-          if (videos.length === 0) {
-            videos = Array.from(container.querySelectorAll('video'))
-              .map((v) => ({
-                src: v.getAttribute('src') || '',
-                poster: v.getAttribute('poster') || null,
-                sourceUrl: null,
-              }))
-              .filter((v) => v.src);
-          }
-          const items: CarouselItem[] = videos.map((v) => ({
-            kind: 'video', src: v.src, poster: v.poster, sourceUrl: v.sourceUrl,
-          }));
-          return { items: JSON.stringify(items) };
-        },
-      },
+      // blocos separados — a migração de fato acontece no parseHTML do
+      // atributo items (acima); essas regras só precisam reconhecer a tag.
+      { tag: 'div[data-image-carousel]' },
+      { tag: 'div[data-video-carousel]' },
     ];
   },
 
