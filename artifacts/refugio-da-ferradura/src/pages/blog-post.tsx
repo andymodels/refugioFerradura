@@ -80,6 +80,16 @@ function enhanceCarousels(html: string): string {
     block.removeAttribute("style");
     const slides = Array.from(block.children) as HTMLElement[];
     if (slides.length === 0) return;
+    // Fotos de iPhone sobem como .heic — sem pedir a conversão pro Cloudinary
+    // (f_auto), o arquivo cru é servido do jeito que foi enviado e a maioria
+    // dos navegadores não consegue exibir, mesmo com o arquivo intacto.
+    slides.forEach((el) => {
+      if (el.tagName !== "IMG") return;
+      const src = el.getAttribute("src") || "";
+      if (/\.(heic|heif)(\?.*)?$/i.test(src)) {
+        el.setAttribute("src", src.replace("/upload/", "/upload/f_auto,q_auto/"));
+      }
+    });
     slides.forEach((el) => el.classList.add("carousel-slide"));
     slides[0].classList.add("is-active");
     if (slides.length < 2) return; // 1 item não precisa de navegação

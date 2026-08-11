@@ -742,6 +742,18 @@ function cloudinaryVideoPoster(url: string): string {
     .replace(/\.\w+(\?.*)?$/, '.jpg');
 }
 
+// Fotos de iPhone sobem como .heic — o Cloudinary sabe converter pro formato
+// certo na hora de servir, mas só quando a URL pede isso (f_auto). Sem essa
+// transformação, o arquivo .heic cru é servido do jeito que foi enviado e
+// a maioria dos navegadores (Chrome/Firefox) não consegue exibir, ficando
+// em branco tanto no editor quanto no site publicado — mesmo que o arquivo
+// esteja intacto no Cloudinary. Sem redimensionar (carrossel preserva a
+// proporção original da foto).
+function carouselPhotoDisplayUrl(url: string): string {
+  if (!/\.(heic|heif)(\?.*)?$/i.test(url)) return url;
+  return url.replace('/upload/', '/upload/f_auto,q_auto/');
+}
+
 function MediaCarouselView({ node, updateAttributes, selected }: NodeViewProps) {
   const [index, setIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -867,7 +879,7 @@ function MediaCarouselView({ node, updateAttributes, selected }: NodeViewProps) 
               />
             ) : (
               <img
-                src={current.src}
+                src={carouselPhotoDisplayUrl(current.src)}
                 alt={`Slide ${index + 1}`}
                 className="max-w-full h-auto object-contain"
                 style={{ maxHeight: 480 }}
@@ -1104,7 +1116,7 @@ const MediaCarousel = Node.create({
           if (item.poster) attrs.poster = item.poster;
           return ['video', attrs];
         }
-        return ['img', { src: item.src, class: 'carousel-slide carousel-slide-img' + active, alt: '' }];
+        return ['img', { src: carouselPhotoDisplayUrl(item.src), class: 'carousel-slide carousel-slide-img' + active, alt: '' }];
       }),
     ];
   },
