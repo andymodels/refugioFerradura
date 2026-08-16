@@ -120,30 +120,38 @@ function extractFirstMediaFromContent(content: string): MediaSource | null {
   // querySelectorAll com seletor combinado devolve os elementos na ORDEM real
   // do documento — essencial aqui, porque a primeira mídia pode ser uma foto
   // solta, um vídeo ou um carrossel, em qualquer ordem entre os blocos de
-  // texto. O primeiro elemento encontrado é sempre a primeira mídia de
-  // verdade do post, nunca a "melhor" ou a de um tipo específico.
+  // texto.
   const candidates = document.querySelectorAll("video[src], [data-carousel], img[src]");
 
+  const found: MediaSource[] = [];
   for (const el of candidates) {
     if (el.hasAttribute("data-carousel")) {
       try {
         const urls: unknown = JSON.parse(el.getAttribute("data-carousel") || "[]");
         if (Array.isArray(urls) && typeof urls[0] === "string" && urls[0]) {
-          return { kind: "foto", url: urls[0] };
+          found.push({ kind: "foto", url: urls[0] });
         }
       } catch {
         // carrossel malformado — segue pro próximo candidato na ordem
-        continue;
       }
       continue;
     }
 
     const src = el.getAttribute("src");
     if (!src) continue;
-    return { kind: el.tagName.toLowerCase() === "video" ? "video" : "foto", url: src };
+    found.push({ kind: el.tagName.toLowerCase() === "video" ? "video" : "foto", url: src });
   }
 
-  return null;
+  if (found.length === 0) return null;
+
+  // Posts que agregam conteúdo de fontes externas (TripAdvisor, resultados de
+  // busca etc.) têm fotos "emprestadas" de outros sites logo no início do
+  // texto — a Graph API do Instagram rejeita essas URLs com "media could not
+  // be fetched" porque muitos desses hosts bloqueiam esse tipo de acesso.
+  // Só a mídia arquivada no próprio Cloudinary tem garantia de ser
+  // baixável, então ela tem prioridade sobre a ordem do documento; usa uma
+  // fonte externa só se não houver nenhuma do Cloudinary no post.
+  return found.find((m) => /res\.cloudinary\.com/.test(m.url)) || found[0];
 }
 
 function resolveMediaSource(post: Post): MediaSource | null {
