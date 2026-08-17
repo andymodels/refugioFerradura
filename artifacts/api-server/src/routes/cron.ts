@@ -1,8 +1,17 @@
 import { Router, type IRouter } from "express";
 import { parseHTML } from "linkedom";
-import { db, fontesTable, fontesProcessadasTable, postsTable, empreendimentosFilaTable } from "@workspace/db";
+import {
+  db,
+  fontesTable,
+  fontesProcessadasTable,
+  postsTable,
+  empreendimentosFilaTable,
+  partnerContentItemsTable,
+  instagramPartnersTable,
+  storyScheduleSettingsTable,
+} from "@workspace/db";
 import { CONTENT_TAGS } from "@workspace/db/constants/tags";
-import { eq, and, gte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import {
   extractArticleContent,
   extractImagesFromSource,
@@ -32,7 +41,7 @@ import { ensureMailtoLink, ensureMapsLink, fixSplitInstagramLink, renderServicoB
 import { pollConnectedPartners } from "../lib/partner-content-poll";
 import { runRadarScan } from "../lib/radar";
 import { assignScheduleSlots } from "../lib/story-schedule";
-import { publishPostToInstagram } from "../lib/instagram";
+import { publishPostToInstagram, publishPartnerContentToInstagram } from "../lib/instagram";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -1145,6 +1154,69 @@ router.get("/assign-partner-schedule", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ err }, "[cron] Falha ao agendar conteúdo de parceiros");
     res.status(500).json({ status: "error" });
+  }
+});
+
+// Publica no Instagram os itens de parceiro já agendados cujo horário
+// (scheduledFor) já passou — só roda se o interruptor "Ativar automação"
+// estiver ligado (storyScheduleSettingsTable.automacaoAtiva). É o elo que
+// faltava entre "assign-partner-schedule" (só aloca horário) e a publicação
+// de fato: sem essa rota, o único jeito de algo sair era o clique manual em
+// "Publicar agora" no painel.
+router.get("/publish-scheduled-partner-content", async (req, res): Promise<void> => {
+  const expected = process.env.CRON_SECRET;
+  const authHeader = req.headers.authorization;
+  if (!expected || authHeader !== `Bearer ${expected}`) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+
+  const [settings] = await db.select({ automacaoAtiva: storyScheduleSettingsTable.automacaoAtiva }).from(storyScheduleSettingsTable).limit(1);
+  if (!settings?.automacaoAtiva) {
+    res.json({ status: "ok", message: "Automação desligada — nada publicado." });
+    return;
+  }
+
+  const dueItems = await db
+    .select({
+      id: partnerContentItemsTable.id,
+      partnerId: partnerContentItemsTable.partnerId,
+      mediaUrl: partnerContentItemsTable.mediaUrl,
+      mediaType: partnerContentItemsTable.mediaType,
+      tipoConteudo: partnerContentItemsTable.tipoConteudo,
+      status: partnerContentItemsTable.status,
+      scheduledFor: partnerContentItemsTable.scheduledFor,
+      nomeEstabelecimento: instagramPartnersTable.nomeEstabelecimento,
+      instagramHandle: instagramPartnersTable.instagramHandle,
+    })
+    .from(partnerContentItemsTable)
+    .innerJoin(instagramPartnersTable, eq(partnerContentItemsTable.partnerId, instagramPartnersTable.id))
+    .where(and(eq(partnerContentItemsTable.status, "agendado"), lte(partnerContentItemsTable.scheduledFor, new Date())))
+    .orderBy(partnerContentItemsTable.scheduledFor)
+    .limit(1);
+
+  const item = dueItems[0];
+  if (!item) {
+    res.json({ status: "ok", message: "Nenhum item agendado com horário vencido." });
+    return;
+  }
+
+  try {
+    const result = await publishPartnerContentToInstagram(item, {
+      nomeEstabelecimento: item.nomeEstabelecimento,
+      instagramHandle: item.instagramHandle,
+    });
+
+    await db
+      .update(partnerContentItemsTable)
+      .set({ status: "publicado", publishedAt: new Date(), publishedMediaId: result.mediaId })
+      .where(eq(partnerContentItemsTable.id, item.id));
+
+    logger.info({ itemId: item.id, partnerId: item.partnerId, mediaId: result.mediaId }, "[cron] Conteúdo de parceiro publicado automaticamente");
+    res.json({ status: "ok", itemId: item.id, mediaId: result.mediaId });
+  } catch (err: any) {
+    logger.error({ itemId: item.id, error: String(err?.message ?? err) }, "[cron] Falha ao publicar conteúdo agendado de parceiro");
+    res.status(500).json({ status: "error", itemId: item.id, error: err?.message ?? "Falha ao publicar no Instagram." });
   }
 });
 

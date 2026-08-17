@@ -474,10 +474,9 @@ router.patch("/partners/admin/content/:id", async (req, res): Promise<void> => {
   res.json(UpdatePartnerContentItemResponse.parse(item));
 });
 
-// Único gatilho que de fato chama a API do Instagram pra publicar conteúdo
-// de parceiro — sempre um clique explícito do admin. Não existe cron
-// nenhum chamando isso ainda; é assim de propósito, até o primeiro teste
-// real ser feito e autorizado.
+// Publicação manual, disparada por um clique explícito do admin — publica
+// esse item na hora, ignorando o agendamento. A publicação automática (por
+// horário agendado) é feita por outra rota, GET /cron/publish-scheduled-partner-content.
 router.post("/partners/admin/content/:id/publish-now", async (req, res): Promise<void> => {
   const session = req.session as any;
   if (!session?.adminId) {
