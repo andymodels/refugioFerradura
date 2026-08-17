@@ -1,8 +1,9 @@
 import React from "react";
 import { Link } from "wouter";
-import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play, Link2, Unlink } from "lucide-react";
+import { Users, ScanSearch, Pencil, X, Check, Plus, Pause, Play, Link2, Unlink, Copy } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui-elements";
+import { ToastAction } from "@/components/ui/toast";
 import {
   useListInstagramPartners,
   useScanInstagramPartners,
@@ -127,9 +128,20 @@ export default function AdminPartners() {
         description: "Manda esse link pro parceiro — ele conecta o Instagram e/ou envia Stories, tudo na mesma página.",
       });
     } catch {
+      // Cópia automática após o await do servidor perde o "gesto do usuário"
+      // que o navegador exige pro clipboard — o clique no botão abaixo, sim,
+      // conta como gesto novo e funciona.
       toast({
-        title: "Link gerado (não copiou sozinho)",
+        title: "Link gerado",
         description: url,
+        action: (
+          <ToastAction
+            altText="Copiar link"
+            onClick={() => navigator.clipboard.writeText(url).catch(() => {})}
+          >
+            <Copy className="w-3.5 h-3.5 mr-1" /> Copiar
+          </ToastAction>
+        ),
       });
     }
   };
