@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@mozilla/readability": "^0.6.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/bcryptjs": "^3.0.0",
     "@types/connect-pg-simple": "^7.0.3",
     "@types/express-session": "^1.18.2",
@@ -32,6 +33,8 @@
     "multer": "^2.1.1",
     "pino": "^9",
     "pino-http": "^10",
+    "satori": "^0.29.0",
+    "sharp": "^0.35.3",
     "streamifier": "^0.1.1"
   },
   "devDependencies": {
