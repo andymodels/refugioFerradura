@@ -111,15 +111,26 @@ export default function AdminPartners() {
   };
 
   const handleCopyInviteLink = async (id: number) => {
+    let url: string;
     try {
       const result = await uploadLinkMutation.mutateAsync({ id });
-      await navigator.clipboard.writeText(result.url);
+      url = result.url;
+    } catch (e: any) {
+      toast({ title: "Erro ao gerar link", description: e?.message, variant: "destructive" });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
       toast({
         title: "Link copiado",
         description: "Manda esse link pro parceiro — ele conecta o Instagram e/ou envia Stories, tudo na mesma página.",
       });
-    } catch (e: any) {
-      toast({ title: "Erro ao gerar link", description: e?.message, variant: "destructive" });
+    } catch {
+      toast({
+        title: "Link gerado (não copiou sozinho)",
+        description: url,
+      });
     }
   };
 
