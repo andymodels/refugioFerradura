@@ -238,7 +238,13 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
     containerUrl.searchParams.set("media_type", "REELS");
     containerUrl.searchParams.set("video_url", source.url);
   } else {
-    containerUrl.searchParams.set("image_url", ensureJpegUrl(source.url));
+    // A marca do site + título por cima da foto só funciona via
+    // transformação do Cloudinary — se a foto vier de outro host (fallback
+    // pra capa externa), publica sem a marca em vez de mandar uma URL
+    // inválida pro Instagram.
+    const isCloudinary = /res\.cloudinary\.com/.test(source.url);
+    const finalImageUrl = isCloudinary ? overlayHeadlineOnImage(source.url, post.title) : source.url;
+    containerUrl.searchParams.set("image_url", ensureJpegUrl(finalImageUrl));
   }
   containerUrl.searchParams.set("caption", caption);
   containerUrl.searchParams.set("access_token", accessToken);
@@ -287,6 +293,25 @@ function overlayHandleOnImage(url: string, handle: string): string {
   const text = encodeURIComponent(`@${handle}`).replace(/,/g, "%2C").replace(/\//g, "%2F");
   const layer = `l_text:Arial_48_bold:${text},co_white,b_rgb:00000090,g_south,y_60`;
   return url.replace("/upload/", `/upload/${layer}/`);
+}
+
+// Marca a foto do feed com o site (canto superior esquerdo) e o título do
+// post em caixa alta (base), igual ao efeito visual do blog do n9ve —
+// mesma técnica de layer de texto do Cloudinary usada acima pro @handle de
+// Story, sem precisar de nenhuma biblioteca nova. w_+c_fit faz o Cloudinary
+// quebrar a linha do título sozinho dentro da largura máxima.
+function overlayHeadlineOnImage(url: string, title: string): string {
+  // O Cloudinary usa ":" e "," como delimitadores da própria sintaxe de
+  // transformação — mesmo com o texto percent-encoded, esses caracteres
+  // dentro do título fazem a URL inteira falhar com "Invalid transformation
+  // component". Remove essa pontuação de estrutura antes de montar a camada
+  // de texto (não afeta a legibilidade do título em caixa alta).
+  const clean = (s: string) => s.replace(/[:,/]/g, " ").replace(/\s+/g, " ").trim();
+
+  const siteLayer = `l_text:Arial_34_bold:${encodeURIComponent("refugioferradura.com.br")},co_white,b_rgb:00000090,g_north_west,x_50,y_50`;
+  const titleLayer = `l_text:Arial_58_bold:${encodeURIComponent(clean(title).toUpperCase())},co_white,b_rgb:00000090,w_940,c_fit,g_south,x_70,y_70`;
+
+  return url.replace("/upload/", `/upload/${siteLayer}/${titleLayer}/`);
 }
 
 export interface PartnerContentToPublish {
