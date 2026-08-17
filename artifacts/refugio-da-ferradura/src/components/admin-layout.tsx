@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, Image as ImageIcon, Settings, LogOut, ArrowLeft, Rss, Users, Sparkles, Radar, Menu, X } from "lucide-react";
+import { LayoutDashboard, FileText, Image as ImageIcon, Settings, LogOut, ArrowLeft, Rss, Users, Sparkles, Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "./ui-elements";
 
@@ -32,7 +32,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Canais Oficiais", href: "/admin/fontes", icon: Rss },
     { name: "Parceiros", href: "/admin/parceiros", icon: Users },
     { name: "Stories", href: "/admin/stories", icon: Sparkles },
-    { name: "Radar", href: "/admin/radar", icon: Radar },
     { name: "Visual", href: "/admin/settings", icon: Settings },
   ];
 
