@@ -296,22 +296,53 @@ function overlayHandleOnImage(url: string, handle: string): string {
 }
 
 // Marca a foto do feed com o site (canto superior esquerdo) e o título do
-// post em caixa alta (base), igual ao efeito visual do blog do n9ve —
-// mesma técnica de layer de texto do Cloudinary usada acima pro @handle de
-// Story, sem precisar de nenhuma biblioteca nova. w_+c_fit faz o Cloudinary
-// quebrar a linha do título sozinho dentro da largura máxima.
+// post em caixa alta (base), igual ao efeito visual do blog do n9ve: sombra
+// suave por trás do texto (sem caixa sólida) e a primeira parte do título —
+// geralmente o nome do lugar — maior e destacada acima do resto. Mesma
+// técnica de layer de texto do Cloudinary já usada acima pro @handle de
+// Story, sem precisar de nenhuma biblioteca nova.
+const HEADLINE_WIDTH = 940;
+// Estimativa de largura média de caractere em fonte bold caixa alta — não
+// existe medição real de fonte disponível aqui (sem motor de layout), então
+// a quebra de linha do Cloudinary (w_+c_fit) já faz o trabalho visual; isso
+// só serve pra prever QUANTAS linhas o texto vai ocupar, pra empilhar a
+// camada de negrito por cima sem sobrepor a de baixo.
+function estimateLineCount(text: string, fontSize: number): number {
+  const avgCharWidth = fontSize * 0.58;
+  const charsPerLine = Math.max(1, Math.floor(HEADLINE_WIDTH / avgCharWidth));
+  return Math.max(1, Math.ceil(text.length / charsPerLine));
+}
+
 function overlayHeadlineOnImage(url: string, title: string): string {
   // O Cloudinary usa ":" e "," como delimitadores da própria sintaxe de
   // transformação — mesmo com o texto percent-encoded, esses caracteres
   // dentro do título fazem a URL inteira falhar com "Invalid transformation
   // component". Remove essa pontuação de estrutura antes de montar a camada
   // de texto (não afeta a legibilidade do título em caixa alta).
-  const clean = (s: string) => s.replace(/[:,/]/g, " ").replace(/\s+/g, " ").trim();
+  const clean = (s: string) => s.replace(/[:,/]/g, " ").replace(/\s+/g, " ").trim().toUpperCase();
 
-  const siteLayer = `l_text:Arial_34_bold:${encodeURIComponent("refugioferradura.com.br")},co_white,b_rgb:00000090,g_north_west,x_50,y_50`;
-  const titleLayer = `l_text:Arial_58_bold:${encodeURIComponent(clean(title).toUpperCase())},co_white,b_rgb:00000090,w_940,c_fit,g_south,x_70,y_70`;
+  const siteLayer = `l_text:Arial_34_bold:${encodeURIComponent("refugioferradura.com.br")},co_white,e_shadow:50,g_north_west,x_50,y_50`;
 
-  return url.replace("/upload/", `/upload/${siteLayer}/${titleLayer}/`);
+  // Divide no primeiro ":" do título original (normalmente "Nome do lugar:
+  // resto da descrição") pra destacar o nome em negrito maior, separado do
+  // resto — sem isso, cai pro título inteiro numa única camada.
+  const colonIndex = title.indexOf(":");
+  const boldPart = colonIndex > 0 ? clean(title.slice(0, colonIndex)) : "";
+  const restPart = colonIndex > 0 ? clean(title.slice(colonIndex + 1)) : clean(title);
+
+  const restFontSize = 46;
+  const restLayer = `l_text:Arial_${restFontSize}_bold:${encodeURIComponent(restPart)},co_white,e_shadow:50,w_${HEADLINE_WIDTH},c_fit,g_south,x_70,y_70`;
+
+  if (!boldPart) {
+    return url.replace("/upload/", `/upload/${siteLayer}/${restLayer}/`);
+  }
+
+  const boldFontSize = 54;
+  const restLines = estimateLineCount(restPart, restFontSize);
+  const boldY = 70 + restLines * Math.round(restFontSize * 1.25) + 18;
+  const boldLayer = `l_text:Arial_${boldFontSize}_bold:${encodeURIComponent(boldPart)},co_white,e_shadow:50,w_${HEADLINE_WIDTH},c_fit,g_south,x_70,y_${boldY}`;
+
+  return url.replace("/upload/", `/upload/${siteLayer}/${restLayer}/${boldLayer}/`);
 }
 
 export interface PartnerContentToPublish {
