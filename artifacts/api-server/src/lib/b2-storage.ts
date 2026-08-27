@@ -114,20 +114,20 @@ async function optimizeImage(body: Buffer | Uint8Array, filename: string, conten
 // formato não suportado, timeout) só significa que esse vídeo específico
 // fica sem miniatura própria — o frontend já tem um fallback visual pra
 // isso, não é obrigatório existir.
-async function extractVideoPosterFrame(body: Buffer | Uint8Array): Promise<Buffer | null> {
+export async function extractVideoPosterFrame(body: Buffer | Uint8Array, atSeconds = 0.6): Promise<Buffer | null> {
   if (!ffmpegPath) return null;
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "refugio-video-"));
   const inputPath = path.join(tempDir, "input");
   const outputPath = path.join(tempDir, "poster.jpg");
   try {
     await writeFile(inputPath, body);
-    // -ss antes do -i faz o ffmpeg pular direto pro segundo 0.6 sem decodificar
-    // o vídeo inteiro (rápido o bastante pra rodar dentro de uma função
-    // serverless) — e evita pegar o primeiro frame, que em vídeo do
-    // Instagram costuma vir preto/em fade.
+    // -ss antes do -i faz o ffmpeg pular direto pro segundo pedido sem
+    // decodificar o vídeo inteiro (rápido o bastante pra rodar dentro de uma
+    // função serverless) — o padrão (0.6s) evita pegar o primeiro frame, que
+    // em vídeo do Instagram costuma vir preto/em fade.
     await execFileAsync(ffmpegPath, [
       "-hide_banner", "-loglevel", "error",
-      "-ss", "0.6", "-i", inputPath,
+      "-ss", String(Math.max(0, atSeconds)), "-i", inputPath,
       "-frames:v", "1",
       "-vf", "scale=740:740:force_original_aspect_ratio=decrease",
       "-q:v", "3", outputPath,
@@ -176,6 +176,27 @@ export async function uploadMediaBuffer(params: {
   }
 
   return { url: b2PublicUrl(key), type: params.type, key, posterUrl };
+}
+
+// Baixa um vídeo de qualquer URL (o mesmo que já é feito pra arquivar link
+// do Instagram, ver archiveRemoteMedia abaixo) só pra tirar um frame num
+// instante escolhido e salvar como imagem no B2 — usado pelo "Definir capa"
+// do editor (ver rota /media/video-frame) sempre que a pessoa quer um frame
+// diferente do automático, ou quando o vídeo é um link externo (o navegador
+// não consegue ler pixel de vídeo de outro domínio sem CORS, então quem tira
+// o frame precisa ser o servidor, que baixa o arquivo sem essa restrição).
+export async function captureRemoteVideoFrame(sourceUrl: string, atSeconds: number): Promise<string | null> {
+  const response = await fetch(sourceUrl, { redirect: "follow" });
+  if (!response.ok) throw new Error(`Falha ao baixar vídeo (HTTP ${response.status})`);
+  const body = new Uint8Array(await response.arrayBuffer());
+  const poster = await extractVideoPosterFrame(body, atSeconds);
+  if (!poster) return null;
+  const key = createMediaKey("frame.jpg", "image/jpeg", "image", "refugio-da-ferradura/video-covers");
+  await getB2Client().send(new PutObjectCommand({
+    Bucket: bucket(), Key: key, Body: poster, ContentType: "image/jpeg",
+    CacheControl: "public, max-age=31536000, immutable",
+  }));
+  return b2PublicUrl(key);
 }
 
 export async function archiveRemoteMedia(sourceUrl: string, slug: string, index: number, type: MediaResourceType): Promise<string> {

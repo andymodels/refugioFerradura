@@ -3,7 +3,7 @@ import multer from "multer";
 import { extractFeaturedMedia } from "../lib/article-generation";
 import { archiveApprovedMedia } from "../lib/media-library";
 import { fetchInstagramMedia } from "../lib/instagram-media";
-import { createDirectUpload, deleteMediaObject, listMediaObjects, uploadMediaBuffer } from "../lib/b2-storage";
+import { captureRemoteVideoFrame, createDirectUpload, deleteMediaObject, listMediaObjects, uploadMediaBuffer } from "../lib/b2-storage";
 
 const router: IRouter = Router();
 
@@ -93,6 +93,37 @@ router.get("/media/upload-url", async (req, res): Promise<void> => {
     }));
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao preparar upload no B2: " + e.message });
+  }
+});
+
+// Tira um frame de um vídeo (de qualquer URL) num instante escolhido e
+// devolve a imagem já salva no B2 — usado pelo "Definir capa" do editor.
+// Roda no servidor (não no navegador) porque o domínio que serve os vídeos
+// não libera CORS pra leitura de pixel entre sites, então o navegador nunca
+// conseguiria capturar o frame sozinho, mesmo o vídeo tocando normalmente.
+router.post("/media/video-frame", async (req, res): Promise<void> => {
+  const session = (req as any).session;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  const sourceUrl = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+  const time = typeof req.body?.time === "number" && Number.isFinite(req.body.time) ? req.body.time : 0.6;
+  try {
+    new URL(sourceUrl);
+  } catch {
+    res.status(400).json({ error: "URL de vídeo inválida." });
+    return;
+  }
+  try {
+    const url = await captureRemoteVideoFrame(sourceUrl, time);
+    if (!url) {
+      res.status(422).json({ error: "Não consegui capturar um frame desse vídeo." });
+      return;
+    }
+    res.json({ url });
+  } catch (e: any) {
+    res.status(500).json({ error: "Erro ao capturar o frame: " + e.message });
   }
 });
 

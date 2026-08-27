@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui-elements';
 import { compressImageFile } from '@/lib/image-compression';
-import { uploadMedia, generatePosterForVideoUrl, captureFrameFromUrlAtTime, uploadImageBlob } from '@/lib/media-upload';
+import { uploadMedia, generatePosterForVideoUrl, captureFrameFromUrlAtTime } from '@/lib/media-upload';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 
 // ─── FontSize extension ────────────────────────────────────────────────────────
@@ -282,14 +282,9 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
     const time = videoRef.current?.currentTime ?? 0;
     setSettingCover(true);
     try {
-      const blob = await captureFrameFromUrlAtTime(src, time);
-      if (!blob) {
-        alert('Não consegui capturar esse frame (esse vídeo pode não liberar leitura entre sites). Tente enviar uma imagem.');
-        return;
-      }
-      const url = await uploadImageBlob(blob);
+      const url = await captureFrameFromUrlAtTime(src, time);
       if (url) updateAttributes({ poster: url });
-      else alert('Não consegui salvar essa capa agora. Tente de novo.');
+      else alert('Não consegui capturar esse frame agora. Tente de novo ou envie uma imagem.');
     } finally {
       setSettingCover(false);
     }
