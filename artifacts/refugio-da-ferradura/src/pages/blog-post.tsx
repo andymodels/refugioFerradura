@@ -128,6 +128,28 @@ function enhanceCarousels(html: string): string {
   return holder.innerHTML;
 }
 
+// Compatibility layer for videos saved before the poster attribute was
+// generated (or for any editor path that ever fails to compute one) — sem
+// isso o vídeo aparece com tela preta até o usuário clicar em play. Roda a
+// cada render, então cobre posts antigos sem precisar reabrir/salvar cada um
+// e nem reescrever nada no banco; se o poster.jpg não existir de verdade no
+// storage, o navegador simplesmente ignora a URL quebrada e mantém o
+// gradiente de fundo do CSS (nunca pior que hoje).
+function applyVideoPosters(html: string): string {
+  if (typeof document === "undefined" || !html.includes("<video")) return html;
+
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+  holder.querySelectorAll("video").forEach((video) => {
+    if (video.getAttribute("poster")) return;
+    const src = video.getAttribute("src");
+    if (!src) return;
+    const poster = videoPosterUrl(src);
+    if (poster) video.setAttribute("poster", poster);
+  });
+  return holder.innerHTML;
+}
+
 function isInstagramPostUrl(url?: string | null) {
   return !!url && /instagram\.com\/(p|reel|tv)\//i.test(url);
 }
@@ -279,7 +301,7 @@ export default function BlogPost() {
     );
   }
 
-  const cleanedContent = enhanceCarousels(renderInstagramEmbeds(stripLeadingH1(post!.content || "")));
+  const cleanedContent = applyVideoPosters(enhanceCarousels(renderInstagramEmbeds(stripLeadingH1(post!.content || ""))));
 
   return (
     <Layout>

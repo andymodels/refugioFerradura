@@ -246,7 +246,7 @@
   max-height: 640px;
   margin: 0;
   border-radius: 0.75rem;
-  background: #000;
+  background: linear-gradient(135deg, #2a2a2a, #0a0a0a);
 }
 .post-content .instagram-editorial-video-badge {
   display: inline-block;
@@ -315,7 +315,7 @@
   max-height: 480px;
   border-radius: 0.75rem;
   display: block;
-  background: #000;
+  background: linear-gradient(135deg, #2a2a2a, #0a0a0a);
 }
 .post-content .video-embed-wrap iframe,
 .post-content .video-embed-wrap .video-embed-instagram {
@@ -332,7 +332,7 @@
   border-radius: 0.75rem;
   display: block;
   margin: 1rem 0;
-  background: #000;
+  background: linear-gradient(135deg, #2a2a2a, #0a0a0a);
 }
 
 /* ── Two-column image grid — editor and post content ── */
