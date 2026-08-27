@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Play } from "lucide-react";
-import { isVideoUrl, videoPosterUrl } from "@/lib/utils";
+import { isVideoUrl, videoPosterUrl, VIDEO_FALLBACK_POSTER } from "@/lib/utils";
 
 function isDirectImageUrl(url?: string | null): boolean {
   if (!url) return false;
@@ -34,7 +34,7 @@ export function PostThumbnail({ src, content, alt, className, position }: { src?
   // de play por cima, parado, igual o Instagram.
   const isVideo = !!rawSrc && isVideoUrl(rawSrc);
   const posterSrc = rawSrc && isVideo ? videoPosterUrl(rawSrc) : null;
-  const imageSrc = isVideo ? posterSrc : rawSrc;
+  const imageSrc = isVideo ? posterSrc || VIDEO_FALLBACK_POSTER : rawSrc;
 
   // Uma imagem genérica repetida fazia parecer que todos os lugares eram o
   // mesmo. Se ainda não existe foto própria, preservamos o card sem inventar
@@ -43,23 +43,22 @@ export function PostThumbnail({ src, content, alt, className, position }: { src?
     return <div role="img" aria-label={`Imagem em atualização: ${alt}`} className={`${className || ""} bg-muted/60`} />;
   }
 
-  const media = isVideo && !posterSrc ? (
-    <video
-      src={rawSrc}
-      preload="metadata"
-      muted
-      playsInline
-      className="w-full h-full object-cover"
-      style={{ objectPosition: position || "center center" }}
-      onError={() => setFailed(true)}
-    />
-  ) : (
+  const media = (
     <img
       src={imageSrc!}
       alt={alt}
       className={isVideo ? "w-full h-full object-cover" : className}
       style={{ objectPosition: position || "center center" }}
-      onError={() => setFailed(true)}
+      onError={(e) => {
+        // Um candidato a miniatura de vídeo que não existe de verdade (ex.:
+        // ".poster.jpg" nunca gerado) não pode apagar o card inteiro — troca
+        // pela capa padrão em vez de cair no estado "sem imagem".
+        if (isVideo && e.currentTarget.src !== VIDEO_FALLBACK_POSTER) {
+          e.currentTarget.src = VIDEO_FALLBACK_POSTER;
+          return;
+        }
+        setFailed(true);
+      }}
     />
   );
 

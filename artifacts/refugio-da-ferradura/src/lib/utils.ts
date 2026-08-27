@@ -16,6 +16,22 @@ export function isVideoUrl(url?: string | null): boolean {
   return /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url) || url.includes("/video/upload/");
 }
 
+// Capa padrão de qualquer vídeo do site sem miniatura própria — nunca some,
+// não depende de rede (é uma imagem embutida no próprio código), só usa as
+// cores da identidade visual (ver @theme em index.css: fundo verde bem
+// escuro, círculo terracota, ícone claro). Estado inicial de todo vídeo sem
+// miniatura de verdade — nunca mais tela preta chapada.
+export const VIDEO_FALLBACK_POSTER = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0" stop-color="#171c19"/><stop offset="1" stop-color="#05070a"/>` +
+    `</linearGradient></defs>` +
+    `<rect width="640" height="360" fill="url(#g)"/>` +
+    `<circle cx="320" cy="180" r="44" fill="#a68a7b" fill-opacity="0.92"/>` +
+    `<path d="M307 158 L349 180 L307 202 Z" fill="#e5e1da"/>` +
+    `</svg>`,
+)}`;
+
 // Vídeo próprio (subido pelo site) sempre grava um arquivo ".poster.jpg" ao
 // lado do vídeo — ver createVideoPoster em media-upload.ts e o script
 // optimize-b2-media.mjs. Isso só existe pra mídia que passou pelo nosso

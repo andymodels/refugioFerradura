@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { Play } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useGetPost } from "@workspace/api-client-react";
 import { useSeo } from "@/hooks/use-seo";
-import { isVideoUrl, videoPosterUrl } from "@/lib/utils";
+import { isVideoUrl, videoPosterUrl, VIDEO_FALLBACK_POSTER } from "@/lib/utils";
 
 function stripLeadingH1(html: string): string {
   // Remove the first <h1>...</h1> regardless of attributes or line breaks
@@ -128,26 +128,44 @@ function enhanceCarousels(html: string): string {
   return holder.innerHTML;
 }
 
-// Compatibility layer for videos saved before the poster attribute was
-// generated (or for any editor path that ever fails to compute one) — sem
-// isso o vídeo aparece com tela preta até o usuário clicar em play. Roda a
-// cada render, então cobre posts antigos sem precisar reabrir/salvar cada um
-// e nem reescrever nada no banco; se o poster.jpg não existir de verdade no
-// storage, o navegador simplesmente ignora a URL quebrada e mantém o
-// gradiente de fundo do CSS (nunca pior que hoje).
+// Toda página de post passa por aqui antes de ir pro innerHTML — garante que
+// NENHUM vídeo (antigo, novo, com upload ou com link) chega a ser pintado
+// sem uma capa: usa a arte padrão (VIDEO_FALLBACK_POSTER) como primeiro
+// estado sempre, e guarda o candidato a miniatura real (se houver algum) em
+// data-poster-candidate pra o useEffect abaixo confirmar se existe de
+// verdade e trocar por ela — nunca ao contrário. Roda a cada render, cobre
+// posts antigos sem precisar reabrir/salvar nenhum e nem tocar no banco.
 function applyVideoPosters(html: string): string {
   if (typeof document === "undefined" || !html.includes("<video")) return html;
 
   const holder = document.createElement("div");
   holder.innerHTML = html;
   holder.querySelectorAll("video").forEach((video) => {
-    if (video.getAttribute("poster")) return;
     const src = video.getAttribute("src");
-    if (!src) return;
-    const poster = videoPosterUrl(src);
-    if (poster) video.setAttribute("poster", poster);
+    const existingPoster = video.getAttribute("poster");
+    const candidate = existingPoster || (src ? videoPosterUrl(src) : null);
+    if (candidate) video.setAttribute("data-poster-candidate", candidate);
+    video.setAttribute("poster", VIDEO_FALLBACK_POSTER);
   });
   return holder.innerHTML;
+}
+
+// Depois que o HTML acima entra na página, confere em segundo plano se cada
+// candidato a miniatura (poster já salvo no post, ou o ".poster.jpg"
+// calculado) realmente existe e abre como imagem — só troca a capa padrão
+// pela miniatura de verdade quando ela carregar com sucesso. Um link
+// quebrado ou de outro site (sem miniatura possível) simplesmente mantém a
+// capa padrão pra sempre, sem nunca virar tela preta.
+function upgradeVideoPosters(container: HTMLElement) {
+  container.querySelectorAll("video[data-poster-candidate]").forEach((el) => {
+    const video = el as HTMLVideoElement;
+    const candidate = video.getAttribute("data-poster-candidate");
+    video.removeAttribute("data-poster-candidate");
+    if (!candidate) return;
+    const probe = new Image();
+    probe.onload = () => { video.setAttribute("poster", candidate); };
+    probe.src = candidate;
+  });
 }
 
 function isInstagramPostUrl(url?: string | null) {
@@ -259,6 +277,12 @@ export default function BlogPost() {
   const post = data ?? null;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const postUrl = `${origin}/blog/${slug}`;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const cleanedContent = applyVideoPosters(enhanceCarousels(renderInstagramEmbeds(stripLeadingH1(post?.content || ""))));
+
+  useEffect(() => {
+    if (contentRef.current) upgradeVideoPosters(contentRef.current);
+  }, [cleanedContent]);
 
   useSeo(
     post
@@ -300,8 +324,6 @@ export default function BlogPost() {
       </Layout>
     );
   }
-
-  const cleanedContent = applyVideoPosters(enhanceCarousels(renderInstagramEmbeds(stripLeadingH1(post!.content || ""))));
 
   return (
     <Layout>
@@ -376,23 +398,15 @@ export default function BlogPost() {
                     : "relative w-full max-h-[480px] block"
                 }
               >
-                {videoPosterUrl(post.coverImage) ? (
-                  <img
-                    src={videoPosterUrl(post.coverImage)!}
-                    alt={post.title}
-                    className={post.coverImageDisplayMode === "natural" ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain" : "w-full max-h-[480px] object-cover"}
-                    style={{ objectPosition: post.coverImagePosition || "center center" }}
-                  />
-                ) : (
-                  <video
-                    src={post.coverImage}
-                    preload="metadata"
-                    muted
-                    playsInline
-                    className={post.coverImageDisplayMode === "natural" ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain" : "w-full max-h-[480px] object-cover"}
-                    style={{ objectPosition: post.coverImagePosition || "center center" }}
-                  />
-                )}
+                <img
+                  src={videoPosterUrl(post.coverImage) || VIDEO_FALLBACK_POSTER}
+                  alt={post.title}
+                  className={post.coverImageDisplayMode === "natural" ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain" : "w-full max-h-[480px] object-cover"}
+                  style={{ objectPosition: post.coverImagePosition || "center center" }}
+                  onError={(e) => {
+                    if (e.currentTarget.src !== VIDEO_FALLBACK_POSTER) e.currentTarget.src = VIDEO_FALLBACK_POSTER;
+                  }}
+                />
                 <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                   <div className="bg-black/50 rounded-full p-4">
                     <Play className="w-7 h-7 text-white fill-white" />
@@ -432,6 +446,7 @@ export default function BlogPost() {
 
         {/* Content */}
         <div
+          ref={contentRef}
           className="post-content text-base leading-relaxed"
           dangerouslySetInnerHTML={{ __html: cleanedContent }}
         />
