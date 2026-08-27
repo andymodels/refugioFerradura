@@ -61,6 +61,76 @@ async function createVideoPoster(file: File): Promise<File | null> {
   }
 }
 
+// Sobe uma imagem (já pronta, sem compressão) pro storage — usado pra
+// pôster de vídeo (frame capturado em canvas), tanto o gerado automático
+// quanto o escolhido à mão em "Definir capa".
+export async function uploadImageBlob(blob: Blob, filename = "video-poster.jpg"): Promise<string | null> {
+  try {
+    const file = new File([blob], filename, { type: blob.type || "image/jpeg" });
+    const target = await getDirectUpload(file);
+    const res = await fetch(target.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+    if (!res.ok) return null;
+    return target.url;
+  } catch {
+    return null;
+  }
+}
+
+// Desenha o frame atual de um <video> (já carregado, de qualquer origem
+// same-origin ou com CORS liberado) num canvas e devolve como JPEG — usado
+// tanto pra gerar automático quanto pro "escolher frame" manual em "Definir
+// capa". Se o site de origem do vídeo não libera leitura entre domínios
+// (canvas "tainted"), volta null em vez de estourar erro.
+export async function captureVideoFrame(video: HTMLVideoElement): Promise<Blob | null> {
+  const max = Math.max(video.videoWidth, video.videoHeight);
+  if (!max) return null;
+  const scale = Math.min(1, 740 / max);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  try {
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob | null>((resolve) => {
+      try {
+        canvas.toBlob(resolve, "image/jpeg", 0.85);
+      } catch {
+        resolve(null);
+      }
+    });
+  } catch {
+    return null;
+  }
+}
+
+// Captura o frame de um instante exato de uma URL de vídeo, numa cópia
+// oculta (crossOrigin) à parte — não usa direto o <video> que a pessoa está
+// vendo/pausando no editor, porque ligar crossOrigin nele arriscaria quebrar
+// a reprodução normal caso o site de origem não libere leitura entre
+// domínios (nesse caso o vídeo simplesmente para de carregar). Aqui, se
+// falhar, só essa captura falha — o player principal nunca é afetado.
+export async function captureFrameFromUrlAtTime(url: string, time: number): Promise<Blob | null> {
+  try {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    video.src = url;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Não foi possível ler o vídeo"));
+    });
+    await new Promise<void>((resolve, reject) => {
+      video.onseeked = () => resolve();
+      video.onerror = () => reject(new Error("Não foi possível buscar esse frame"));
+      video.currentTime = Math.min(Math.max(time, 0), Number.isFinite(video.duration) ? video.duration : time);
+    });
+    return await captureVideoFrame(video);
+  } catch {
+    return null;
+  }
+}
+
 // Gera uma miniatura pra um vídeo que já está publicado em outro lugar (link
 // colado direto no editor, não um arquivo enviado por nós) — tira um
 // "print" de um frame do próprio vídeo no navegador e sobe essa imagem pro
@@ -87,26 +157,9 @@ export async function generatePosterForVideoUrl(url: string): Promise<string | n
       video.onerror = () => reject(new Error("Não foi possível buscar um frame do vídeo"));
       video.currentTime = targetTime;
     });
-    const max = Math.max(video.videoWidth, video.videoHeight);
-    if (!max) return null;
-    const scale = Math.min(1, 740 / max);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => {
-      try {
-        canvas.toBlob(resolve, "image/jpeg", 0.82);
-      } catch {
-        resolve(null);
-      }
-    });
+    const blob = await captureVideoFrame(video);
     if (!blob) return null;
-    const file = new File([blob], "video-poster.jpg", { type: "image/jpeg" });
-    const target = await getDirectUpload(file);
-    const res = await fetch(target.uploadUrl, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: file });
-    if (!res.ok) return null;
-    return target.url;
+    return await uploadImageBlob(blob);
   } catch {
     return null;
   }

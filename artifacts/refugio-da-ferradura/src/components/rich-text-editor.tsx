@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui-elements';
 import { compressImageFile } from '@/lib/image-compression';
-import { uploadMedia, generatePosterForVideoUrl } from '@/lib/media-upload';
+import { uploadMedia, generatePosterForVideoUrl, captureFrameFromUrlAtTime, uploadImageBlob } from '@/lib/media-upload';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 
 // ─── FontSize extension ────────────────────────────────────────────────────────
@@ -268,7 +268,48 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
   };
   const isInsta = embedType === 'instagram';
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const [settingCover, setSettingCover] = useState(false);
   const startRef = useRef<{ x: number; w: number } | null>(null);
+
+  // "Definir capa": ou usa o frame onde a pessoa pausou o próprio player
+  // (sem precisar carregar o vídeo de novo em outro lugar), ou sobe uma
+  // imagem à parte — nos dois casos só atualiza o atributo poster do nó,
+  // sem mexer no vídeo em si. Funciona tanto pra vídeo recém-inserido
+  // quanto pra um post antigo já publicado, aberto de novo no editor.
+  const useCurrentFrameAsCover = useCallback(async () => {
+    const time = videoRef.current?.currentTime ?? 0;
+    setSettingCover(true);
+    try {
+      const blob = await captureFrameFromUrlAtTime(src, time);
+      if (!blob) {
+        alert('Não consegui capturar esse frame (esse vídeo pode não liberar leitura entre sites). Tente enviar uma imagem.');
+        return;
+      }
+      const url = await uploadImageBlob(blob);
+      if (url) updateAttributes({ poster: url });
+      else alert('Não consegui salvar essa capa agora. Tente de novo.');
+    } finally {
+      setSettingCover(false);
+    }
+  }, [updateAttributes, src]);
+
+  const onCoverFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSettingCover(true);
+    try {
+      const compressed = await compressImageFile(file);
+      const url = await uploadMediaFile(compressed);
+      updateAttributes({ poster: url });
+    } catch (err) {
+      alert('Erro ao enviar a imagem: ' + (err as Error).message);
+    } finally {
+      setSettingCover(false);
+    }
+  }, [updateAttributes]);
   // Enquanto arrasta, só atualiza este estado local (re-render leve, sem
   // tocar o documento do editor). updateAttributes só é chamado 1x no
   // mouseup — chamá-lo a cada pixel disparava uma transação do ProseMirror
@@ -356,6 +397,41 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
         </div>
       )}
 
+      {/* Definir capa — pausar o vídeo no frame desejado e usar ele, ou
+          enviar uma imagem própria. Não existe pra embed do Instagram (sem
+          controle sobre o player deles). */}
+      {selected && !isInsta && (
+        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap bg-background border border-border rounded-lg px-2 py-1.5 shadow-sm">
+          <span className="text-[10px] font-medium text-muted-foreground mr-0.5">Definir capa:</span>
+          <button
+            type="button"
+            onClick={useCurrentFrameAsCover}
+            disabled={settingCover}
+            title="Pause o vídeo no frame que quiser e clique aqui"
+            className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border hover:bg-muted text-foreground disabled:opacity-50"
+          >
+            {settingCover ? <Loader2 className="w-3 h-3 animate-spin" /> : <Video className="w-3 h-3" />}
+            Usar frame atual do vídeo
+          </button>
+          <button
+            type="button"
+            onClick={() => coverFileInputRef.current?.click()}
+            disabled={settingCover}
+            className="flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-border hover:bg-muted text-foreground disabled:opacity-50"
+          >
+            <Upload className="w-3 h-3" />
+            Enviar imagem
+          </button>
+          <input
+            ref={coverFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onCoverFileSelected}
+          />
+        </div>
+      )}
+
       <div ref={wrapperRef} style={alignWrapperStyle(align ?? 'left', displayWidth)} className="relative">
         <div className={cn(
           'relative rounded-xl overflow-hidden',
@@ -374,6 +450,7 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
             />
           ) : (
             <video
+              ref={videoRef}
               src={src}
               poster={poster || undefined}
               controls
