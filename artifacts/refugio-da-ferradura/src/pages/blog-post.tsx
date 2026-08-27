@@ -4,7 +4,7 @@ import { Play } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { useGetPost } from "@workspace/api-client-react";
 import { useSeo } from "@/hooks/use-seo";
-import { isVideoUrl, cloudinaryVideoPoster } from "@/lib/utils";
+import { isVideoUrl, videoPosterUrl } from "@/lib/utils";
 
 function stripLeadingH1(html: string): string {
   // Remove the first <h1>...</h1> regardless of attributes or line breaks
@@ -354,16 +354,23 @@ export default function BlogPost() {
                     : "relative w-full max-h-[480px] block"
                 }
               >
-                <img
-                  src={cloudinaryVideoPoster(post.coverImage)}
-                  alt={post.title}
-                  className={
-                    post.coverImageDisplayMode === "natural"
-                      ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain"
-                      : "w-full max-h-[480px] object-cover"
-                  }
-                  style={{ objectPosition: post.coverImagePosition || "center center" }}
-                />
+                {videoPosterUrl(post.coverImage) ? (
+                  <img
+                    src={videoPosterUrl(post.coverImage)!}
+                    alt={post.title}
+                    className={post.coverImageDisplayMode === "natural" ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain" : "w-full max-h-[480px] object-cover"}
+                    style={{ objectPosition: post.coverImagePosition || "center center" }}
+                  />
+                ) : (
+                  <video
+                    src={post.coverImage}
+                    preload="metadata"
+                    muted
+                    playsInline
+                    className={post.coverImageDisplayMode === "natural" ? "block h-auto w-auto max-h-[640px] max-w-full rounded-xl object-contain" : "w-full max-h-[480px] object-cover"}
+                    style={{ objectPosition: post.coverImagePosition || "center center" }}
+                  />
+                )}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                   <div className="bg-black/50 rounded-full p-4">
                     <Play className="w-7 h-7 text-white fill-white" />

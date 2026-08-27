@@ -43,6 +43,8 @@ attached_assets/
 /.sass-cache
 /connect.lock
 /coverage
+/work/
+/.pnpm-store/
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log

@@ -1,14 +1,11 @@
-import { v2 as cloudinary } from "cloudinary";
+import { archiveRemoteMedia } from "./b2-storage";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-function isCloudinaryUrl(url: string): boolean {
+function isPermanentMediaUrl(url: string): boolean {
   try {
-    return new URL(url).hostname === "res.cloudinary.com";
+    const parsed = new URL(url);
+    const publicBase = process.env.B2_PUBLIC_BASE_URL?.trim();
+    if (publicBase && url.startsWith(publicBase)) return true;
+    return parsed.hostname.endsWith(".backblazeb2.com");
   } catch {
     return false;
   }
@@ -26,20 +23,8 @@ export async function archiveApprovedMedia(
   index: number,
   resourceType: "image" | "video" = "image",
 ): Promise<string> {
-  if (isCloudinaryUrl(sourceUrl)) return sourceUrl;
-
-  const result = await cloudinary.uploader.upload(sourceUrl, {
-    folder: "refugio-da-ferradura",
-    public_id: `post-${slug}-${index}`,
-    unique_filename: true,
-    overwrite: false,
-    resource_type: resourceType,
-    quality: "auto",
-    fetch_format: "auto",
-  });
-
-  if (!result.secure_url) throw new Error("Cloudinary não retornou URL para a mídia aprovada.");
-  return result.secure_url;
+  if (isPermanentMediaUrl(sourceUrl)) return sourceUrl;
+  return archiveRemoteMedia(sourceUrl, slug, index, resourceType);
 }
 
 // Mantido para compatibilidade com o fluxo de capa (1 imagem só, sem índice).

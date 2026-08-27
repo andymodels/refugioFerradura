@@ -28,7 +28,7 @@ import { scanPostsForPartners } from "../lib/partners";
 import { computeSchedulePreview, assignScheduleSlots } from "../lib/story-schedule";
 import { buildPartnerConnectUrl, verifyState, exchangePartnerCode } from "../lib/partner-oauth";
 import { publishPartnerContentToInstagram } from "../lib/instagram";
-import { uploadToCloudinary } from "./media";
+import { uploadToMediaStorage } from "./media";
 import { logger } from "../lib/logger";
 
 const publicUpload = multer({
@@ -276,7 +276,13 @@ router.post("/partners/upload/:token", publicUpload.single("file"), async (req, 
 
   try {
     const isVideo = /^video\//.test(req.file.mimetype);
-    const { url } = await uploadToCloudinary(req.file.buffer, "refugio-da-ferradura/parceiros", isVideo ? "video" : "image");
+    const { url } = await uploadToMediaStorage(
+      req.file.buffer,
+      "refugio-da-ferradura/parceiros",
+      isVideo ? "video" : "image",
+      req.file.originalname,
+      req.file.mimetype,
+    );
 
     await db.insert(partnerContentItemsTable).values({
       partnerId: partner.id,

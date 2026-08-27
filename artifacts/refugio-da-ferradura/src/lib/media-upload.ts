@@ -13,48 +13,38 @@ async function compressMediaFile(file: File): Promise<File> {
   return compressImageFile(file);
 }
 
-interface CloudinarySignature {
-  cloudName: string;
-  apiKey: string;
-  timestamp: number;
-  signature: string;
-  folder: string;
+interface DirectUpload {
+  uploadUrl: string;
+  url: string;
+  key: string;
 }
 
-async function getCloudinarySignature(): Promise<CloudinarySignature> {
-  const res = await fetch("/api/media/upload-signature", { credentials: "include" });
-  if (!res.ok) throw new Error(`Falha ao gerar assinatura de upload (HTTP ${res.status})`);
+async function getDirectUpload(file: File): Promise<DirectUpload> {
+  const params = new URLSearchParams({ filename: file.name, contentType: file.type || "application/octet-stream" });
+  const res = await fetch(`/api/media/upload-url?${params}`, { credentials: "include" });
+  if (!res.ok) throw new Error(`Falha ao preparar upload (HTTP ${res.status})`);
   return res.json();
 }
 
 // Sobe direto do navegador pro Cloudinary, sem passar pela função serverless
 // da Vercel — evita o teto de ~4,5MB por requisição da plataforma.
-async function uploadDirectToCloudinary(file: File): Promise<UploadedMedia> {
-  const { cloudName, apiKey, timestamp, signature, folder } = await getCloudinarySignature();
+async function uploadDirectToB2(file: File): Promise<UploadedMedia> {
+  const { uploadUrl, url, key } = await getDirectUpload(file);
   const isVideo = /^video\//.test(file.type);
   const resourceType = isVideo ? "video" : "image";
-
-  const form = new FormData();
-  form.append("file", file);
-  form.append("api_key", apiKey);
-  form.append("timestamp", String(timestamp));
-  form.append("signature", signature);
-  form.append("folder", folder);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`, {
-    method: "POST",
-    body: form,
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => null);
-    throw new Error(body?.error?.message || `Falha no upload direto (HTTP ${res.status})`);
+    throw new Error(`Falha no upload direto (HTTP ${res.status})`);
   }
-  const data = await res.json();
   return {
-    url: data.secure_url as string,
-    filename: (data.secure_url as string).split("/").pop() || file.name,
+    url,
+    filename: key.split("/").pop() || file.name,
     type: resourceType,
-    publicId: data.public_id as string,
+    publicId: key,
   };
 }
 
@@ -87,7 +77,7 @@ export async function uploadMedia(
   const prepared = await compressMediaFile(file);
   onStatus?.("uploading");
   try {
-    return await uploadDirectToCloudinary(prepared);
+    return await uploadDirectToB2(prepared);
   } catch {
     return await uploadViaServer(prepared);
   }

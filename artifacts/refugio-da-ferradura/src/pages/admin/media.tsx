@@ -78,7 +78,7 @@ export default function AdminMedia() {
       if (!res.ok) throw new Error(data.error || "Erro ao importar mídia");
       setInstagramUrl("");
       await loadMedia();
-      toast({ title: data.type === "video" ? "Vídeo arquivado no Cloudinary" : "Foto arquivada no Cloudinary" });
+      toast({ title: data.type === "video" ? "Vídeo arquivado no B2" : "Foto arquivada no B2" });
     } catch (e: any) {
       toast({ title: "Não foi possível importar", description: e.message, variant: "destructive" });
     } finally {
@@ -135,7 +135,7 @@ export default function AdminMedia() {
         <div>
           <h1 className="text-3xl font-serif font-bold text-foreground">Mídia</h1>
           <p className="text-muted-foreground mt-1">
-            Imagens e vídeos hospedados no Cloudinary — permanentes e acessíveis em qualquer lugar
+            Imagens e vídeos hospedados no Backblaze B2
           </p>
         </div>
       </div>
@@ -145,7 +145,7 @@ export default function AdminMedia() {
           <Card className="p-6">
             <h3 className="font-medium text-foreground mb-2">Importar do Instagram</h3>
             <p className="text-xs text-muted-foreground mb-3">
-              Cole o link de uma foto ou Reel. O arquivo é copiado para o Cloudinary e não depende mais do Instagram.
+              Cole o link de uma foto ou Reel. O arquivo é copiado para o B2 e não depende mais do Instagram.
             </p>
             <div className="space-y-2">
               <Input

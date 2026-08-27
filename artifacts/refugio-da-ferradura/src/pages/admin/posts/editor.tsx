@@ -7,7 +7,7 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { MapPin, Star, Utensils, Home, TreePine, Camera, Palette, Tent, Sparkles, Loader2, Link as LinkIcon, CalendarDays, Paperclip, X, FilePlus2, Store } from "lucide-react";
-import { isVideoUrl, cloudinaryVideoPoster } from "@/lib/utils";
+import { isVideoUrl, videoPosterUrl } from "@/lib/utils";
 
 const POSITION_KEYWORD_X: Record<string, number> = { left: 0, center: 50, right: 100 };
 const POSITION_KEYWORD_Y: Record<string, number> = { top: 0, center: 50, bottom: 100 };
@@ -31,7 +31,7 @@ function CoverPositionPicker({ coverUrl, value, onChange }: { coverUrl: string; 
   const boxRef = useRef<HTMLDivElement>(null);
   if (!coverUrl.trim()) return null;
   const video = isVideoUrl(coverUrl);
-  const previewSrc = video ? cloudinaryVideoPoster(coverUrl) : coverUrl;
+  const previewSrc = video ? videoPosterUrl(coverUrl) : coverUrl;
   const { x, y } = parseCoverPosition(value);
 
   const setFromPoint = (clientX: number, clientY: number) => {
@@ -64,13 +64,11 @@ function CoverPositionPicker({ coverUrl, value, onChange }: { coverUrl: string; 
         onMouseDown={onMouseDown}
         className="relative w-full max-w-xs aspect-video rounded-lg overflow-hidden border border-white/10 bg-black/40 cursor-crosshair select-none"
       >
-        <img
-          src={previewSrc}
-          alt="Prévia da capa"
-          className="w-full h-full object-cover pointer-events-none"
-          style={{ objectPosition: `${x}% ${y}%` }}
-          draggable={false}
-        />
+        {video && !previewSrc ? (
+          <video src={coverUrl} preload="metadata" muted playsInline className="w-full h-full object-cover pointer-events-none" style={{ objectPosition: `${x}% ${y}%` }} />
+        ) : (
+          <img src={previewSrc!} alt="Prévia da capa" className="w-full h-full object-cover pointer-events-none" style={{ objectPosition: `${x}% ${y}%` }} draggable={false} />
+        )}
         <div
           className="absolute w-4 h-4 -ml-2 -mt-2 rounded-full border-2 border-orange-500 bg-white/90 shadow-md pointer-events-none"
           style={{ left: `${x}%`, top: `${y}%` }}

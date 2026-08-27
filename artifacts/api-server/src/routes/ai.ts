@@ -12,7 +12,7 @@ import {
   type MediaItem,
 } from "../lib/article-generation";
 import { vetAndArchiveFoundImages } from "../lib/media-pipeline";
-import { uploadToCloudinary } from "./media";
+import { uploadToMediaStorage } from "./media";
 
 const router: IRouter = Router();
 
@@ -94,7 +94,13 @@ router.post("/generate-and-create", upload.array("photos", 10), async (req, res)
     const slug = `${slugify(article.title)}-${Date.now().toString(36)}`;
     const verificadoEm = new Date().toISOString();
     const uploadedItems: MediaItem[] = (
-      await Promise.all(files.map((file) => uploadToCloudinary(file.buffer, "refugio-da-ferradura", "image")))
+      await Promise.all(files.map((file) => uploadToMediaStorage(
+        file.buffer,
+        "refugio-da-ferradura",
+        "image",
+        file.originalname,
+        file.mimetype,
+      )))
     ).map((p) => ({
       kind: "foto",
       urlArquivo: p.url,

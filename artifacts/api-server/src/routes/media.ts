@@ -1,18 +1,11 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { v2 as cloudinary } from "cloudinary";
-import streamifier from "streamifier";
 import { extractFeaturedMedia } from "../lib/article-generation";
 import { archiveApprovedMedia } from "../lib/media-library";
 import { fetchInstagramMedia } from "../lib/instagram-media";
+import { createDirectUpload, deleteMediaObject, listMediaObjects, uploadMediaBuffer } from "../lib/b2-storage";
 
 const router: IRouter = Router();
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 
 const ALLOWED_IMAGE = /jpeg|jpg|png|gif|webp|svg|heic|heif/;
 const ALLOWED_VIDEO = /mp4|webm|mov|avi|mkv|m4v/;
@@ -48,17 +41,15 @@ function isVideoFile(file: Express.Multer.File) {
   return /^video\//.test(file.mimetype);
 }
 
-export function uploadToCloudinary(buffer: Buffer, folder: string, resourceType: "image" | "video"): Promise<{ url: string; type: string }> {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: resourceType },
-      (error, result) => {
-        if (error || !result) return reject(error);
-        resolve({ url: result.secure_url, type: resourceType });
-      }
-    );
-    streamifier.createReadStream(buffer).pipe(stream);
-  });
+export async function uploadToMediaStorage(
+  buffer: Buffer,
+  folder: string,
+  resourceType: "image" | "video",
+  filename = `${Date.now()}.${resourceType === "video" ? "mp4" : "jpg"}`,
+  contentType = resourceType === "video" ? "video/mp4" : "image/jpeg",
+): Promise<{ url: string; type: string }> {
+  const result = await uploadMediaBuffer({ body: buffer, folder, type: resourceType, filename, contentType });
+  return { url: result.url, type: result.type };
 }
 
 router.get("/media/list", async (req, res): Promise<void> => {
@@ -68,41 +59,7 @@ router.get("/media/list", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const [imageResult, videoResult] = await Promise.all([
-      cloudinary.search
-        .expression("folder:refugio-da-ferradura AND resource_type:image")
-        .sort_by("created_at", "desc")
-        .max_results(50)
-        .execute()
-        .catch(() => ({ resources: [] })),
-      cloudinary.search
-        .expression("folder:refugio-da-ferradura AND resource_type:video")
-        .sort_by("created_at", "desc")
-        .max_results(20)
-        .execute()
-        .catch(() => ({ resources: [] })),
-    ]);
-
-    const images = (imageResult.resources as any[]).map((r) => ({
-      url: r.secure_url,
-      filename: r.public_id.split("/").pop(),
-      publicId: r.public_id,
-      createdAt: r.created_at,
-      type: "image",
-    }));
-    const videos = (videoResult.resources as any[]).map((r) => ({
-      url: r.secure_url,
-      filename: r.public_id.split("/").pop(),
-      publicId: r.public_id,
-      createdAt: r.created_at,
-      type: "video",
-    }));
-
-    const all = [...images, ...videos].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    res.json({ images: all });
+    res.json({ images: await listMediaObjects() });
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao listar mídia: " + e.message });
   }
@@ -113,25 +70,20 @@ router.get("/media/list", async (req, res): Promise<void> => {
 // sem passar pela função serverless da Vercel, que corta qualquer corpo de
 // requisição acima de ~4,5MB (ver MAX_UPLOAD_BYTES acima). Mantém a rota
 // /media/upload existente intacta como caminho alternativo.
-router.get("/media/upload-signature", (req, res): void => {
+router.get("/media/upload-url", async (req, res): Promise<void> => {
   const session = (req as any).session;
   if (!session?.adminId) {
     res.status(401).json({ error: "Não autenticado" });
     return;
   }
-  const timestamp = Math.round(Date.now() / 1000);
-  const folder = "refugio-da-ferradura";
-  const signature = cloudinary.utils.api_sign_request(
-    { timestamp, folder },
-    process.env.CLOUDINARY_API_SECRET as string
-  );
-  res.json({
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    timestamp,
-    signature,
-    folder,
-  });
+  const filename = typeof req.query.filename === "string" ? req.query.filename : "arquivo";
+  const contentType = typeof req.query.contentType === "string" ? req.query.contentType : "application/octet-stream";
+  const type = contentType.startsWith("video/") ? "video" : "image";
+  try {
+    res.json(await createDirectUpload({ filename, contentType, type }));
+  } catch (e: any) {
+    res.status(500).json({ error: "Erro ao preparar upload no B2: " + e.message });
+  }
 });
 
 router.post("/media/upload", (req, res, next) => {
@@ -155,13 +107,19 @@ router.post("/media/upload", (req, res, next) => {
     const results = await Promise.all(
       files.map(async (file) => {
         const resourceType = isVideoFile(file) ? "video" : "image";
-        const { url, type } = await uploadToCloudinary(file.buffer, "refugio-da-ferradura", resourceType);
+        const { url, type } = await uploadToMediaStorage(
+          file.buffer,
+          "refugio-da-ferradura",
+          resourceType,
+          file.originalname,
+          file.mimetype,
+        );
         return { url, filename: url.split("/").pop() || file.originalname, type };
       })
     );
     res.json({ images: results, ...results[0] });
   } catch (e: any) {
-    res.status(500).json({ error: "Erro ao enviar para Cloudinary: " + e.message });
+    res.status(500).json({ error: "Erro ao enviar para o B2: " + e.message });
   }
 });
 
@@ -252,22 +210,9 @@ router.delete("/media", async (req, res): Promise<void> => {
     return;
   }
 
-  // Try deleting as image first, then as video
   try {
-    const imageResult = await cloudinary.uploader.destroy(publicId, { resource_type: "image" });
-    if (imageResult.result === "ok") {
-      res.json({ ok: true });
-      return;
-    }
-  } catch {}
-
-  try {
-    const videoResult = await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
-    if (videoResult.result === "ok") {
-      res.json({ ok: true });
-      return;
-    }
-    res.status(404).json({ error: "Arquivo não encontrado no Cloudinary" });
+    await deleteMediaObject(publicId);
+    res.json({ ok: true });
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao excluir: " + e.message });
   }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Play } from "lucide-react";
-import { isVideoUrl, cloudinaryVideoPoster } from "@/lib/utils";
+import { isVideoUrl, videoPosterUrl } from "@/lib/utils";
 
 function isDirectImageUrl(url?: string | null): boolean {
   if (!url) return false;
@@ -33,18 +33,29 @@ export function PostThumbnail({ src, content, alt, className, position }: { src?
   // Safari em lib/utils.ts. Mostra o frame estático do Cloudinary + um ícone
   // de play por cima, parado, igual o Instagram.
   const isVideo = !!rawSrc && isVideoUrl(rawSrc);
-  const imageSrc = rawSrc && isVideo ? cloudinaryVideoPoster(rawSrc) : rawSrc;
+  const posterSrc = rawSrc && isVideo ? videoPosterUrl(rawSrc) : null;
+  const imageSrc = isVideo ? posterSrc : rawSrc;
 
   // Uma imagem genérica repetida fazia parecer que todos os lugares eram o
   // mesmo. Se ainda não existe foto própria, preservamos o card sem inventar
   // uma paisagem: ele será preenchido quando a mídia do post for aprovada.
-  if (!imageSrc || !isDirectImageUrl(imageSrc)) {
+  if ((!isVideo && (!imageSrc || !isDirectImageUrl(imageSrc))) || !rawSrc) {
     return <div role="img" aria-label={`Imagem em atualização: ${alt}`} className={`${className || ""} bg-muted/60`} />;
   }
 
-  const img = (
+  const media = isVideo && !posterSrc ? (
+    <video
+      src={rawSrc}
+      preload="metadata"
+      muted
+      playsInline
+      className="w-full h-full object-cover"
+      style={{ objectPosition: position || "center center" }}
+      onError={() => setFailed(true)}
+    />
+  ) : (
     <img
-      src={imageSrc}
+      src={imageSrc!}
       alt={alt}
       className={isVideo ? "w-full h-full object-cover" : className}
       style={{ objectPosition: position || "center center" }}
@@ -52,11 +63,11 @@ export function PostThumbnail({ src, content, alt, className, position }: { src?
     />
   );
 
-  if (!isVideo) return img;
+  if (!isVideo) return media;
 
   return (
     <div className={`relative ${className || ""}`}>
-      {img}
+      {media}
       <div className="absolute inset-0 flex items-center justify-center bg-black/10 pointer-events-none">
         <div className="bg-black/50 rounded-full p-2.5">
           <Play className="w-5 h-5 text-white fill-white" />

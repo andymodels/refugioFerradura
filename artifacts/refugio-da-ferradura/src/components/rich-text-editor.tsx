@@ -733,10 +733,12 @@ function parseLegacyCarouselVideos(raw: string | null | undefined): LegacyCarous
 // RichTextEditor) quanto o carrossel de mídia (view separada, fora do
 // componente) precisam das mesmas transformações Cloudinary.
 function cappedCloudinaryUrl(url: string): string {
+  if (!url.includes('res.cloudinary.com')) return url;
   return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
 }
 
-function cloudinaryVideoPoster(url: string): string {
+function cloudinaryVideoPoster(url: string): string | null {
+  if (!url.includes('res.cloudinary.com')) return null;
   return url
     .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
     .replace(/\.\w+(\?.*)?$/, '.jpg');
