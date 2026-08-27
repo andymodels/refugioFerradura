@@ -285,25 +285,26 @@ Depois de pesquisar, sua ÚLTIMA mensagem deve conter SOMENTE o objeto JSON abai
 }
 
 // Paisagens institucionais da Rota da Ferradura já aprovadas e hospedadas no
-// Cloudinary do site — usadas somente quando nenhuma mídia oficial passou na
-// vetting, pra nunca publicar um post sem mídia nenhuma. Reaproveita as
-// melhores fotos já usadas nos artigos institucionais gerais da região
-// (posts "Descubra a Rota da Ferradura" / "paisagens, sabores e aventura").
+// B2 do site (via media.refugioferradura.com.br) — usadas somente quando
+// nenhuma mídia oficial passou na vetting, pra nunca publicar um post sem
+// mídia nenhuma. Reaproveita as melhores fotos já usadas nos artigos
+// institucionais gerais da região (posts "Descubra a Rota da Ferradura" /
+// "paisagens, sabores e aventura").
 const INSTITUTIONAL_FALLBACK_IMAGES: { url: string; label: string }[] = [
   {
-    url: "https://s3.us-east-005.backblazeb2.com/refugio-media/refugio-da-ferradura/migrated/3af91256f4b219ae0a715a77.jpg",
+    url: "https://media.refugioferradura.com.br/refugio-da-ferradura/migrated/3af91256f4b219ae0a715a77.jpg",
     label: "Paisagem da Rota da Ferradura",
   },
   {
-    url: "https://s3.us-east-005.backblazeb2.com/refugio-media/refugio-da-ferradura/migrated/220aeb76d5147f47e66df49a.jpg",
+    url: "https://media.refugioferradura.com.br/refugio-da-ferradura/migrated/220aeb76d5147f47e66df49a.jpg",
     label: "Cachoeira de Pernambuco, Guarapari",
   },
   {
-    url: "https://s3.us-east-005.backblazeb2.com/refugio-media/refugio-da-ferradura/migrated/a6e7b4ba7e5374d4d6d7d362.jpg",
+    url: "https://media.refugioferradura.com.br/refugio-da-ferradura/migrated/a6e7b4ba7e5374d4d6d7d362.jpg",
     label: "Pedra do Elefante, Rota da Ferradura",
   },
   {
-    url: "https://s3.us-east-005.backblazeb2.com/refugio-media/refugio-da-ferradura/migrated/276b835834bbb91ffb7cd206.jpg",
+    url: "https://media.refugioferradura.com.br/refugio-da-ferradura/migrated/276b835834bbb91ffb7cd206.jpg",
     label: "Cachoeira de Buenos Aires, Guarapari",
   },
 ];
