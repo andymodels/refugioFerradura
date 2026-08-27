@@ -745,12 +745,11 @@ function cloudinaryVideoPoster(url: string): string | null {
   }
   // Uploads pra B2 geram um .poster.jpg junto do vídeo (ver
   // media-upload.ts createVideoPoster) — mesmo padrão do videoPosterUrl()
-  // em lib/utils.ts, usado pro vídeo de capa do post.
-  try {
-    if (/\.backblazeb2\.com$/i.test(new URL(url).hostname)) return `${url}.poster.jpg`;
-  } catch {
-    // URL relativa/inválida — sem pôster
-  }
+  // em lib/utils.ts, usado pro vídeo de capa do post. Não confia no
+  // hostname (B2 hoje é servido via domínio próprio, media.refugioferradura.com.br,
+  // não mais *.backblazeb2.com) — qualquer arquivo de vídeo direto segue
+  // essa convenção.
+  if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url)) return `${url}.poster.jpg`;
   return null;
 }
 

@@ -24,6 +24,11 @@ export function videoPosterUrl(url: string): string | null {
       .replace("/upload/", "/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/")
       .replace(/\.\w+(\?.*)?$/, ".jpg");
   }
-  if (/\.backblazeb2\.com$/i.test(new URL(url).hostname)) return `${url}.poster.jpg`;
+  // Qualquer arquivo de vídeo enviado pelo próprio site (B2, hoje servido
+  // via media.refugioferradura.com.br — checar só "*.backblazeb2.com" aqui
+  // quebrou no dia em que esse domínio próprio entrou em uso) grava um
+  // ".poster.jpg" ao lado do arquivo (ver createVideoPoster em
+  // media-upload.ts e o script optimize-b2-media.mjs).
+  if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url)) return `${url}.poster.jpg`;
   return null;
 }
