@@ -3,7 +3,7 @@ import multer from "multer";
 import { extractFeaturedMedia } from "../lib/article-generation";
 import { archiveApprovedMedia } from "../lib/media-library";
 import { fetchInstagramMedia } from "../lib/instagram-media";
-import { captureRemoteVideoFrame, createDirectUpload, deleteMediaObject, listMediaObjects, uploadMediaBuffer } from "../lib/b2-storage";
+import { backfillMissingVideoPosters, captureRemoteVideoFrame, createDirectUpload, deleteMediaObject, listMediaObjects, uploadMediaBuffer } from "../lib/b2-storage";
 
 const router: IRouter = Router();
 
@@ -124,6 +124,29 @@ router.post("/media/video-frame", async (req, res): Promise<void> => {
     res.json({ url });
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao capturar o frame: " + e.message });
+  }
+});
+
+// Conserta de uma vez os vídeos publicados antes de o site gerar miniatura
+// sozinho: varre o armazenamento (B2) inteiro e cria a miniatura que estiver
+// faltando. Não mexe no texto de nenhum post — só cria o arquivo de imagem
+// ao lado do vídeo; a página do post já sabe achar essa imagem sozinha.
+// Processa em lotes pequenos (o botão "Consertar vídeos antigos" no painel
+// chama isso repetidas vezes até `done` vir true) pra nunca estourar o
+// tempo de uma função serverless.
+router.post("/media/backfill-video-posters", async (req, res): Promise<void> => {
+  const session = (req as any).session;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  const limit = typeof req.body?.limit === "number" && req.body.limit > 0 ? Math.min(req.body.limit, 20) : 5;
+  const startAfter = typeof req.body?.startAfter === "string" ? req.body.startAfter : undefined;
+  try {
+    const result = await backfillMissingVideoPosters({ limit, startAfter });
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: "Erro ao consertar miniaturas: " + e.message });
   }
 });
 

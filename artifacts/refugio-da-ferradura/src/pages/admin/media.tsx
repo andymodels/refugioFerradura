@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { UploadCloud, Image as ImageIcon, Video, Check, Copy, Loader2, Film, Trash2 } from "lucide-react";
+import { UploadCloud, Image as ImageIcon, Video, Check, Copy, Loader2, Film, Trash2, Wand2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Card, Button, Input } from "@/components/ui-elements";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +41,44 @@ export default function AdminMedia() {
   const [uploadPhase, setUploadPhase] = useState<"compressing" | "uploading">("uploading");
   const [instagramUrl, setInstagramUrl] = useState("");
   const [importingInstagram, setImportingInstagram] = useState(false);
+
+  // Conserta de uma vez os vídeos publicados antes de o site gerar
+  // miniatura sozinho — chama a rota em lotes pequenos (repete até o
+  // servidor avisar que terminou), pra nunca estourar o tempo de uma
+  // função serverless nem travar a tela numa chamada gigante só.
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillStats, setBackfillStats] = useState<{ scanned: number; created: number } | null>(null);
+
+  const backfillVideoPosters = async () => {
+    setBackfilling(true);
+    setBackfillStats({ scanned: 0, created: 0 });
+    try {
+      let startAfter: string | undefined;
+      let done = false;
+      let totalScanned = 0;
+      let totalCreated = 0;
+      while (!done) {
+        const res = await fetch("/api/media/backfill-video-posters", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 8, startAfter }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erro ao consertar miniaturas");
+        totalScanned += data.scanned;
+        totalCreated += data.created.length;
+        setBackfillStats({ scanned: totalScanned, created: totalCreated });
+        startAfter = data.lastKey || undefined;
+        done = data.done;
+      }
+      toast({ title: `Concluído: ${totalCreated} miniatura(s) criada(s) de ${totalScanned} vídeo(s) verificado(s).` });
+    } catch (e: any) {
+      toast({ title: "Erro ao consertar vídeos antigos", description: e.message, variant: "destructive" });
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -211,6 +249,24 @@ export default function AdminMedia() {
                 </p>
               </div>
             </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-medium text-foreground mb-2 flex items-center gap-2">
+              <Wand2 className="w-4 h-4 text-muted-foreground" /> Consertar vídeos antigos
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Gera a miniatura que estiver faltando pra todo vídeo já publicado (sem alterar o texto de nenhum post).
+            </p>
+            <Button className="w-full" onClick={backfillVideoPosters} disabled={backfilling} isLoading={backfilling}>
+              Consertar vídeos antigos
+            </Button>
+            {backfillStats && (
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                {backfilling ? "Verificando… " : "Concluído — "}
+                {backfillStats.scanned} vídeo(s) verificado(s), {backfillStats.created} miniatura(s) nova(s)
+              </p>
+            )}
           </Card>
         </div>
 

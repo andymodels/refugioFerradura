@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
@@ -228,6 +228,72 @@ export async function listMediaObjects() {
     const type: MediaResourceType = /\.(mp4|webm|mov|m4v)$/i.test(key) ? "video" : "image";
     return { url: b2PublicUrl(key), filename: key.split("/").pop() || key, publicId: key, createdAt: item.LastModified, type };
   }).sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+}
+
+// Corrige de uma vez os vídeos publicados antes de existir a geração
+// automática de miniatura: varre o bucket inteiro em busca de vídeo sem o
+// ".poster.jpg" ao lado e gera um (mesmo ffmpeg do pipeline automático).
+// Como o post nunca guarda a miniatura em si — ele só monta a URL
+// "<vídeo>.poster.jpg" na hora de mostrar (ver videoPosterUrl no frontend)
+// —, gerar o arquivo aqui já é suficiente pra miniatura aparecer sozinha em
+// qualquer post antigo, sem editar o conteúdo de nenhum post.
+// Processa em lotes pequenos (a rota que chama isso repete a chamada até
+// `done` vir true) pra nunca estourar o tempo de uma função serverless.
+export async function backfillMissingVideoPosters(params: { limit: number; startAfter?: string }): Promise<{
+  created: string[];
+  scanned: number;
+  lastKey: string | null;
+  done: boolean;
+}> {
+  const created: string[] = [];
+  let scanned = 0;
+  let lastKey: string | null = params.startAfter || null;
+  let token: string | undefined;
+  let hitLimit = false;
+
+  outer: do {
+    const page = await getB2Client().send(new ListObjectsV2Command({
+      Bucket: bucket(),
+      Prefix: "refugio-da-ferradura/",
+      ContinuationToken: token,
+      StartAfter: token ? undefined : (params.startAfter || undefined),
+      MaxKeys: 1000,
+    }));
+    for (const item of page.Contents || []) {
+      const key = item.Key;
+      if (!key || !/\.(mp4|webm|mov|m4v)$/i.test(key)) continue;
+      if (scanned >= params.limit) { hitLimit = true; break outer; }
+      scanned++;
+      lastKey = key;
+
+      const posterKey = `${key}.poster.jpg`;
+      try {
+        await getB2Client().send(new HeadObjectCommand({ Bucket: bucket(), Key: posterKey }));
+        continue; // já tem miniatura
+      } catch (err: any) {
+        if (err?.$metadata?.httpStatusCode !== 404) continue; // erro inesperado, não trava o lote todo
+      }
+
+      try {
+        const obj = await getB2Client().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
+        const body = Buffer.from(await obj.Body!.transformToByteArray());
+        const poster = await extractVideoPosterFrame(body);
+        if (poster) {
+          await getB2Client().send(new PutObjectCommand({
+            Bucket: bucket(), Key: posterKey, Body: poster, ContentType: "image/jpeg",
+            CacheControl: "public, max-age=31536000, immutable",
+          }));
+          created.push(posterKey);
+        }
+      } catch {
+        // Esse vídeo específico falhou (arquivo corrompido, formato raro,
+        // timeout) — segue pros próximos em vez de travar o lote inteiro.
+      }
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token && !hitLimit);
+
+  return { created, scanned, lastKey, done: !hitLimit && !token };
 }
 
 export async function deleteMediaObject(key: string): Promise<void> {
