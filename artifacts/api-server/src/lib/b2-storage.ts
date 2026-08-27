@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
+
+const execFileAsync = promisify(execFile);
 
 export type MediaResourceType = "image" | "video";
 
@@ -96,6 +104,43 @@ async function optimizeImage(body: Buffer | Uint8Array, filename: string, conten
   }
 }
 
+// Tira um frame do próprio vídeo pra servir de miniatura — sem isso a
+// matéria abre com o vídeo em tela preta até alguém clicar em play. Roda no
+// exato momento em que o vídeo já está em memória pronto pra subir pro B2
+// (upload direto de arquivo OU arquivamento de link externo, ex. Instagram —
+// os dois caminhos passam por uploadMediaBuffer, então um vídeo importado
+// por link ganha miniatura do mesmo jeito que um enviado por upload). Nunca
+// derruba o upload do vídeo: qualquer falha aqui (ffmpeg indisponível,
+// formato não suportado, timeout) só significa que esse vídeo específico
+// fica sem miniatura própria — o frontend já tem um fallback visual pra
+// isso, não é obrigatório existir.
+async function extractVideoPosterFrame(body: Buffer | Uint8Array): Promise<Buffer | null> {
+  if (!ffmpegPath) return null;
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "refugio-video-"));
+  const inputPath = path.join(tempDir, "input");
+  const outputPath = path.join(tempDir, "poster.jpg");
+  try {
+    await writeFile(inputPath, body);
+    // -ss antes do -i faz o ffmpeg pular direto pro segundo 0.6 sem decodificar
+    // o vídeo inteiro (rápido o bastante pra rodar dentro de uma função
+    // serverless) — e evita pegar o primeiro frame, que em vídeo do
+    // Instagram costuma vir preto/em fade.
+    await execFileAsync(ffmpegPath, [
+      "-hide_banner", "-loglevel", "error",
+      "-ss", "0.6", "-i", inputPath,
+      "-frames:v", "1",
+      "-vf", "scale=740:740:force_original_aspect_ratio=decrease",
+      "-q:v", "3", outputPath,
+    ], { timeout: 8000 });
+    const poster = await readFile(outputPath);
+    return poster.length > 100 ? poster : null;
+  } catch {
+    return null;
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
 export async function uploadMediaBuffer(params: {
   body: Buffer | Uint8Array;
   filename: string;
@@ -103,7 +148,7 @@ export async function uploadMediaBuffer(params: {
   type: MediaResourceType;
   folder?: string;
   key?: string;
-}): Promise<{ url: string; type: MediaResourceType; key: string }> {
+}): Promise<{ url: string; type: MediaResourceType; key: string; posterUrl?: string }> {
   const prepared = params.type === "image"
     ? await optimizeImage(params.body, params.filename, params.contentType)
     : { body: params.body, filename: params.filename, contentType: params.contentType };
@@ -112,7 +157,25 @@ export async function uploadMediaBuffer(params: {
     Bucket: bucket(), Key: key, Body: prepared.body, ContentType: prepared.contentType,
     CacheControl: "public, max-age=31536000, immutable",
   }));
-  return { url: b2PublicUrl(key), type: params.type, key };
+
+  let posterUrl: string | undefined;
+  if (params.type === "video") {
+    const poster = await extractVideoPosterFrame(prepared.body).catch(() => null);
+    if (poster) {
+      const posterKey = `${key}.poster.jpg`;
+      try {
+        await getB2Client().send(new PutObjectCommand({
+          Bucket: bucket(), Key: posterKey, Body: poster, ContentType: "image/jpeg",
+          CacheControl: "public, max-age=31536000, immutable",
+        }));
+        posterUrl = b2PublicUrl(posterKey);
+      } catch {
+        // Vídeo já subiu — miniatura é um extra, nunca motivo pra falhar aqui.
+      }
+    }
+  }
+
+  return { url: b2PublicUrl(key), type: params.type, key, posterUrl };
 }
 
 export async function archiveRemoteMedia(sourceUrl: string, slug: string, index: number, type: MediaResourceType): Promise<string> {

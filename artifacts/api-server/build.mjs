@@ -33,6 +33,11 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      // Binário estático do ffmpeg (usado só pra tirar um frame do vídeo e
+      // gerar a miniatura) — o pacote resolve o caminho do binário via
+      // __dirname na hora que roda; empacotado pelo esbuild esse caminho
+      // aponta pro lugar errado (o bundle, não o node_modules de verdade).
+      "ffmpeg-static",
       "@resvg/resvg-js",
       "@resvg/resvg-js-*",
       "better-sqlite3",

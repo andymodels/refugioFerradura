@@ -30,6 +30,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5",
     "express-session": "^1.19.0",
+    "ffmpeg-static": "^5.2.0",
     "image-size": "^2.0.2",
     "linkedom": "^0.18.13",
     "multer": "^2.1.1",
