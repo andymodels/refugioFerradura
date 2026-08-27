@@ -19,11 +19,46 @@ interface DirectUpload {
   key: string;
 }
 
-async function getDirectUpload(file: File): Promise<DirectUpload> {
+async function getDirectUpload(file: File, posterFor?: string): Promise<DirectUpload> {
   const params = new URLSearchParams({ filename: file.name, contentType: file.type || "application/octet-stream" });
+  if (posterFor) params.set("posterFor", posterFor);
   const res = await fetch(`/api/media/upload-url?${params}`, { credentials: "include" });
   if (!res.ok) throw new Error(`Falha ao preparar upload (HTTP ${res.status})`);
   return res.json();
+}
+
+async function createVideoPoster(file: File): Promise<File | null> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.src = objectUrl;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Não foi possível ler o vídeo"));
+    });
+    const targetTime = Number.isFinite(video.duration) ? Math.min(2, Math.max(0.25, video.duration * 0.25)) : 1;
+    await new Promise<void>((resolve, reject) => {
+      video.onseeked = () => resolve();
+      video.onerror = () => reject(new Error("Não foi possível buscar um frame do vídeo"));
+      video.currentTime = targetTime;
+    });
+    const max = Math.max(video.videoWidth, video.videoHeight);
+    if (!max) return null;
+    const scale = Math.min(1, 740 / max);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    return blob ? new File([blob], "video-poster.jpg", { type: "image/jpeg" }) : null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 // Sobe direto do navegador pro Cloudinary, sem passar pela função serverless
@@ -39,6 +74,13 @@ async function uploadDirectToB2(file: File): Promise<UploadedMedia> {
   });
   if (!res.ok) {
     throw new Error(`Falha no upload direto (HTTP ${res.status})`);
+  }
+  if (isVideo) {
+    const poster = await createVideoPoster(file);
+    if (poster) {
+      const target = await getDirectUpload(poster, key);
+      await fetch(target.uploadUrl, { method: "PUT", headers: { "Content-Type": poster.type }, body: poster });
+    }
   }
   return {
     url,

@@ -7,7 +7,8 @@
     "build": "pnpm install && pnpm --filter @workspace/refugio-da-ferradura run build && pnpm --filter @workspace/api-server run build",
     "render:build": "pnpm install && pnpm --filter @workspace/refugio-da-ferradura run build && pnpm --filter @workspace/api-server run build",
     "render:start": "node --enable-source-maps ./artifacts/api-server/dist/index.mjs",
-    "media:migrate": "node --env-file=.env.local artifacts/api-server/scripts/migrate-cloudinary-to-b2.mjs"
+    "media:migrate": "node --env-file=.env.local artifacts/api-server/scripts/migrate-cloudinary-to-b2.mjs",
+    "media:optimize": "node --env-file=.env.local artifacts/api-server/scripts/optimize-b2-media.mjs"
   },
   "private": true,
   "devDependencies": {

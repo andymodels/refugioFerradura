@@ -19,8 +19,11 @@ export function isVideoUrl(url?: string | null): boolean {
 // Frame estático gerado pelo próprio Cloudinary a partir do vídeo (1s de
 // duração) — mesmo padrão usado no editor pra pôster de vídeo.
 export function videoPosterUrl(url: string): string | null {
-  if (!url.includes("res.cloudinary.com")) return null;
-  return url
-    .replace("/upload/", "/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/")
-    .replace(/\.\w+(\?.*)?$/, ".jpg");
+  if (url.includes("res.cloudinary.com")) {
+    return url
+      .replace("/upload/", "/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/")
+      .replace(/\.\w+(\?.*)?$/, ".jpg");
+  }
+  if (/\.backblazeb2\.com$/i.test(new URL(url).hostname)) return `${url}.poster.jpg`;
+  return null;
 }

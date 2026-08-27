@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { DeleteObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import sharp from "sharp";
 
 export type MediaResourceType = "image" | "video";
 
@@ -64,6 +65,37 @@ export function createMediaKey(filename: string, contentType: string, type: Medi
   return `${folder.replace(/^\/+|\/+$/g, "")}/${Date.now()}-${randomUUID()}.${extension(filename, contentType, type)}`;
 }
 
+// O B2 armazena o arquivo recebido; diferente do Cloudinary, não aplica uma
+// transformação na entrega. Toda imagem que entra pelo servidor precisa sair
+// daqui já limitada para não ocupar espaço desnecessário.
+async function optimizeImage(body: Buffer | Uint8Array, filename: string, contentType: string) {
+  const normalizedType = contentType.split(";", 1)[0].toLowerCase();
+  if (normalizedType === "image/svg+xml" || normalizedType === "image/gif") {
+    return { body, filename, contentType };
+  }
+  try {
+    const input = Buffer.from(body);
+    const image = sharp(input, { animated: false });
+    const metadata = await image.metadata();
+    if (!metadata.width || !metadata.height || Math.max(metadata.width, metadata.height) <= 740) {
+      return { body, filename, contentType };
+    }
+    const output = await image
+      .rotate()
+      .resize({ width: 740, height: 740, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+    return {
+      body: output,
+      filename: filename.replace(/\.[a-z0-9]+$/i, ".webp"),
+      contentType: "image/webp",
+    };
+  } catch {
+    // Não bloqueia uma publicação por um formato que o Sharp não suporte.
+    return { body, filename, contentType };
+  }
+}
+
 export async function uploadMediaBuffer(params: {
   body: Buffer | Uint8Array;
   filename: string;
@@ -72,9 +104,12 @@ export async function uploadMediaBuffer(params: {
   folder?: string;
   key?: string;
 }): Promise<{ url: string; type: MediaResourceType; key: string }> {
-  const key = params.key || createMediaKey(params.filename, params.contentType, params.type, params.folder);
+  const prepared = params.type === "image"
+    ? await optimizeImage(params.body, params.filename, params.contentType)
+    : { body: params.body, filename: params.filename, contentType: params.contentType };
+  const key = params.key || createMediaKey(prepared.filename, prepared.contentType, params.type, params.folder);
   await getB2Client().send(new PutObjectCommand({
-    Bucket: bucket(), Key: key, Body: params.body, ContentType: params.contentType,
+    Bucket: bucket(), Key: key, Body: prepared.body, ContentType: prepared.contentType,
     CacheControl: "public, max-age=31536000, immutable",
   }));
   return { url: b2PublicUrl(key), type: params.type, key };
@@ -93,8 +128,8 @@ export async function archiveRemoteMedia(sourceUrl: string, slug: string, index:
   return result.url;
 }
 
-export async function createDirectUpload(params: { filename: string; contentType: string; type: MediaResourceType }) {
-  const key = createMediaKey(params.filename, params.contentType, params.type);
+export async function createDirectUpload(params: { filename: string; contentType: string; type: MediaResourceType; key?: string }) {
+  const key = params.key || createMediaKey(params.filename, params.contentType, params.type);
   const command = new PutObjectCommand({
     Bucket: bucket(), Key: key, ContentType: params.contentType,
     CacheControl: "public, max-age=31536000, immutable",

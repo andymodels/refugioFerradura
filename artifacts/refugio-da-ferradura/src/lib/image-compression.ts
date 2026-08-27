@@ -3,7 +3,7 @@
 // pessoa ter que adivinhar o tamanho e comprimir na mão, redimensiona/
 // recomprime aqui no navegador antes de enviar. Não mexe em imagens já
 // pequenas nem em vídeo (vídeo tem seu próprio aviso de limite).
-export async function compressImageFile(file: File, maxDim = 1600, quality = 0.82): Promise<File> {
+export async function compressImageFile(file: File, maxDim = 740, quality = 0.82): Promise<File> {
   const isSvg = file.type === "image/svg+xml";
   // HEIC/HEIF (fotos de iPhone) não tem decodificador nativo na maioria dos
   // navegadores (Chrome/Firefox no desktop não conseguem abrir via canvas) —
@@ -11,10 +11,10 @@ export async function compressImageFile(file: File, maxDim = 1600, quality = 0.8
   // sabe ler HEIC direto e converte pro formato certo na hora de servir.
   const isHeic = /^image\/(heic|heif)/.test(file.type) || /\.(heic|heif)$/i.test(file.name);
   if (!/^image\//.test(file.type) && !isHeic) return file;
-  if (isSvg || isHeic) return file;
-  if (file.size <= 1.5 * 1024 * 1024) return file;
+  if (isSvg || isHeic || file.type === "image/gif") return file;
   try {
     const bitmap = await createImageBitmap(file);
+    if (Math.max(bitmap.width, bitmap.height) <= maxDim) return file;
     const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
     const w = Math.round(bitmap.width * scale);
     const h = Math.round(bitmap.height * scale);

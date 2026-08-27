@@ -79,8 +79,18 @@ router.get("/media/upload-url", async (req, res): Promise<void> => {
   const filename = typeof req.query.filename === "string" ? req.query.filename : "arquivo";
   const contentType = typeof req.query.contentType === "string" ? req.query.contentType : "application/octet-stream";
   const type = contentType.startsWith("video/") ? "video" : "image";
+  const posterFor = typeof req.query.posterFor === "string" ? req.query.posterFor : null;
+  if (posterFor && (!posterFor.startsWith("refugio-da-ferradura/") || !/\.(mp4|webm|mov|m4v)$/i.test(posterFor))) {
+    res.status(400).json({ error: "Vídeo de origem inválido para o preview." });
+    return;
+  }
   try {
-    res.json(await createDirectUpload({ filename, contentType, type }));
+    res.json(await createDirectUpload({
+      filename,
+      contentType,
+      type,
+      key: posterFor ? `${posterFor}.poster.jpg` : undefined,
+    }));
   } catch (e: any) {
     res.status(500).json({ error: "Erro ao preparar upload no B2: " + e.message });
   }
