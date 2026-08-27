@@ -263,8 +263,8 @@ function alignWrapperStyle(align: VideoAlign, width: number | null): React.CSSPr
 }
 
 function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
-  const { src, embedType, width, align } = node.attrs as {
-    src: string; embedType: string; width: number | null; align: VideoAlign;
+  const { src, embedType, width, align, poster } = node.attrs as {
+    src: string; embedType: string; width: number | null; align: VideoAlign; poster: string | null;
   };
   const isInsta = embedType === 'instagram';
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -375,6 +375,7 @@ function VideoEmbedView({ node, updateAttributes, selected }: NodeViewProps) {
           ) : (
             <video
               src={src}
+              poster={poster || undefined}
               controls
               playsInline
               className="w-full rounded-xl"
@@ -528,19 +529,18 @@ const VideoEmbed = Node.create({
         ],
       ];
     }
+    const videoAttrs: Record<string, string> = {
+      'data-video-embed': '',
+      controls: '',
+      playsinline: '',
+      class: 'video-embed',
+      src,
+    };
+    if (node.attrs.poster) videoAttrs.poster = node.attrs.poster as string;
     return [
       'div',
       { style: wrapStyle, class: 'video-embed-wrap' },
-      [
-        'video',
-        mergeAttributes(HTMLAttributes, {
-          'data-video-embed': '',
-          controls: '',
-          playsinline: '',
-          class: 'video-embed',
-          src,
-        }),
-      ],
+      ['video', mergeAttributes(HTMLAttributes, videoAttrs)],
     ];
   },
 
@@ -738,10 +738,20 @@ function cappedCloudinaryUrl(url: string): string {
 }
 
 function cloudinaryVideoPoster(url: string): string | null {
-  if (!url.includes('res.cloudinary.com')) return null;
-  return url
-    .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
-    .replace(/\.\w+(\?.*)?$/, '.jpg');
+  if (url.includes('res.cloudinary.com')) {
+    return url
+      .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
+      .replace(/\.\w+(\?.*)?$/, '.jpg');
+  }
+  // Uploads pra B2 geram um .poster.jpg junto do vídeo (ver
+  // media-upload.ts createVideoPoster) — mesmo padrão do videoPosterUrl()
+  // em lib/utils.ts, usado pro vídeo de capa do post.
+  try {
+    if (/\.backblazeb2\.com$/i.test(new URL(url).hostname)) return `${url}.poster.jpg`;
+  } catch {
+    // URL relativa/inválida — sem pôster
+  }
+  return null;
 }
 
 // Fotos de iPhone sobem como .heic — o Cloudinary sabe converter pro formato
@@ -1486,7 +1496,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     } else if (isDirectVideoUrl(url)) {
       (editor.chain().focus() as any).insertContent({
         type: 'videoEmbed',
-        attrs: { src: url, embedType: 'video' },
+        attrs: { src: url, embedType: 'video', poster: cloudinaryVideoPoster(url) },
       }).run();
     } else {
       editor.chain().focus().setYoutubeVideo({ src: url }).run();
