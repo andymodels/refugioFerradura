@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from './ui-elements';
 import { compressImageFile } from '@/lib/image-compression';
-import { uploadMedia } from '@/lib/media-upload';
+import { uploadMedia, generatePosterForVideoUrl } from '@/lib/media-upload';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 
 // ─── FontSize extension ────────────────────────────────────────────────────────
@@ -737,19 +737,29 @@ function cappedCloudinaryUrl(url: string): string {
   return url.replace('/upload/', '/upload/c_limit,w_640,h_640,q_auto,f_auto/');
 }
 
+// Domínios do nosso próprio armazenamento (B2) — só esses geram um
+// ".poster.jpg" ao lado do vídeo automaticamente (ver media-upload.ts
+// createVideoPoster e o script optimize-b2-media.mjs). Um link de vídeo de
+// qualquer outro site não tem esse arquivo, então não adianta "adivinhar"
+// essa URL — nesses casos o poster precisa ser gerado na hora (ver
+// generateVideoPosterFromUrl mais abaixo).
+const OWN_MEDIA_HOSTS = [/\.backblazeb2\.com$/i, /^media\.refugioferradura\.com\.br$/i];
+
+function isOwnMediaHost(url: string): boolean {
+  try {
+    return OWN_MEDIA_HOSTS.some((re) => re.test(new URL(url).hostname));
+  } catch {
+    return false;
+  }
+}
+
 function cloudinaryVideoPoster(url: string): string | null {
   if (url.includes('res.cloudinary.com')) {
     return url
       .replace('/upload/', '/upload/so_1,c_limit,w_640,h_640,q_auto,f_auto/')
       .replace(/\.\w+(\?.*)?$/, '.jpg');
   }
-  // Uploads pra B2 geram um .poster.jpg junto do vídeo (ver
-  // media-upload.ts createVideoPoster) — mesmo padrão do videoPosterUrl()
-  // em lib/utils.ts, usado pro vídeo de capa do post. Não confia no
-  // hostname (B2 hoje é servido via domínio próprio, media.refugioferradura.com.br,
-  // não mais *.backblazeb2.com) — qualquer arquivo de vídeo direto segue
-  // essa convenção.
-  if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url)) return `${url}.poster.jpg`;
+  if (/\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(url) && isOwnMediaHost(url)) return `${url}.poster.jpg`;
   return null;
 }
 
@@ -1475,7 +1485,7 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
     }
   }, [editor]);
 
-  const addVideo = useCallback(() => {
+  const addVideo = useCallback(async () => {
     if (!editor) return;
     const url = window.prompt('Cole o link do vídeo (YouTube, Instagram Reels, Cloudinary ou MP4 direto):');
     if (!url) return;
@@ -1493,10 +1503,29 @@ export function RichTextEditor({ value, onChange, className }: RichTextEditorPro
         attrs: { src: embedSrc, embedType: 'instagram' },
       }).run();
     } else if (isDirectVideoUrl(url)) {
+      const knownPoster = cloudinaryVideoPoster(url);
+      const insertPos = editor.state.selection.from;
       (editor.chain().focus() as any).insertContent({
         type: 'videoEmbed',
-        attrs: { src: url, embedType: 'video', poster: cloudinaryVideoPoster(url) },
+        attrs: { src: url, embedType: 'video', poster: knownPoster },
       }).run();
+      // Link de vídeo de outro site nunca tem uma miniatura pronta pra
+      // gente usar (isso só existe pro que a gente mesmo hospeda) — gera
+      // uma tirando um frame do próprio vídeo aqui no navegador, sem
+      // travar a inserção nem pedir nada pra quem está escrevendo.
+      if (!knownPoster) {
+        setUploadingKind('video');
+        const poster = await generatePosterForVideoUrl(url);
+        setUploadingKind(null);
+        if (poster) {
+          const tr = editor.state.tr;
+          const node = tr.doc.nodeAt(insertPos);
+          if (node && node.type.name === 'videoEmbed' && node.attrs.src === url) {
+            tr.setNodeMarkup(insertPos, undefined, { ...node.attrs, poster });
+            editor.view.dispatch(tr);
+          }
+        }
+      }
     } else {
       editor.chain().focus().setYoutubeVideo({ src: url }).run();
     }

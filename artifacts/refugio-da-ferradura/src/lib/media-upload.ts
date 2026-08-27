@@ -61,6 +61,57 @@ async function createVideoPoster(file: File): Promise<File | null> {
   }
 }
 
+// Gera uma miniatura pra um vídeo que já está publicado em outro lugar (link
+// colado direto no editor, não um arquivo enviado por nós) — tira um
+// "print" de um frame do próprio vídeo no navegador e sobe essa imagem pro
+// nosso storage. Sem isso, um link de vídeo externo nunca teria capa: só o
+// que a gente mesmo hospeda ganha o ".poster.jpg" automático (ver
+// createVideoPoster acima). Falha silenciosamente (volta null) sempre que o
+// site de origem não libera o vídeo pra leitura entre domínios — nesse caso
+// o post fica sem miniatura, mas nunca quebra a inserção do vídeo.
+export async function generatePosterForVideoUrl(url: string): Promise<string | null> {
+  try {
+    const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.src = url;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Não foi possível ler o vídeo"));
+    });
+    const targetTime = Number.isFinite(video.duration) ? Math.min(2, Math.max(0.25, video.duration * 0.25)) : 1;
+    await new Promise<void>((resolve, reject) => {
+      video.onseeked = () => resolve();
+      video.onerror = () => reject(new Error("Não foi possível buscar um frame do vídeo"));
+      video.currentTime = targetTime;
+    });
+    const max = Math.max(video.videoWidth, video.videoHeight);
+    if (!max) return null;
+    const scale = Math.min(1, 740 / max);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      try {
+        canvas.toBlob(resolve, "image/jpeg", 0.82);
+      } catch {
+        resolve(null);
+      }
+    });
+    if (!blob) return null;
+    const file = new File([blob], "video-poster.jpg", { type: "image/jpeg" });
+    const target = await getDirectUpload(file);
+    const res = await fetch(target.uploadUrl, { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: file });
+    if (!res.ok) return null;
+    return target.url;
+  } catch {
+    return null;
+  }
+}
+
 // Sobe direto do navegador pro Cloudinary, sem passar pela função serverless
 // da Vercel — evita o teto de ~4,5MB por requisição da plataforma.
 async function uploadDirectToB2(file: File): Promise<UploadedMedia> {
