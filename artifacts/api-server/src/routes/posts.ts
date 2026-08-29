@@ -23,6 +23,37 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+function escapeXml(value: string): string {
+  return value.replace(/[<>&'\"]/g, (char) => ({
+    "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;",
+  })[char] || char);
+}
+
+// Sitemap público e automático. Não muda nenhum post: apenas informa ao
+// Google todas as URLs já publicadas no blog para que possam ser descobertas.
+router.get("/sitemap.xml", async (_req, res): Promise<void> => {
+  const origin = (process.env.FRONTEND_URL || "https://refugioferradura.com.br").replace(/\/$/, "");
+  const posts = await db
+    .select({ slug: postsTable.slug, updatedAt: postsTable.updatedAt, createdAt: postsTable.createdAt })
+    .from(postsTable)
+    .where(eq(postsTable.status, "published"))
+    .orderBy(desc(postsTable.updatedAt));
+
+  const urls = posts.map((post) => {
+    const lastmod = (post.updatedAt || post.createdAt)?.toISOString().slice(0, 10);
+    return [
+      "  <url>",
+      `    <loc>${escapeXml(`${origin}/blog/${post.slug}`)}</loc>`,
+      lastmod ? `    <lastmod>${lastmod}</lastmod>` : "",
+      "  </url>",
+    ].filter(Boolean).join("\n");
+  });
+
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.send(["<?xml version=\"1.0\" encoding=\"UTF-8\"?>", '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">', ...urls, "</urlset>"].join("\n"));
+});
+
 // Posts com pinnedUntil no futuro sobem pro topo sozinhos; passado esse
 // prazo, a mesma linha volta a cair pra ordem normal (displayOrder) sem
 // precisar de nenhuma rotina agendada — a comparação com now() é feita a

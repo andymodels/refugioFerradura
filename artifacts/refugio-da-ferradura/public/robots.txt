@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://refugioferradura.com.br/api/sitemap.xml
