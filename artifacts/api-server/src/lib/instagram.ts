@@ -105,10 +105,6 @@ interface MediaSource {
   url: string;
 }
 
-function isHeicUrl(url: string): boolean {
-  return /\.(heic|heif)(\?|$)/i.test(url);
-}
-
 // Prioriza a primeira foto/vídeo editorial aprovado no corpo do post
 // (mediaItems, preenchido pelo pipeline de mídia com a mídia de verdade do
 // artigo) — a imagem de capa é um campo opcional e às vezes é só um
@@ -156,25 +152,16 @@ function extractFirstMediaFromContent(content: string): MediaSource | null {
   // Só a mídia arquivada no próprio Cloudinary tem garantia de ser
   // baixável, então ela tem prioridade sobre a ordem do documento; usa uma
   // fonte externa só se não houver nenhuma do Cloudinary no post.
-  // HEIC não deve ser a primeira opção: o Instagram não o processa de forma
-  // confiável. Usa outra mídia real do próprio artigo quando ela existir.
-  return found.find((m) => !isHeicUrl(m.url) && /res\.cloudinary\.com|media\.refugioferradura\.com|backblazeb2\.com/.test(m.url))
-    || found.find((m) => !isHeicUrl(m.url))
-    || found[0];
+  return found.find((m) => /res\.cloudinary\.com/.test(m.url)) || found[0];
 }
 
 function resolveMediaSource(post: Post): MediaSource | null {
-  let heicFallback: MediaSource | null = null;
   if (post.mediaItems) {
     try {
       const items: Array<{ kind?: string; urlArquivo?: string }> = JSON.parse(post.mediaItems);
-      const sources = items
-        .filter((item): item is { kind?: string; urlArquivo: string } => typeof item.urlArquivo === "string" && !!item.urlArquivo)
-        .map((item) => ({ kind: item.kind === "video" ? "video" as const : "foto" as const, url: item.urlArquivo }));
-      const compatible = sources.find((source) => !isHeicUrl(source.url));
-      if (compatible) return compatible;
-      if (sources[0]) {
-        heicFallback = sources[0];
+      const first = items.find((item) => typeof item.urlArquivo === "string" && item.urlArquivo);
+      if (first?.urlArquivo) {
+        return { kind: first.kind === "video" ? "video" : "foto", url: first.urlArquivo };
       }
     } catch {
       // mediaItems malformado — segue pro próximo fallback
@@ -182,19 +169,16 @@ function resolveMediaSource(post: Post): MediaSource | null {
   }
 
   const fromContent = extractFirstMediaFromContent(post.content);
-  if (fromContent && !isHeicUrl(fromContent.url)) return fromContent;
-  if (fromContent) heicFallback = heicFallback || fromContent;
+  if (fromContent) return fromContent;
 
   if (post.coverImage) {
     // "Capa" é um campo genérico que às vezes guarda um vídeo do Cloudinary
     // (URL com /video/upload/ ou extensão de vídeo), não só foto.
     const isVideo = /\/video\/upload\//.test(post.coverImage) || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.coverImage);
-    const cover = { kind: isVideo ? "video" as const : "foto" as const, url: post.coverImage };
-    if (!isHeicUrl(cover.url)) return cover;
-    heicFallback = heicFallback || cover;
+    return { kind: isVideo ? "video" : "foto", url: post.coverImage };
   }
 
-  return heicFallback;
+  return null;
 }
 
 // O Instagram processa o container de mídia de forma assíncrona (baixa e
