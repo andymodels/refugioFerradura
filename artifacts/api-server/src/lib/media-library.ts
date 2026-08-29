@@ -1,4 +1,4 @@
-import { archiveRemoteMedia } from "./b2-storage";
+import { archiveRemoteMedia, makeInstagramSafeImage } from "./b2-storage";
 
 function isPermanentMediaUrl(url: string): boolean {
   try {
@@ -11,12 +11,8 @@ function isPermanentMediaUrl(url: string): boolean {
   }
 }
 
-// Copia uma mídia aprovada (foto ou vídeo) para a biblioteca permanente do
-// Refúgio. A fonte original continua registrada no post (metadados de
-// origem/destino), mas o `src` real nunca depende de um link temporário de
-// rede social ou site de terceiros — sempre um arquivo hospedado no
-// Cloudinary do próprio site. `index` evita colisão de public_id quando um
-// post tem várias mídias.
+// Copia uma mídia aprovada para a biblioteca permanente do Refúgio. O `src`
+// real nunca depende de links temporários de redes sociais ou de terceiros.
 export async function archiveApprovedMedia(
   sourceUrl: string,
   slug: string,
@@ -26,6 +22,8 @@ export async function archiveApprovedMedia(
   if (isPermanentMediaUrl(sourceUrl)) return sourceUrl;
   return archiveRemoteMedia(sourceUrl, slug, index, resourceType);
 }
+
+export { makeInstagramSafeImage };
 
 // Mantido para compatibilidade com o fluxo de capa (1 imagem só, sem índice).
 export async function archiveApprovedImage(sourceUrl: string, slug: string): Promise<string> {

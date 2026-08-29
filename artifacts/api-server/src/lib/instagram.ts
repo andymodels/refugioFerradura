@@ -3,6 +3,7 @@ import { parseHTML } from "linkedom";
 import type { Post } from "@workspace/db";
 import { logger } from "./logger";
 import { extractInstagramHandle } from "./partner-extraction";
+import { makeInstagramSafeImage } from "./media-library";
 
 const GRAPH_API_VERSION = "v21.0";
 
@@ -180,14 +181,6 @@ function resolveMediaSource(post: Post): MediaSource | null {
   return null;
 }
 
-// Fotos enviadas de iPhone ficam salvas no Cloudinary como HEIC, formato que
-// o Instagram não processa no upload por URL. Força a entrega em JPEG via
-// transformação do Cloudinary (não baixa/reenvia nada, só muda a URL).
-function ensureJpegUrl(url: string): string {
-  if (!/\.heic(\?|$)/i.test(url)) return url;
-  return url.replace("/upload/", "/upload/f_jpg,q_auto/");
-}
-
 // O Instagram processa o container de mídia de forma assíncrona (baixa e
 // transcodifica o arquivo antes de deixar publicar — vídeo demora bem mais
 // que foto). Publicar assim que o container é criado falha com "media is
@@ -242,10 +235,12 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
     // (/api/instagram/card) — mesma foto com o site e o título desenhados
     // por cima, no mesmo estilo do blog do n9ve. O Instagram busca essa URL
     // como se fosse a imagem final; o card já sai em JPEG, então também
-    // resolve o caso de foto .heic sem precisar de ensureJpegUrl aqui.
+    // resolve o caso de foto HEIC. A conversão anterior garante que o
+    // gerador do card nunca receba um formato incompatível.
+    const safeImageUrl = await makeInstagramSafeImage(source.url, post.id);
     const siteBase = process.env.FRONTEND_URL || "https://refugioferradura.com.br";
     const cardUrl = new URL(`${siteBase}/api/instagram/card/${post.id}`);
-    cardUrl.searchParams.set("src", source.url);
+    cardUrl.searchParams.set("src", safeImageUrl);
     containerUrl.searchParams.set("image_url", cardUrl.toString());
   }
   containerUrl.searchParams.set("caption", caption);
@@ -326,7 +321,7 @@ export async function publishPartnerContentToInstagram(
 
   const isVideo = item.mediaType === "video";
   const handle = partner.instagramHandle;
-  let mediaUrlToUse = ensureJpegUrl(item.mediaUrl);
+  let mediaUrlToUse = isVideo ? item.mediaUrl : await makeInstagramSafeImage(item.mediaUrl, item.id);
   let caption: string | undefined;
 
   if (item.tipoConteudo === "story") {

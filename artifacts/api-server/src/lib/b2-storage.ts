@@ -78,6 +78,7 @@ export function createMediaKey(filename: string, contentType: string, type: Medi
 // daqui já limitada para não ocupar espaço desnecessário.
 async function optimizeImage(body: Buffer | Uint8Array, filename: string, contentType: string) {
   const normalizedType = contentType.split(";", 1)[0].toLowerCase();
+  const isHeic = normalizedType === "image/heic" || normalizedType === "image/heif" || /\.(heic|heif)$/i.test(filename);
   if (normalizedType === "image/svg+xml" || normalizedType === "image/gif") {
     return { body, filename, contentType };
   }
@@ -85,7 +86,7 @@ async function optimizeImage(body: Buffer | Uint8Array, filename: string, conten
     const input = Buffer.from(body);
     const image = sharp(input, { animated: false });
     const metadata = await image.metadata();
-    if (!metadata.width || !metadata.height || Math.max(metadata.width, metadata.height) <= 740) {
+    if (!metadata.width || !metadata.height || (!isHeic && Math.max(metadata.width, metadata.height) <= 740)) {
       return { body, filename, contentType };
     }
     const output = await image
@@ -101,6 +102,14 @@ async function optimizeImage(body: Buffer | Uint8Array, filename: string, conten
   } catch {
     // Não bloqueia uma publicação por um formato que o Sharp não suporte.
     return { body, filename, contentType };
+  }
+}
+
+function isHeicUrl(url: string): boolean {
+  try {
+    return /\.(heic|heif)$/i.test(new URL(url).pathname);
+  } catch {
+    return /\.(heic|heif)(\?|$)/i.test(url);
   }
 }
 
@@ -176,6 +185,36 @@ export async function uploadMediaBuffer(params: {
   }
 
   return { url: b2PublicUrl(key), type: params.type, key, posterUrl };
+}
+
+// Proteção final no instante de publicar: posts antigos podem apontar para
+// HEIC já salvo no B2. Cria uma cópia JPEG estável antes de a Meta buscar a
+// imagem, impedindo que a publicação seja aceita com quadro preto.
+export async function makeInstagramSafeImage(url: string, postId: number): Promise<string> {
+  if (!isHeicUrl(url)) return url;
+
+  const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000) });
+  if (!response.ok) throw new Error(`Não foi possível baixar a foto HEIC (HTTP ${response.status}).`);
+
+  let jpeg: Buffer;
+  try {
+    jpeg = await sharp(Buffer.from(await response.arrayBuffer()))
+      .rotate()
+      .jpeg({ quality: 90, chromaSubsampling: "4:4:4" })
+      .toBuffer();
+  } catch {
+    throw new Error("Não foi possível converter a foto HEIC para um formato compatível com o Instagram.");
+  }
+
+  const result = await uploadMediaBuffer({
+    body: jpeg,
+    filename: `post-${postId}.jpg`,
+    contentType: "image/jpeg",
+    type: "image",
+    folder: "refugio-da-ferradura/instagram-ready",
+    key: `refugio-da-ferradura/instagram-ready/post-${postId}.jpg`,
+  });
+  return result.url;
 }
 
 // Baixa um vídeo de qualquer URL (o mesmo que já é feito pra arquivar link
