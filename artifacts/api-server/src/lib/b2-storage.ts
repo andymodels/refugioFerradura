@@ -6,10 +6,17 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { v2 as cloudinary } from "cloudinary";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
 
 const execFileAsync = promisify(execFile);
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export type MediaResourceType = "image" | "video";
 
@@ -193,28 +200,26 @@ export async function uploadMediaBuffer(params: {
 export async function makeInstagramSafeImage(url: string, postId: number): Promise<string> {
   if (!isHeicUrl(url)) return url;
 
-  const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(20000) });
-  if (!response.ok) throw new Error(`Não foi possível baixar a foto HEIC (HTTP ${response.status}).`);
-
-  let jpeg: Buffer;
+  // O ambiente de execução atual não tem o codec HEIC disponível no Sharp.
+  // O Cloudinary faz a conversão no servidor de mídia, preservando a mesma
+  // foto que foi escolhida como capa, agora entregue como JPEG ao Instagram.
   try {
-    jpeg = await sharp(Buffer.from(await response.arrayBuffer()))
-      .rotate()
-      .jpeg({ quality: 90, chromaSubsampling: "4:4:4" })
-      .toBuffer();
+    const result = await cloudinary.uploader.upload(url, {
+      folder: "refugio-da-ferradura/instagram-ready",
+      public_id: `post-${postId}`,
+      overwrite: true,
+      invalidate: true,
+      resource_type: "image",
+      format: "jpg",
+      quality: "auto",
+    });
+    if (!result.secure_url || !/\.jpe?g(\?|$)/i.test(result.secure_url)) {
+      throw new Error("O conversor não retornou uma imagem JPEG.");
+    }
+    return result.secure_url;
   } catch {
     throw new Error("Não foi possível converter a foto HEIC para um formato compatível com o Instagram.");
   }
-
-  const result = await uploadMediaBuffer({
-    body: jpeg,
-    filename: `post-${postId}.jpg`,
-    contentType: "image/jpeg",
-    type: "image",
-    folder: "refugio-da-ferradura/instagram-ready",
-    key: `refugio-da-ferradura/instagram-ready/post-${postId}.jpg`,
-  });
-  return result.url;
 }
 
 // Baixa um vídeo de qualquer URL (o mesmo que já é feito pra arquivar link
