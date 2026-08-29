@@ -231,17 +231,10 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
     containerUrl.searchParams.set("media_type", "REELS");
     containerUrl.searchParams.set("video_url", source.url);
   } else {
-    // Em vez de mandar a foto crua, aponta pro card gerado na hora
-    // (/api/instagram/card) — mesma foto com o site e o título desenhados
-    // por cima, no mesmo estilo do blog do n9ve. O Instagram busca essa URL
-    // como se fosse a imagem final; o card já sai em JPEG, então também
-    // resolve o caso de foto HEIC. A conversão anterior garante que o
-    // gerador do card nunca receba um formato incompatível.
+    // A Meta pode aceitar HEIC e ainda publicar um quadro preto. A conversão
+    // acontece antes do envio, inclusive para posts antigos criados no editor.
     const safeImageUrl = await makeInstagramSafeImage(source.url, post.id);
-    const siteBase = process.env.FRONTEND_URL || "https://refugioferradura.com.br";
-    const cardUrl = new URL(`${siteBase}/api/instagram/card/${post.id}`);
-    cardUrl.searchParams.set("src", safeImageUrl);
-    containerUrl.searchParams.set("image_url", cardUrl.toString());
+    containerUrl.searchParams.set("image_url", safeImageUrl);
   }
   containerUrl.searchParams.set("caption", caption);
   containerUrl.searchParams.set("access_token", accessToken);
