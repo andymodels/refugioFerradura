@@ -467,6 +467,17 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
     const finalContent = interleaveImages(article.content, mediaItems);
     const tags = mapTags(article);
 
+    // Verifica o artigo gerado contra o texto real da página-fonte antes de
+    // decidir se publica sozinho — mesmo padrão de verificação usado no
+    // pipeline de fontes fixas. Se a fonte não puder ser lida (bloqueada,
+    // rede social sem texto extraível) ou a verificação apontar fato
+    // inventado, cai pra rascunho por segurança em vez de travar o post.
+    const sourceExtraction = await extractArticleContent(article.sourceUrl);
+    const verification =
+      !sourceExtraction.blocked && sourceExtraction.text.length >= 50
+        ? await verifyArticleAgainstSource(sourceExtraction.text, article)
+        : { ok: false, problemas: ["Não foi possível ler o texto da fonte para verificação"] };
+
     const [post] = await db
       .insert(postsTable)
       .values({
@@ -480,9 +491,9 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
         coverImageMeta: cover ? JSON.stringify(cover) : null,
         mediaItems: JSON.stringify(mediaItems),
         tags: JSON.stringify(tags),
-        // Fase de validação: sempre rascunho, igual ao pipeline de fontes —
-        // troca pra "published" depois de confirmar a qualidade por 1-2 semanas.
-        status: "draft",
+        // Publica sozinho só quando a verificação confirma que não há fato
+        // inventado; senão vira rascunho pra revisão manual.
+        status: verification.ok ? "published" : "draft",
         metaDescription: article.metaDescription ?? null,
       })
       .returning();
@@ -492,9 +503,13 @@ router.get("/publish-regional-search", async (req, res): Promise<void> => {
       url: article.sourceUrl,
       postId: post.id,
       status: "sucesso",
+      alertaRevisao: verification.ok ? null : verification.problemas.join("; "),
     });
 
-    logger.info({ postId: post.id, slug, sourceUrl: article.sourceUrl }, "[cron] Post de busca regional criado");
+    logger.info(
+      { postId: post.id, slug, sourceUrl: article.sourceUrl, verificado: verification.ok, status: post.status },
+      "[cron] Post de busca regional criado",
+    );
 
     res.json({ status: "ok", post: { id: post.id, slug: post.slug, status: post.status } });
   } catch (err: any) {
@@ -852,6 +867,20 @@ router.get("/monitor-canais-oficiais", async (req, res): Promise<void> => {
     const finalContent = interleaveImages(article.content, mediaItems) + servicoBlock;
     const computedTags = mapTags({ title: fonte.nome, content: `${tags.join(" ")} ${article.content}` }, ["empreendimentos", ...tags]);
     const cover = mediaItems.find((m) => m.kind === "foto") ?? mediaItems[0];
+
+    // Mesma regra de unicidade das outras rotas de descoberta — faltava aqui,
+    // e foi a causa provável do incidente de capa institucional duplicada
+    // que levou à pausa deste workflow em 2026-07-27.
+    if (await isCoverAlreadyUsed(cover.urlArquivo)) {
+      await db.insert(fontesProcessadasTable).values({
+        fonteId: fonte.id,
+        url: trigger,
+        status: "falhou",
+        detalhe: `Mídia já usada como capa em outro post — bloqueado por unicidade (${cover.urlArquivo})`,
+      });
+      res.json({ status: "ok", log, message: "Mídia já usada em outro post — bloqueado por unicidade." });
+      return;
+    }
 
     const [post] = await db
       .insert(postsTable)
