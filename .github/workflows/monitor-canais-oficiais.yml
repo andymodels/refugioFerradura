@@ -1,20 +1,28 @@
 name: Monitorar canais oficiais do Instagram (3x/dia)
 
 on:
-  # PAUSADO em 2026-07-27 após incidente de capa institucional duplicada na
-  # reconciliação global — só reativar o `schedule` depois de revisão manual.
-  # - schedule:
-  #     - cron: "23 10 * * *" # ~7h BRT
-  #     - cron: "28 15 * * *" # ~12h BRT
-  #     - cron: "25 22 * * *" # ~19h BRT
+  # Reativado em 2026-09-24: a causa do incidente de 2026-07-27 (capa
+  # institucional duplicada) era a falta da checagem de unicidade de capa
+  # nesta rota — as outras rotas de descoberta já tinham essa trava, esta
+  # não tinha. Corrigido em `/api/cron/monitor-canais-oficiais`.
+  schedule:
+    - cron: "23 10 * * *" # ~7h BRT
+    - cron: "28 15 * * *" # ~12h BRT
+    - cron: "25 22 * * *" # ~19h BRT
   workflow_dispatch: {}
+
+concurrency:
+  group: monitor-canais-oficiais
+  cancel-in-progress: false
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Chamar endpoint de monitoramento de canais oficiais
         run: |
-          curl -fsS \
+          curl --fail --show-error --silent \
+            --max-time 300 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://refugioferradura.com.br/api/cron/monitor-canais-oficiais

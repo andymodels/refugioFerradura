@@ -1,16 +1,27 @@
-name: Publicar matéria de busca regional (pausado — somente manual)
+name: Publicar matéria de busca regional (1x/dia)
 
-# Pausado enquanto a fila do diagnóstico é concluída. Mantemos o disparo
-# manual para testes controlados, sem publicação automática concorrente.
+# Reativado em 2026-09-24. 1x/dia, em horário de maior engajamento (~19h
+# BRT). A rota /api/cron/publish-regional-search agora verifica o artigo
+# gerado contra o texto real da página-fonte antes de decidir se publica
+# sozinho ou cai pra rascunho — só publica direto quando a verificação
+# confirma que não há fato inventado.
 on:
+  schedule:
+    - cron: "10 22 * * *" # ~19h BRT (UTC-3, sem horário de verão)
   workflow_dispatch: {}
+
+concurrency:
+  group: publish-regional-search
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Chamar endpoint de busca regional
         run: |
-          curl -fsS \
+          curl --fail --show-error --silent \
+            --max-time 300 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://refugioferradura.com.br/api/cron/publish-regional-search

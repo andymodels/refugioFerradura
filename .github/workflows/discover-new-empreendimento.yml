@@ -2,13 +2,14 @@ name: Descobrir novo empreendimento (a cada 15 dias)
 
 # Roda no dia 1 e no dia 16 de cada mês (aproximação de "a cada 15 dias" com
 # datas fixas e previsíveis) às 12h UTC (9h em Brasília). Sempre cria o post
-# como rascunho — nunca publica sozinho.
-# Pausado em 05/08/2026: não uso mais a geração automática de matérias via
-# busca na web. O schedule foi desativado para evitar custo desnecessário de
-# API. Mantido o workflow_dispatch para rodar manualmente se precisar.
+# como rascunho — nunca publica sozinho: diferente da busca regional (que
+# tem verificação automática contra a fonte), aqui o conteúdo é sobre um
+# negócio real de terceiro (endereço, contato) — erro pesa mais, então fica
+# sempre pra revisão humana antes de ir ao ar, mesmo com o schedule ativo.
+# Reativado em 2026-09-24.
 on:
-  # schedule:
-  #   - cron: "0 12 1,16 * *"
+  schedule:
+    - cron: "0 12 1,16 * *"
   workflow_dispatch: {}
 
 concurrency:
