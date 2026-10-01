@@ -254,12 +254,13 @@ export type InstagramPartnerCategoria =
   | null;
 
 export const InstagramPartnerCategoria = {
-  gastronomia: "gastronomia",
   hospedagem: "hospedagem",
+  restaurante_cafe: "restaurante_cafe",
+  cervejaria: "cervejaria",
   atracao: "atracao",
-  experiencia: "experiencia",
-  servico: "servico",
   producao_rural: "producao_rural",
+  comercio_servico: "comercio_servico",
+  eventos: "eventos",
   outra: "outra",
 } as const;
 
@@ -335,12 +336,13 @@ export type CreateInstagramPartnerBodyCategoria =
   (typeof CreateInstagramPartnerBodyCategoria)[keyof typeof CreateInstagramPartnerBodyCategoria];
 
 export const CreateInstagramPartnerBodyCategoria = {
-  gastronomia: "gastronomia",
   hospedagem: "hospedagem",
+  restaurante_cafe: "restaurante_cafe",
+  cervejaria: "cervejaria",
   atracao: "atracao",
-  experiencia: "experiencia",
-  servico: "servico",
   producao_rural: "producao_rural",
+  comercio_servico: "comercio_servico",
+  eventos: "eventos",
   outra: "outra",
 } as const;
 
@@ -360,12 +362,13 @@ export type UpdateInstagramPartnerBodyCategoria =
   | null;
 
 export const UpdateInstagramPartnerBodyCategoria = {
-  gastronomia: "gastronomia",
   hospedagem: "hospedagem",
+  restaurante_cafe: "restaurante_cafe",
+  cervejaria: "cervejaria",
   atracao: "atracao",
-  experiencia: "experiencia",
-  servico: "servico",
   producao_rural: "producao_rural",
+  comercio_servico: "comercio_servico",
+  eventos: "eventos",
   outra: "outra",
 } as const;
 

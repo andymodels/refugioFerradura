@@ -13,20 +13,31 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
+// Seta do select (SVG inline, cor do texto secundário do tema).
+const selectStyle: React.CSSProperties = {
+  backgroundImage:
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23878d89' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>\")",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "right 0.75rem center",
+};
+
 const CATEGORIAS: Record<string, string> = {
-  gastronomia: "Gastronomia",
   hospedagem: "Hospedagem",
+  restaurante_cafe: "Restaurante/café",
+  cervejaria: "Cervejaria",
   atracao: "Atração",
-  experiencia: "Experiência",
-  servico: "Serviço",
   producao_rural: "Produção rural",
+  comercio_servico: "Comércio/serviço",
+  eventos: "Eventos",
   outra: "Outra",
 };
 
 // Vocabulário sugerido — o campo aceita qualquer tag nova digitada.
 const TAGS_SUGERIDAS = [
-  "café", "almoço", "jantar", "natureza", "experiência", "vista", "família/crianças",
-  "pet friendly", "estacionamento", "cachoeira", "produção rural", "romântico", "ao ar livre",
+  "experiência", "aventura", "eventos", "retiros", "cultura", "gastronomia", "hospedagem",
+  "café", "almoço", "jantar", "natureza", "vista", "família/crianças", "pet friendly",
+  "estacionamento", "cachoeira", "produção rural", "cachaçaria", "cerveja artesanal",
+  "produtos locais", "artesanato", "lazer", "piscina", "rio", "romântico",
 ];
 
 const STATUS_LABEL: Record<string, string> = {
@@ -237,7 +248,9 @@ export default function AdminPartners() {
     }
   };
 
-  const selectCls = "w-full h-10 rounded-md border border-input bg-background px-3 text-sm";
+  // Mesmo visual dos Inputs do admin (tema escuro), sem a aparência nativa do navegador.
+  const selectCls =
+    "flex h-11 w-full appearance-none rounded-sm border border-border bg-background pl-3 pr-9 py-2 text-sm text-foreground [color-scheme:dark] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary transition-colors";
 
   return (
     <AdminLayout>
@@ -272,7 +285,7 @@ export default function AdminPartners() {
           </div>
           <div>
             <Label>Categoria</Label>
-            <select className={selectCls} value={newCategoria} onChange={(e) => setNewCategoria(e.target.value)}>
+            <select style={selectStyle} className={selectCls} value={newCategoria} onChange={(e) => setNewCategoria(e.target.value)}>
               <option value="">—</option>
               {Object.entries(CATEGORIAS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
@@ -297,11 +310,11 @@ export default function AdminPartners() {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, região ou @..." />
-        <select className={selectCls} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+        <select style={selectStyle} className={selectCls} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
           <option value="">Todas as categorias</option>
           {Object.entries(CATEGORIAS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
-        <select className={selectCls} value={filtroTag} onChange={(e) => setFiltroTag(e.target.value)}>
+        <select style={selectStyle} className={selectCls} value={filtroTag} onChange={(e) => setFiltroTag(e.target.value)}>
           <option value="">Todas as características</option>
           {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -399,7 +412,7 @@ export default function AdminPartners() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-xs text-muted-foreground">
-                        {p.dadosVerificadosEm ? new Date(p.dadosVerificadosEm).toLocaleDateString("pt-BR") : "—"}
+                        {p.dadosVerificadosEm ? new Date(p.dadosVerificadosEm).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "—"}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {editingId === p.id ? (
@@ -440,7 +453,7 @@ export default function AdminPartners() {
                             </div>
                             <div>
                               <Label>Categoria principal</Label>
-                              <select className={selectCls} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
+                              <select style={selectStyle} className={selectCls} value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}>
                                 <option value="">—</option>
                                 {Object.entries(CATEGORIAS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                               </select>
@@ -520,7 +533,7 @@ export default function AdminPartners() {
                             </div>
                             <div className="lg:col-span-2">
                               <Label>Matéria principal</Label>
-                              <select className={selectCls} value={form.materiaPrincipalPostId} onChange={(e) => setForm({ ...form, materiaPrincipalPostId: e.target.value })}>
+                              <select style={selectStyle} className={selectCls} value={form.materiaPrincipalPostId} onChange={(e) => setForm({ ...form, materiaPrincipalPostId: e.target.value })}>
                                 <option value="">{p.postSlug ? "Usar a matéria de origem" : "—"}</option>
                                 {posts.map((post) => (
                                   <option key={post.id} value={post.id}>{post.title}</option>
@@ -550,7 +563,7 @@ export default function AdminPartners() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                                   <div>
                                     <Label>Status</Label>
-                                    <select className={selectCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                                    <select style={selectStyle} className={selectCls} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                                       {Object.entries(STATUS_LABEL).map(([value, label]) => (
                                         <option key={value} value={value}>{label}</option>
                                       ))}
@@ -562,7 +575,7 @@ export default function AdminPartners() {
                                   </div>
                                   <div>
                                     <Label>Canal</Label>
-                                    <select className={selectCls} value={form.autorizacaoCanal} onChange={(e) => setForm({ ...form, autorizacaoCanal: e.target.value })}>
+                                    <select style={selectStyle} className={selectCls} value={form.autorizacaoCanal} onChange={(e) => setForm({ ...form, autorizacaoCanal: e.target.value })}>
                                       <option value="">—</option>
                                       <option value="whatsapp">WhatsApp</option>
                                       <option value="instagram_dm">Instagram DM</option>

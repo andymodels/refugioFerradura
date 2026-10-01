@@ -30,7 +30,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Publicações", href: "/admin/posts", icon: FileText },
     { name: "Mídia", href: "/admin/media", icon: ImageIcon },
     { name: "Canais Oficiais", href: "/admin/fontes", icon: Rss },
-    { name: "Parceiros", href: "/admin/parceiros", icon: Users },
+    { name: "Estabelecimentos", href: "/admin/parceiros", icon: Users },
     { name: "Visual", href: "/admin/settings", icon: Settings },
   ];
 

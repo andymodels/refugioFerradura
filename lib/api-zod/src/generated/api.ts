@@ -637,12 +637,13 @@ export const ListInstagramPartnersResponse = zod.object({
       uploadToken: zod.string().nullish(),
       categoria: zod
         .union([
-          zod.literal("gastronomia"),
           zod.literal("hospedagem"),
+          zod.literal("restaurante_cafe"),
+          zod.literal("cervejaria"),
           zod.literal("atracao"),
-          zod.literal("experiencia"),
-          zod.literal("servico"),
           zod.literal("producao_rural"),
+          zod.literal("comercio_servico"),
+          zod.literal("eventos"),
           zod.literal("outra"),
           zod.literal(null),
         ])
@@ -679,12 +680,13 @@ export const CreateInstagramPartnerBody = zod.object({
   telefone: zod.string().optional(),
   categoria: zod
     .enum([
-      "gastronomia",
       "hospedagem",
+      "restaurante_cafe",
+      "cervejaria",
       "atracao",
-      "experiencia",
-      "servico",
       "producao_rural",
+      "comercio_servico",
+      "eventos",
       "outra",
     ])
     .optional(),
@@ -712,12 +714,13 @@ export const UpdateInstagramPartnerBody = zod.object({
   telefone: zod.string().nullish(),
   categoria: zod
     .union([
-      zod.literal("gastronomia"),
       zod.literal("hospedagem"),
+      zod.literal("restaurante_cafe"),
+      zod.literal("cervejaria"),
       zod.literal("atracao"),
-      zod.literal("experiencia"),
-      zod.literal("servico"),
       zod.literal("producao_rural"),
+      zod.literal("comercio_servico"),
+      zod.literal("eventos"),
       zod.literal("outra"),
       zod.literal(null),
     ])
@@ -776,12 +779,13 @@ export const UpdateInstagramPartnerResponse = zod.object({
   uploadToken: zod.string().nullish(),
   categoria: zod
     .union([
-      zod.literal("gastronomia"),
       zod.literal("hospedagem"),
+      zod.literal("restaurante_cafe"),
+      zod.literal("cervejaria"),
       zod.literal("atracao"),
-      zod.literal("experiencia"),
-      zod.literal("servico"),
       zod.literal("producao_rural"),
+      zod.literal("comercio_servico"),
+      zod.literal("eventos"),
       zod.literal("outra"),
       zod.literal(null),
     ])
@@ -974,12 +978,13 @@ export const DisconnectPartnerResponse = zod.object({
   uploadToken: zod.string().nullish(),
   categoria: zod
     .union([
-      zod.literal("gastronomia"),
       zod.literal("hospedagem"),
+      zod.literal("restaurante_cafe"),
+      zod.literal("cervejaria"),
       zod.literal("atracao"),
-      zod.literal("experiencia"),
-      zod.literal("servico"),
       zod.literal("producao_rural"),
+      zod.literal("comercio_servico"),
+      zod.literal("eventos"),
       zod.literal("outra"),
       zod.literal(null),
     ])

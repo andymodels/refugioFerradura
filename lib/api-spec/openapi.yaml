@@ -1161,7 +1161,7 @@ components:
           type: ["string", "null"]
         categoria:
           type: ["string", "null"]
-          enum: [gastronomia, hospedagem, atracao, experiencia, servico, producao_rural, outra, null]
+          enum: [hospedagem, restaurante_cafe, cervejaria, atracao, producao_rural, comercio_servico, eventos, outra, null]
         regiao:
           type: ["string", "null"]
         descricaoCurta:
@@ -1246,7 +1246,7 @@ components:
           type: string
         categoria:
           type: string
-          enum: [gastronomia, hospedagem, atracao, experiencia, servico, producao_rural, outra]
+          enum: [hospedagem, restaurante_cafe, cervejaria, atracao, producao_rural, comercio_servico, eventos, outra]
         regiao:
           type: string
       required:
@@ -1263,7 +1263,7 @@ components:
           type: ["string", "null"]
         categoria:
           type: ["string", "null"]
-          enum: [gastronomia, hospedagem, atracao, experiencia, servico, producao_rural, outra, null]
+          enum: [hospedagem, restaurante_cafe, cervejaria, atracao, producao_rural, comercio_servico, eventos, outra, null]
         regiao:
           type: ["string", "null"]
         descricaoCurta:
