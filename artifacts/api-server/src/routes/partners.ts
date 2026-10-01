@@ -3,6 +3,7 @@ import crypto from "crypto";
 import multer from "multer";
 import { db, instagramPartnersTable, postsTable, partnerContentItemsTable, storyScheduleSettingsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   ListInstagramPartnersResponse,
   UpdateInstagramPartnerParams,
@@ -43,6 +44,7 @@ const publicUpload = multer({
 const router: IRouter = Router();
 
 router.get("/partners/admin", async (req, res): Promise<void> => {
+  const materiaPost = alias(postsTable, "materia_post");
   const session = req.session as any;
   if (!session?.adminId) {
     res.status(401).json({ error: "Não autenticado" });
@@ -66,6 +68,21 @@ router.get("/partners/admin", async (req, res): Promise<void> => {
       autorizacaoVideosReels: instagramPartnersTable.autorizacaoVideosReels,
       autorizacaoStories: instagramPartnersTable.autorizacaoStories,
       marcacaoObrigatoria: instagramPartnersTable.marcacaoObrigatoria,
+      categoria: instagramPartnersTable.categoria,
+      regiao: instagramPartnersTable.regiao,
+      descricaoCurta: instagramPartnersTable.descricaoCurta,
+      tags: instagramPartnersTable.tags,
+      endereco: instagramPartnersTable.endereco,
+      googleMapsUrl: instagramPartnersTable.googleMapsUrl,
+      site: instagramPartnersTable.site,
+      materiaPrincipalPostId: instagramPartnersTable.materiaPrincipalPostId,
+      fotoReferencia: instagramPartnersTable.fotoReferencia,
+      ultimoUsoInstagramEm: instagramPartnersTable.ultimoUsoInstagramEm,
+      usosInstagram: instagramPartnersTable.usosInstagram,
+      dadosVerificadosEm: instagramPartnersTable.dadosVerificadosEm,
+      materiaSlug: materiaPost.slug,
+      materiaTitle: materiaPost.title,
+      materiaCoverImage: materiaPost.coverImage,
       // Nunca selecionar igAccessToken aqui — não pode ir pro cliente.
       igUsername: instagramPartnersTable.igUsername,
       conectadoEm: instagramPartnersTable.conectadoEm,
@@ -79,6 +96,7 @@ router.get("/partners/admin", async (req, res): Promise<void> => {
     .from(instagramPartnersTable)
     // left join, não inner — parceiros cadastrados manualmente não têm post_id
     .leftJoin(postsTable, eq(instagramPartnersTable.postId, postsTable.id))
+    .leftJoin(materiaPost, eq(instagramPartnersTable.materiaPrincipalPostId, materiaPost.id))
     .orderBy(desc(instagramPartnersTable.createdAt));
 
   res.json(ListInstagramPartnersResponse.parse({ partners: rows, total: rows.length }));
@@ -124,6 +142,8 @@ router.post("/partners/admin", async (req, res): Promise<void> => {
       nomeEstabelecimento: parsed.data.nomeEstabelecimento,
       instagramHandle: parsed.data.instagramHandle || null,
       telefone: parsed.data.telefone || null,
+      categoria: parsed.data.categoria ?? null,
+      regiao: parsed.data.regiao || null,
       status: "encontrado",
     })
     .returning();

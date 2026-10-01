@@ -5,9 +5,12 @@
  * Refúgio da Ferradura API
  * OpenAPI spec version: 0.2.0
  */
+import type { CreateInstagramPartnerBodyCategoria } from "./createInstagramPartnerBodyCategoria";
 
 export interface CreateInstagramPartnerBody {
   nomeEstabelecimento: string;
   instagramHandle?: string;
   telefone?: string;
+  categoria?: CreateInstagramPartnerBodyCategoria;
+  regiao?: string;
 }

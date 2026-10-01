@@ -5,6 +5,7 @@
  * Refúgio da Ferradura API
  * OpenAPI spec version: 0.2.0
  */
+import type { UpdateInstagramPartnerBodyCategoria } from "./updateInstagramPartnerBodyCategoria";
 import type { UpdateInstagramPartnerBodyStatus } from "./updateInstagramPartnerBodyStatus";
 
 export interface UpdateInstagramPartnerBody {
@@ -13,6 +14,24 @@ export interface UpdateInstagramPartnerBody {
   instagramHandle?: string | null;
   /** @nullable */
   telefone?: string | null;
+  /** @nullable */
+  categoria?: UpdateInstagramPartnerBodyCategoria;
+  /** @nullable */
+  regiao?: string | null;
+  /** @nullable */
+  descricaoCurta?: string | null;
+  tags?: string[];
+  /** @nullable */
+  endereco?: string | null;
+  /** @nullable */
+  googleMapsUrl?: string | null;
+  /** @nullable */
+  site?: string | null;
+  /** @nullable */
+  materiaPrincipalPostId?: number | null;
+  fotoReferencia?: string[];
+  /** @nullable */
+  dadosVerificadosEm?: Date | null;
   pausado?: boolean;
   status?: UpdateInstagramPartnerBodyStatus;
   /** @nullable */

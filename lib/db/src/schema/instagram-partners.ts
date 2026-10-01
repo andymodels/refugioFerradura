@@ -1,6 +1,7 @@
 import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { sql } from "drizzle-orm";
 import { postsTable } from "./posts";
 
 // Um perfil parceiro citado no blog (varredura) ou cadastrado manualmente no
@@ -45,6 +46,28 @@ export const instagramPartnersTable = pgTable("instagram_partners", {
   // Token único e imprevisível pro link pessoal de envio de Stories — o
   // parceiro usa esse link sem login nenhum no painel.
   uploadToken: text("upload_token").unique(),
+  // ─── Base mestre de estabelecimentos (Rota da Ferradura) ───────────────
+  // Todos opcionais/com default — registros antigos continuam válidos.
+  // "gastronomia" | "hospedagem" | "atracao" | "experiencia" | "servico" |
+  // "producao_rural" | "outra" (validado na API).
+  categoria: text("categoria"),
+  regiao: text("regiao"),
+  descricaoCurta: text("descricao_curta"),
+  // Tags editoriais livres (ex.: café, pet friendly, vista) — array simples
+  // em vez de dezenas de colunas booleanas.
+  tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
+  endereco: text("endereco"),
+  googleMapsUrl: text("google_maps_url"),
+  site: text("site"),
+  // Matéria principal do estabelecimento. Separado de postId de propósito:
+  // postId é a origem da varredura (único, cascade) e some junto com o post.
+  materiaPrincipalPostId: integer("materia_principal_post_id").references(() => postsTable.id, { onDelete: "set null" }),
+  // URLs extras de fotos; as da matéria principal vêm de posts.
+  fotoReferencia: text("foto_referencia").array().notNull().default(sql`'{}'::text[]`),
+  // Preenchidos pelo futuro motor de conteúdo (Parte 2).
+  ultimoUsoInstagramEm: timestamp("ultimo_uso_instagram_em", { withTimezone: true }),
+  usosInstagram: integer("usos_instagram").notNull().default(0),
+  dadosVerificadosEm: timestamp("dados_verificados_em", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -246,6 +246,23 @@ export const InstagramPartnerStatus = {
   autorizado_repost: "autorizado_repost",
 } as const;
 
+/**
+ * @nullable
+ */
+export type InstagramPartnerCategoria =
+  | (typeof InstagramPartnerCategoria)[keyof typeof InstagramPartnerCategoria]
+  | null;
+
+export const InstagramPartnerCategoria = {
+  gastronomia: "gastronomia",
+  hospedagem: "hospedagem",
+  atracao: "atracao",
+  experiencia: "experiencia",
+  servico: "servico",
+  producao_rural: "producao_rural",
+  outra: "outra",
+} as const;
+
 export interface InstagramPartner {
   id: number;
   /** @nullable */
@@ -276,10 +293,37 @@ export interface InstagramPartner {
   ultimoPollEm?: string | null;
   /** @nullable */
   uploadToken?: string | null;
+  /** @nullable */
+  categoria?: InstagramPartnerCategoria;
+  /** @nullable */
+  regiao?: string | null;
+  /** @nullable */
+  descricaoCurta?: string | null;
+  tags: string[];
+  /** @nullable */
+  endereco?: string | null;
+  /** @nullable */
+  googleMapsUrl?: string | null;
+  /** @nullable */
+  site?: string | null;
+  /** @nullable */
+  materiaPrincipalPostId?: number | null;
+  fotoReferencia: string[];
+  /** @nullable */
+  dadosVerificadosEm?: string | null;
+  /** @nullable */
+  ultimoUsoInstagramEm?: string | null;
+  usosInstagram: number;
   createdAt: string;
   updatedAt: string;
   postSlug?: string;
   postTitle?: string;
+  /** @nullable */
+  materiaSlug?: string | null;
+  /** @nullable */
+  materiaTitle?: string | null;
+  /** @nullable */
+  materiaCoverImage?: string | null;
 }
 
 export interface InstagramPartnerListResponse {
@@ -287,11 +331,43 @@ export interface InstagramPartnerListResponse {
   total: number;
 }
 
+export type CreateInstagramPartnerBodyCategoria =
+  (typeof CreateInstagramPartnerBodyCategoria)[keyof typeof CreateInstagramPartnerBodyCategoria];
+
+export const CreateInstagramPartnerBodyCategoria = {
+  gastronomia: "gastronomia",
+  hospedagem: "hospedagem",
+  atracao: "atracao",
+  experiencia: "experiencia",
+  servico: "servico",
+  producao_rural: "producao_rural",
+  outra: "outra",
+} as const;
+
 export interface CreateInstagramPartnerBody {
   nomeEstabelecimento: string;
   instagramHandle?: string;
   telefone?: string;
+  categoria?: CreateInstagramPartnerBodyCategoria;
+  regiao?: string;
 }
+
+/**
+ * @nullable
+ */
+export type UpdateInstagramPartnerBodyCategoria =
+  | (typeof UpdateInstagramPartnerBodyCategoria)[keyof typeof UpdateInstagramPartnerBodyCategoria]
+  | null;
+
+export const UpdateInstagramPartnerBodyCategoria = {
+  gastronomia: "gastronomia",
+  hospedagem: "hospedagem",
+  atracao: "atracao",
+  experiencia: "experiencia",
+  servico: "servico",
+  producao_rural: "producao_rural",
+  outra: "outra",
+} as const;
 
 export type UpdateInstagramPartnerBodyStatus =
   (typeof UpdateInstagramPartnerBodyStatus)[keyof typeof UpdateInstagramPartnerBodyStatus];
@@ -309,6 +385,24 @@ export interface UpdateInstagramPartnerBody {
   instagramHandle?: string | null;
   /** @nullable */
   telefone?: string | null;
+  /** @nullable */
+  categoria?: UpdateInstagramPartnerBodyCategoria;
+  /** @nullable */
+  regiao?: string | null;
+  /** @nullable */
+  descricaoCurta?: string | null;
+  tags?: string[];
+  /** @nullable */
+  endereco?: string | null;
+  /** @nullable */
+  googleMapsUrl?: string | null;
+  /** @nullable */
+  site?: string | null;
+  /** @nullable */
+  materiaPrincipalPostId?: number | null;
+  fotoReferencia?: string[];
+  /** @nullable */
+  dadosVerificadosEm?: string | null;
   pausado?: boolean;
   status?: UpdateInstagramPartnerBodyStatus;
   /** @nullable */

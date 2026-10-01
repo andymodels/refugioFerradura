@@ -635,10 +635,36 @@ export const ListInstagramPartnersResponse = zod.object({
       conectadoEm: zod.coerce.date().nullish(),
       ultimoPollEm: zod.coerce.date().nullish(),
       uploadToken: zod.string().nullish(),
+      categoria: zod
+        .union([
+          zod.literal("gastronomia"),
+          zod.literal("hospedagem"),
+          zod.literal("atracao"),
+          zod.literal("experiencia"),
+          zod.literal("servico"),
+          zod.literal("producao_rural"),
+          zod.literal("outra"),
+          zod.literal(null),
+        ])
+        .nullish(),
+      regiao: zod.string().nullish(),
+      descricaoCurta: zod.string().nullish(),
+      tags: zod.array(zod.string()),
+      endereco: zod.string().nullish(),
+      googleMapsUrl: zod.string().nullish(),
+      site: zod.string().nullish(),
+      materiaPrincipalPostId: zod.number().nullish(),
+      fotoReferencia: zod.array(zod.string()),
+      dadosVerificadosEm: zod.coerce.date().nullish(),
+      ultimoUsoInstagramEm: zod.coerce.date().nullish(),
+      usosInstagram: zod.number(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
       postSlug: zod.string().optional(),
       postTitle: zod.string().optional(),
+      materiaSlug: zod.string().nullish(),
+      materiaTitle: zod.string().nullish(),
+      materiaCoverImage: zod.string().nullish(),
     }),
   ),
   total: zod.number(),
@@ -651,6 +677,18 @@ export const CreateInstagramPartnerBody = zod.object({
   nomeEstabelecimento: zod.string(),
   instagramHandle: zod.string().optional(),
   telefone: zod.string().optional(),
+  categoria: zod
+    .enum([
+      "gastronomia",
+      "hospedagem",
+      "atracao",
+      "experiencia",
+      "servico",
+      "producao_rural",
+      "outra",
+    ])
+    .optional(),
+  regiao: zod.string().optional(),
 });
 
 /**
@@ -672,6 +710,27 @@ export const UpdateInstagramPartnerBody = zod.object({
   nomeEstabelecimento: zod.string().optional(),
   instagramHandle: zod.string().nullish(),
   telefone: zod.string().nullish(),
+  categoria: zod
+    .union([
+      zod.literal("gastronomia"),
+      zod.literal("hospedagem"),
+      zod.literal("atracao"),
+      zod.literal("experiencia"),
+      zod.literal("servico"),
+      zod.literal("producao_rural"),
+      zod.literal("outra"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  regiao: zod.string().nullish(),
+  descricaoCurta: zod.string().nullish(),
+  tags: zod.array(zod.string()).optional(),
+  endereco: zod.string().nullish(),
+  googleMapsUrl: zod.string().nullish(),
+  site: zod.string().nullish(),
+  materiaPrincipalPostId: zod.number().nullish(),
+  fotoReferencia: zod.array(zod.string()).optional(),
+  dadosVerificadosEm: zod.coerce.date().nullish(),
   pausado: zod.boolean().optional(),
   status: zod
     .enum([
@@ -715,10 +774,36 @@ export const UpdateInstagramPartnerResponse = zod.object({
   conectadoEm: zod.coerce.date().nullish(),
   ultimoPollEm: zod.coerce.date().nullish(),
   uploadToken: zod.string().nullish(),
+  categoria: zod
+    .union([
+      zod.literal("gastronomia"),
+      zod.literal("hospedagem"),
+      zod.literal("atracao"),
+      zod.literal("experiencia"),
+      zod.literal("servico"),
+      zod.literal("producao_rural"),
+      zod.literal("outra"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  regiao: zod.string().nullish(),
+  descricaoCurta: zod.string().nullish(),
+  tags: zod.array(zod.string()),
+  endereco: zod.string().nullish(),
+  googleMapsUrl: zod.string().nullish(),
+  site: zod.string().nullish(),
+  materiaPrincipalPostId: zod.number().nullish(),
+  fotoReferencia: zod.array(zod.string()),
+  dadosVerificadosEm: zod.coerce.date().nullish(),
+  ultimoUsoInstagramEm: zod.coerce.date().nullish(),
+  usosInstagram: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
   postSlug: zod.string().optional(),
   postTitle: zod.string().optional(),
+  materiaSlug: zod.string().nullish(),
+  materiaTitle: zod.string().nullish(),
+  materiaCoverImage: zod.string().nullish(),
 });
 
 /**
@@ -887,10 +972,36 @@ export const DisconnectPartnerResponse = zod.object({
   conectadoEm: zod.coerce.date().nullish(),
   ultimoPollEm: zod.coerce.date().nullish(),
   uploadToken: zod.string().nullish(),
+  categoria: zod
+    .union([
+      zod.literal("gastronomia"),
+      zod.literal("hospedagem"),
+      zod.literal("atracao"),
+      zod.literal("experiencia"),
+      zod.literal("servico"),
+      zod.literal("producao_rural"),
+      zod.literal("outra"),
+      zod.literal(null),
+    ])
+    .nullish(),
+  regiao: zod.string().nullish(),
+  descricaoCurta: zod.string().nullish(),
+  tags: zod.array(zod.string()),
+  endereco: zod.string().nullish(),
+  googleMapsUrl: zod.string().nullish(),
+  site: zod.string().nullish(),
+  materiaPrincipalPostId: zod.number().nullish(),
+  fotoReferencia: zod.array(zod.string()),
+  dadosVerificadosEm: zod.coerce.date().nullish(),
+  ultimoUsoInstagramEm: zod.coerce.date().nullish(),
+  usosInstagram: zod.number(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
   postSlug: zod.string().optional(),
   postTitle: zod.string().optional(),
+  materiaSlug: zod.string().nullish(),
+  materiaTitle: zod.string().nullish(),
+  materiaCoverImage: zod.string().nullish(),
 });
 
 /**

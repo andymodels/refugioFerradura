@@ -1159,6 +1159,37 @@ components:
           format: date-time
         uploadToken:
           type: ["string", "null"]
+        categoria:
+          type: ["string", "null"]
+          enum: [gastronomia, hospedagem, atracao, experiencia, servico, producao_rural, outra, null]
+        regiao:
+          type: ["string", "null"]
+        descricaoCurta:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        endereco:
+          type: ["string", "null"]
+        googleMapsUrl:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        materiaPrincipalPostId:
+          type: ["integer", "null"]
+        fotoReferencia:
+          type: array
+          items:
+            type: string
+        dadosVerificadosEm:
+          type: ["string", "null"]
+          format: date-time
+        ultimoUsoInstagramEm:
+          type: ["string", "null"]
+          format: date-time
+        usosInstagram:
+          type: integer
         createdAt:
           type: string
           format: date-time
@@ -1169,9 +1200,18 @@ components:
           type: string
         postTitle:
           type: string
+        materiaSlug:
+          type: ["string", "null"]
+        materiaTitle:
+          type: ["string", "null"]
+        materiaCoverImage:
+          type: ["string", "null"]
       required:
         - id
         - origem
+        - tags
+        - fotoReferencia
+        - usosInstagram
         - pausado
         - nomeEstabelecimento
         - status
@@ -1204,6 +1244,11 @@ components:
           type: string
         telefone:
           type: string
+        categoria:
+          type: string
+          enum: [gastronomia, hospedagem, atracao, experiencia, servico, producao_rural, outra]
+        regiao:
+          type: string
       required:
         - nomeEstabelecimento
 
@@ -1216,6 +1261,32 @@ components:
           type: ["string", "null"]
         telefone:
           type: ["string", "null"]
+        categoria:
+          type: ["string", "null"]
+          enum: [gastronomia, hospedagem, atracao, experiencia, servico, producao_rural, outra, null]
+        regiao:
+          type: ["string", "null"]
+        descricaoCurta:
+          type: ["string", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+        endereco:
+          type: ["string", "null"]
+        googleMapsUrl:
+          type: ["string", "null"]
+        site:
+          type: ["string", "null"]
+        materiaPrincipalPostId:
+          type: ["integer", "null"]
+        fotoReferencia:
+          type: array
+          items:
+            type: string
+        dadosVerificadosEm:
+          type: ["string", "null"]
+          format: date-time
         pausado:
           type: boolean
         status:
