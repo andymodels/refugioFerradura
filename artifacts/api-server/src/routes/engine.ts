@@ -24,11 +24,22 @@ import {
   midiaVirtualDaMateria,
   isB2Url,
   textoLimpo,
-  extrairServicoHtml,
+  extrairServico,
+  validarMidia,
+  MIN_SECOES,
+  MAX_SECOES,
+  MIN_PALAVRAS,
+  MAX_PALAVRAS,
+  SCORE_UTIL,
+  MIN_LADO_CAPA,
+  MIN_NUCLEO,
+  CENAS_NUCLEO,
+  CENAS_SEM_CAPA,
   validarArtigo,
   renderArtigoComFotos,
   hojeBRT,
   type ArtigoGerado,
+  type ImgMeta,
 } from "../lib/engine";
 
 // Motor de conteúdo automático (Parte 2). Todas as rotas exigem o segredo
@@ -84,8 +95,9 @@ async function carregarCandidatos() {
 
 function montarFatos(partner: any, post: any, nome: string) {
   const conteudo: string = post.content || "";
-  const servicoHtml = extrairServicoHtml(conteudo);
-  const corpoSemServico = servicoHtml ? conteudo.replace(servicoHtml, "") : conteudo;
+  const servico = extrairServico(conteudo);
+  const servicoHtml = servico?.html ?? null;
+  const corpoSemServico = servico ? conteudo.replace(servico.raw, "") : conteudo;
   const fonteTexto = textoLimpo(corpoSemServico).slice(0, 6000);
   const servicoTexto = servicoHtml ? textoLimpo(servicoHtml) : "";
   const fatos = {
@@ -113,7 +125,7 @@ function montarFatos(partner: any, post: any, nome: string) {
 // elegível se tem nome utilizável e QUALQUER fonte de mídia possível: foto
 // nossa já na matéria, Instagram oficial ou site oficial. A suficiência de
 // mídia (mínimo de imagens boas) é verificada depois, pelo runner.
-async function escolherPauta(exclude: number[]) {
+async function escolherPauta(exclude: number[], only: number | null = null) {
   const linhas = await carregarCandidatos();
   const agora = Date.now();
   const cooldownMs = COOLDOWN_DIAS * 86400000;
@@ -130,6 +142,7 @@ async function escolherPauta(exclude: number[]) {
   const stats = { total: linhas.length, inelegiveis: { pausado: 0, categoria: 0, materia_nao_publicada: 0, nome: 0, sem_fonte_de_midia: 0, cooldown: 0, excluido: 0 } };
   const elegiveis: any[] = [];
   for (const { partner, post } of linhas) {
+    if (only !== null && partner.id !== only) continue; // teste forçado de um lugar
     if (exclude.includes(partner.id)) { stats.inelegiveis.excluido++; continue; }
     if (partner.pausado) { stats.inelegiveis.pausado++; continue; }
     if (!partner.categoria || partner.categoria === "outra" || partner.categoria === "eventos") { stats.inelegiveis.categoria++; continue; }
@@ -138,7 +151,7 @@ async function escolherPauta(exclude: number[]) {
     if (!nome) { stats.inelegiveis.nome++; continue; }
     const temB2 = !!montarMidia(post);
     if (!temB2 && !partner.instagramHandle && !partner.site) { stats.inelegiveis.sem_fonte_de_midia++; continue; }
-    if (emCooldown.has(chaveGrupo(partner))) { stats.inelegiveis.cooldown++; continue; }
+    if (only === null && emCooldown.has(chaveGrupo(partner))) { stats.inelegiveis.cooldown++; continue; }
     elegiveis.push({ partner, post, nome, temB2 });
   }
 
@@ -276,7 +289,8 @@ router.post("/dry-run-complete", async (req, res): Promise<void> => {
 router.post("/next-topic", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
   const exclude: number[] = Array.isArray(req.body?.exclude) ? req.body.exclude.map(Number) : [];
-  const { escolhido, elegiveis, stats } = await escolherPauta(exclude);
+  const only = Number.isFinite(Number(req.body?.only)) && Number(req.body?.only) > 0 ? Number(req.body.only) : null;
+  const { escolhido, elegiveis, stats } = await escolherPauta(exclude, only);
   if (!escolhido) {
     res.json({ status: "no_topic", elegiveis, stats });
     return;
@@ -293,6 +307,12 @@ router.post("/next-topic", async (req, res): Promise<void> => {
     fatos,
     fontes: { instagram: partner.instagramHandle ?? null, site: partner.site ?? null },
     limites: { minImagens: MIN_IMAGENS_DESTAQUE, maxImagens: MAX_IMAGENS_DESTAQUE },
+    // Fonte única das regras de mídia e de texto (o runner só obedece).
+    regras: {
+      scoreUtil: SCORE_UTIL, minLadoCapa: MIN_LADO_CAPA, minNucleo: MIN_NUCLEO,
+      cenasNucleo: CENAS_NUCLEO[partner.categoria ?? ""] ?? [], cenasSemCapa: CENAS_SEM_CAPA,
+      secoes: [MIN_SECOES, MAX_SECOES], palavras: [MIN_PALAVRAS, MAX_PALAVRAS],
+    },
   });
 });
 
@@ -316,7 +336,7 @@ router.post("/media/pool", async (req, res): Promise<void> => {
     res.json({
       status: "ok",
       ready: false,
-      rows: virtuais.map((v) => linhaPool({ id: null, source: "b2_materia", sourceId: v.urlArquivo, score: 6, ...v })),
+      rows: virtuais.map((v) => linhaPool({ id: null, source: "b2_materia", sourceId: v.urlArquivo, ...v })),
     });
     return;
   }
@@ -326,7 +346,7 @@ router.post("/media/pool", async (req, res): Promise<void> => {
         .insert(partnerMediaTable)
         .values({
           partnerId, source: "b2_materia", sourceId: v.urlArquivo, urlArquivo: v.urlArquivo, tipoMidia: v.tipoMidia,
-          origemUrl: v.origemUrl, destinoUrl: v.destinoUrl, isReel: v.isReel, score: 6, cena: "da-materia",
+          origemUrl: v.origemUrl, destinoUrl: v.destinoUrl, isReel: v.isReel,
         })
         .onConflictDoNothing();
     }
@@ -334,7 +354,7 @@ router.post("/media/pool", async (req, res): Promise<void> => {
   const rows = await db.select().from(partnerMediaTable).where(eq(partnerMediaTable.partnerId, partnerId)).orderBy(desc(partnerMediaTable.score), asc(partnerMediaTable.lastUsedAt));
   const urls = new Set(rows.map((r) => r.urlArquivo));
   const extras = virtuais.filter((v) => !urls.has(v.urlArquivo)).map((v) =>
-    linhaPool({ id: null, source: "b2_materia", sourceId: v.urlArquivo, score: 6, cena: "da-materia", ...v }));
+    linhaPool({ id: null, source: "b2_materia", sourceId: v.urlArquivo, ...v }));
   res.json({ status: "ok", ready: true, rows: [...rows.map(linhaPool), ...extras] });
 });
 
@@ -416,14 +436,43 @@ router.post("/media/register", async (req, res): Promise<void> => {
   res.status(201).json({ status: "created", id: r.id });
 });
 
+// Grava a avaliação visual real de uma foto já no acervo (inclusive as antigas
+// da matéria, que antes tinham nota fixa).
+router.post("/media/rate", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const b = req.body || {};
+  const id = Number(b.id);
+  const score = Number(b.score);
+  if (!id || !Number.isFinite(score)) {
+    res.status(400).json({ status: "error", error: "id e score são obrigatórios." });
+    return;
+  }
+  const [r] = await db
+    .update(partnerMediaTable)
+    .set({
+      score: Math.max(0, Math.min(10, Math.round(score))),
+      cena: b.cena ? String(b.cena).slice(0, 60) : null,
+      nota: b.nota ? String(b.nota).slice(0, 300) : null,
+      width: Number.isFinite(b.width) ? Number(b.width) : undefined,
+      height: Number.isFinite(b.height) ? Number(b.height) : undefined,
+    })
+    .where(eq(partnerMediaTable.id, id))
+    .returning();
+  res.json({ status: r ? "ok" : "not_found" });
+});
+
 // ─── Validação e publicação ─────────────────────────────────────────────
-// Valida (e, fora do dry-run, publica) o artigo gerado pelo Claude local, com
-// as imagens escolhidas pelo runner (ids do acervo, MELHOR PRIMEIRO: hoje só
-// a primeira vai para o Instagram; a ordem já serve para o futuro carrossel).
+// Valida (e, fora do dry-run, publica) o artigo gerado pelo Claude local. A
+// capa é a primeira imagem (hoje só ela vai para o Instagram). Cada seção pode
+// apontar para UMA foto que conversa com o seu conteúdo (`imagemId` no real,
+// `imagemIdx` no dry-run); fotos escolhidas mas não usadas em seção são
+// descartadas. O que é publicado (capa + fotos usadas) precisa passar nas
+// regras de mídia: notas úteis, capa que mostra o lugar, mínimo de imagens.
 router.post("/publish", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
   const { runId, partnerId, article, dryRun } = req.body || {};
-  const imagens: number[] = Array.isArray(req.body?.imagens) ? req.body.imagens.map(Number) : [];
+  const ids: number[] = Array.isArray(req.body?.imagens) ? req.body.imagens.map(Number) : [];
+  const metaDry: ImgMeta[] = Array.isArray(req.body?.imagensMeta) ? req.body.imagensMeta : [];
   const linhas = await carregarCandidatos();
   const linha = linhas.find((l) => l.partner.id === Number(partnerId));
   if (!linha) {
@@ -436,17 +485,48 @@ router.post("/publish", async (req, res): Promise<void> => {
     res.status(422).json({ status: "invalid", erros: ["lugar sem nome limpo, pausado ou matéria não publicada"] });
     return;
   }
+  const art = article as ArtigoGerado;
   const { corpusFatos, servicoHtml } = montarFatos(partner, post, nome);
-  const erros = validarArtigo(article as ArtigoGerado, { nome, corpusFatos, categoria: partner.categoria ?? "" });
+  const erros = validarArtigo(art, { nome, corpusFatos, categoria: partner.categoria ?? "" });
+  const categoria = partner.categoria ?? "";
+
+  // Carrega a seleção (real: do acervo; dry-run: metadados enviados pelo runner).
+  let capaMeta: ImgMeta | undefined;
+  let rows: any[] = [];
+  const unicos = [...new Set(ids)].slice(0, MAX_IMAGENS_DESTAQUE);
+  if (!dryRun) {
+    rows = unicos.length ? await db.select().from(partnerMediaTable).where(and(eq(partnerMediaTable.partnerId, partner.id), inArray(partnerMediaTable.id, unicos))) : [];
+    if (rows.length !== unicos.length) erros.push("Há imagens que não pertencem a este lugar ou não existem no acervo.");
+  }
+  const refDe = (s: any): number | null => (dryRun ? (s?.imagemIdx ?? null) : (s?.imagemId ?? null));
+  const usadas = (art.sections || []).map(refDe).filter((x): x is number => x !== null && x !== undefined);
+  if (new Set(usadas).size !== usadas.length) erros.push("A mesma foto foi usada em mais de uma seção.");
+  const capaRef = dryRun ? 0 : unicos[0];
+  if (usadas.includes(capaRef as number)) erros.push("A foto da capa não pode repetir numa seção.");
+  const selecao: ImgMeta[] = [];
+  if (dryRun) {
+    const pegar = (i: number) => metaDry[i];
+    if (!pegar(0)) erros.push("Sem imagens.");
+    else {
+      selecao.push(pegar(0));
+      for (const u of usadas) { if (!pegar(u)) erros.push(`Seção aponta para foto inexistente (${u}).`); else selecao.push(pegar(u)); }
+    }
+  } else {
+    const porId = new Map<number, any>(rows.map((r: any) => [r.id, r]));
+    const capaRow = porId.get(unicos[0]);
+    if (capaRow) selecao.push(capaRow);
+    for (const u of usadas) { const r = porId.get(u as number); if (!r || !unicos.includes(u as number)) erros.push(`Seção aponta para foto fora da seleção (${u}).`); else selecao.push(r); }
+  }
+  erros.push(...validarMidia(categoria, selecao.map((r: any) => ({ score: r.score ?? null, cena: r.cena ?? null, width: r.width ?? null, height: r.height ?? null }))));
+  capaMeta = selecao[0];
+  void capaMeta;
 
   if (dryRun) {
-    const qtd = Number(req.body?.imagensCount ?? 0);
-    if (qtd < MIN_IMAGENS_DESTAQUE) erros.push(`Imagens insuficientes (${qtd}; mínimo ${MIN_IMAGENS_DESTAQUE}).`);
     if (erros.length) {
       res.status(422).json({ status: "invalid", erros });
       return;
     }
-    res.json({ status: "dry_run_ok", partnerId: partner.id, title: (article as ArtigoGerado).title, imagens: qtd });
+    res.json({ status: "dry_run_ok", partnerId: partner.id, title: art.title, imagensPublicadas: selecao.length });
     return;
   }
 
@@ -454,10 +534,6 @@ router.post("/publish", async (req, res): Promise<void> => {
     res.status(403).json({ status: "disabled" });
     return;
   }
-  const unicos = [...new Set(imagens)].slice(0, MAX_IMAGENS_DESTAQUE);
-  if (unicos.length < MIN_IMAGENS_DESTAQUE) erros.push(`Imagens insuficientes (${unicos.length}; mínimo ${MIN_IMAGENS_DESTAQUE}).`);
-  const rows = unicos.length ? await db.select().from(partnerMediaTable).where(and(eq(partnerMediaTable.partnerId, partner.id), inArray(partnerMediaTable.id, unicos))) : [];
-  if (rows.length !== unicos.length) erros.push("Há imagens que não pertencem a este lugar ou não existem no acervo.");
   if (erros.length) {
     res.status(422).json({ status: "invalid", erros });
     return;
@@ -468,32 +544,36 @@ router.post("/publish", async (req, res): Promise<void> => {
     return;
   }
 
-  // Mantém exatamente a ordem pedida (melhor primeiro).
-  const ordenadas = unicos.map((id) => rows.find((r) => r.id === id)!);
+  // Capa primeiro, depois as fotos usadas, na ordem das seções.
+  const ordenadas = selecao as any[];
   const verificadoEm = new Date().toISOString();
   const mediaItems = ordenadas.map((r) => ({
     kind: "foto" as const,
-    urlArquivo: r.urlArquivo,
-    urlOrigem: r.origemUrl,
-    urlDestino: r.destinoUrl,
-    tipo: (r.tipoMidia as MediaItem["tipo"]) || "instagram_oficial",
+    urlArquivo: r.urlArquivo as string,
+    urlOrigem: r.origemUrl as string | null,
+    urlDestino: r.destinoUrl as string | null,
+    tipo: ((r.tipoMidia as MediaItem["tipo"]) || "instagram_oficial"),
     verificadoEm,
-    isReel: r.isReel,
+    isReel: !!r.isReel,
     // Extras ignorados pelo código atual; já preparam o carrossel futuro.
-    urlInstagram: r.urlInstagram ?? r.urlArquivo,
-    width: r.width,
-    height: r.height,
-    partnerMediaId: r.id,
+    urlInstagram: (r.urlInstagram ?? r.urlArquivo) as string,
+    width: r.width as number | null,
+    height: r.height as number | null,
+    partnerMediaId: r.id as number,
   }));
   const capa = ordenadas[0];
+  const porId = new Map<number, any>(rows.map((r: any) => [r.id, r]));
+  const fotosPorSecao = art.sections.map((s) => {
+    const r = s.imagemId != null ? porId.get(s.imagemId) : null;
+    return r ? { urlArquivo: r.urlArquivo as string, urlDestino: (r.destinoUrl ?? null) as string | null } : null;
+  });
+  const usadosIds = ordenadas.map((r) => r.id as number);
 
   try {
-    const art = article as ArtigoGerado;
     const slug = `${slugify(art.title)}-${Date.now().toString(36)}`;
-    // A capa é a melhor foto; as demais entram no corpo, uma por seção.
-    const content = renderArtigoComFotos(art, mediaItems.slice(1), servicoHtml, post.slug, post.title, nome);
+    const content = renderArtigoComFotos(art, fotosPorSecao, servicoHtml, post.slug, post.title, nome);
     const tags = JSON.stringify(
-      ["lugares", "turismo", ...(CATEGORIA_TAG_BLOG[partner.categoria ?? ""] ? [CATEGORIA_TAG_BLOG[partner.categoria ?? ""]] : [])].filter((v, i, a) => a.indexOf(v) === i),
+      ["lugares", "turismo", ...(CATEGORIA_TAG_BLOG[categoria] ? [CATEGORIA_TAG_BLOG[categoria]] : [])].filter((v, i, a2) => a2.indexOf(v) === i),
     );
     const coverMeta = JSON.stringify({
       tipo: capa.tipoMidia, urlOrigem: capa.origemUrl, urlDestino: capa.destinoUrl,
@@ -525,15 +605,15 @@ router.post("/publish", async (req, res): Promise<void> => {
       await tx
         .update(partnerMediaTable)
         .set({ usedCount: sql`${partnerMediaTable.usedCount} + 1`, lastUsedAt: new Date() })
-        .where(inArray(partnerMediaTable.id, unicos));
+        .where(inArray(partnerMediaTable.id, usadosIds));
       await tx
         .update(engineRunsTable)
         .set({ status: "published", postId: novo.id, partnerIds: [partner.id], finishedAt: new Date() })
         .where(eq(engineRunsTable.id, run.id));
       return novo;
     });
-    logger.info({ postId: resultado.id, partnerId: partner.id, imagens: unicos.length }, "[engine] Destaque publicado");
-    res.status(201).json({ status: "published", postId: resultado.id, slug: resultado.slug, imagens: unicos.length });
+    logger.info({ postId: resultado.id, partnerId: partner.id, imagens: usadosIds.length }, "[engine] Destaque publicado");
+    res.status(201).json({ status: "published", postId: resultado.id, slug: resultado.slug, imagens: usadosIds.length });
   } catch (err: any) {
     logger.error({ error: String(err?.message ?? err) }, "[engine] Falha ao publicar destaque");
     res.status(500).json({ status: "error", error: "falha ao gravar" });

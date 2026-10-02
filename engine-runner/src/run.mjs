@@ -4,19 +4,21 @@
 // Fluxo: (1) pergunta ao servidor se já publicou hoje; (2) reserva o dia;
 // (3) pede uma pauta (destaque individual); (4) junta mídia REAL do lugar, nesta
 // ordem de fontes: Instagram oficial (Playwright, sem login) > fotos já na
-// matéria/B2 > site oficial; (5) o Claude Code local avalia as fotos e escreve
-// o artigo; (6) o servidor valida e publica no blog. Sem API paga, sem API do
-// Instagram, sem publicar no Instagram (isso é do fluxo matéria -> Instagram).
+// matéria/B2 > site oficial; (5) o Claude Code local avalia TODAS as fotos
+// (inclusive as antigas da matéria) e escreve o artigo; (6) o servidor valida e
+// publica no blog. Sem API paga, sem API do Instagram, sem publicar no
+// Instagram (isso é do fluxo matéria -> Instagram).
 //
-// Uso:  node src/run.mjs --dry-run   (simula tudo, não grava nada; obrigatório
-//                                      antes de ativar)
+// Regra de ouro: a matéria só sai se as imagens forem realmente úteis para
+// explicar/vender o lugar (capa que mostra o lugar, sem texto sobreposto, com
+// resolução decente, e cenas coerentes com a categoria). Senão, pula a pauta.
+//
+// Uso:  node src/run.mjs --dry-run [--partner ID] [--probe-upload] [--no-mark]
 //       node src/run.mjs             (execução real, só com o motor ligado)
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  CACHE_DIR, MIN_IMAGENS, MAX_IMAGENS, SCORE_MIN, IG_ESTAGIOS,
-} from "./config.mjs";
+import { CACHE_DIR, MAX_IMAGENS, IG_ESTAGIOS } from "./config.mjs";
 import { log, notify } from "./log.mjs";
 import { api } from "./api.mjs";
 import { abrirNavegador, abrirPerfil, midiaDoPost, pausa } from "./ig.mjs";
@@ -29,6 +31,8 @@ const ARGS = process.argv.slice(2);
 const DRY = ARGS.includes("--dry-run");
 const NO_MARK = ARGS.includes("--no-mark");
 const PROBE = ARGS.includes("--probe-upload");
+const argVal = (n) => { const i = ARGS.indexOf(n); return i >= 0 ? ARGS[i + 1] : null; };
+const SO_LUGAR = DRY && argVal("--partner") ? Number(argVal("--partner")) : null; // só no dry-run
 const MAX_PAUTAS = 5;
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const SAIDA_DRY = path.resolve(AQUI, "..", "..", "output", "engine-dry-run");
@@ -54,35 +58,57 @@ function salvarRejeitados(o) { fs.writeFileSync(REJEITADOS, JSON.stringify(o)); 
 
 let browser = null;
 
-// ─── Mídia ──────────────────────────────────────────────────────────────────
-async function avaliarEFiltrar(candidatos, dir, lugar) {
-  if (!candidatos.length) return candidatos;
+// Desconto por resolução baixa (menor lado em px).
+function penalidadeResolucao(w, h) {
+  const lado = Math.min(w || 0, h || 0);
+  if (!lado) return 2;
+  if (lado < 800) return 2;
+  if (lado < 1000) return 1;
+  return 0;
+}
+
+const descricaoDe = (r) => String(r.descricao ?? r.nota ?? "").split(" | ")[0] || "imagem do lugar";
+
+// ─── Avaliação visual (todas as imagens, inclusive as antigas da matéria) ────
+// Cada item precisa de { file, width, height, legenda? }. Preenche score final
+// (nota visual com texto sobreposto limitado a 4 e desconto de resolução),
+// cena, descricao e `aprovada`. Imagem ilegível é descartada sozinha.
+async function avaliarEFiltrar(itens, dir, topic) {
+  if (!itens.length) return itens;
+  const regras = topic.regras;
   const vetDir = path.join(dir, "vet");
   fs.mkdirSync(vetDir, { recursive: true });
-  const itens = [];
-  const validos = [];
-  for (let i = 0; i < candidatos.length; i++) {
-    const nome = `v${String(validos.length + 1).padStart(2, "0")}.jpg`;
+  const lote = [];
+  for (const c of itens) {
+    const nome = `v${String(lote.length + 1).padStart(2, "0")}.jpg`;
     try {
-      await miniatura(candidatos[i].file, path.join(vetDir, nome));
-      itens.push({ nomeArquivo: nome, legenda: candidatos[i].legenda });
-      validos.push(candidatos[i]);
+      await miniatura(c.file, path.join(vetDir, nome));
+      lote.push({ c, nome });
     } catch {
-      candidatos[i].aprovada = false; // arquivo ilegível: descarta só esta imagem
-      candidatos[i].score = 0;
-      candidatos[i].cena = "outro";
+      c.score = 0; c.cena = "outro"; c.aprovada = false; c.descricao = "arquivo ilegível";
     }
   }
-  if (!validos.length) return candidatos;
-  const resp = await avaliarImagens(itens, { cwd: vetDir, lugar });
-  validos.forEach((c, i) => {
-    const r = resp.find((x) => x.arquivo === itens[i].nomeArquivo) || resp[i] || {};
-    c.score = Number.isFinite(r.nota) ? Math.round(r.nota) : 0;
-    c.cena = r.cena || "outro";
-    c.nota = r.motivo || "";
-    c.aprovada = r.ok === true && c.score >= SCORE_MIN;
+  if (!lote.length) return itens;
+  const resp = await avaliarImagens(lote.map((l) => ({ nomeArquivo: l.nome, legenda: l.c.legenda })), {
+    cwd: vetDir, lugar: topic.fatos.nome, categoria: topic.categoria, cenasNucleo: regras.cenasNucleo,
   });
-  return candidatos;
+  lote.forEach((l, i) => {
+    const r = resp.find((x) => x.arquivo === l.nome) || resp[i] || {};
+    const c = l.c;
+    let nota = Number.isFinite(r.nota) ? r.nota : 0;
+    c.textoSobreposto = r.texto_sobreposto === true;
+    if (c.textoSobreposto) nota = Math.min(nota, 4);
+    const pen = penalidadeResolucao(c.width, c.height);
+    c.score = Math.max(0, Math.round(nota - pen));
+    c.cena = r.cena || "outro";
+    c.descricao = r.descricao || "";
+    c.motivo = r.motivo || "";
+    c.penalidade = pen;
+    c.notaVisual = Math.round(Number.isFinite(r.nota) ? r.nota : 0);
+    c.aprovada = c.score >= regras.scoreUtil;
+    c.nota = `${c.descricao} | ${c.motivo}${c.textoSobreposto ? " | texto sobreposto" : ""}${pen ? ` | -${pen} resolução` : ""}`;
+  });
+  return itens;
 }
 
 // Aprovada: em execução real vai para o B2 + acervo; no dry-run fica só local.
@@ -109,26 +135,56 @@ async function guardar(c, topic) {
 async function prepararMidia(topic, dir) {
   const handle = topic.fontes.instagram;
   const lugar = topic.fatos.nome;
+  const regras = topic.regras;
   const pool0 = await api("/media/pool", { partnerId: topic.partnerId, materialize: !DRY });
   let pool = pool0.rows || [];
   const locais = []; // aprovadas ainda só locais (dry-run)
+  const todas = []; // toda candidata avaliada (para transparência)
   const atual = () => [...pool, ...locais];
   const conhecidos = new Set(pool.map((r) => String(r.sourceId)));
   const hashesVistos = new Set();
   const rejeitados = lerRejeitados();
-  const rejH = (rejeitados[handle] = rejeitados[handle] || {});
-  let sel = selecionar(atual());
-  const resumo = { daMateria: pool.length, instagram: { postsLidos: 0, candidatos: 0, aprovadas: 0 }, site: { candidatos: 0, aprovadas: 0 } };
-  log("midia_inicial", { lugar, noAcervo: pool.length, ready: pool0.ready, selecionaveis: sel?.length ?? 0 });
+  const chaveRej = handle || `lugar${topic.partnerId}`;
+  const rejH = (rejeitados[chaveRej] = rejeitados[chaveRej] || {});
+  const resumo = { daMateria: pool.length, avaliadasDaMateria: 0, instagram: { postsLidos: 0, candidatos: 0, aprovadas: 0 }, site: { candidatos: 0, aprovadas: 0 } };
+  log("midia_inicial", { lugar, noAcervo: pool.length, ready: pool0.ready });
+
+  // ── Fotos antigas da matéria/acervo SEM nota: avaliar de verdade ──
+  const semNota = pool.filter((r) => r.score == null);
+  if (semNota.length) {
+    const itens = [];
+    let n = 0;
+    for (const r of semNota) {
+      n++;
+      const file = path.join(dir, `acervo_${n}.jpg`);
+      try {
+        await baixar(r.url, file);
+        const dim = await tamanho(file);
+        r.width = dim.width; r.height = dim.height;
+        itens.push({ file, width: dim.width, height: dim.height, row: r, legenda: "" });
+      } catch { r.score = 0; r.cena = "outro"; }
+    }
+    await avaliarEFiltrar(itens, dir, topic);
+    for (const it of itens) {
+      const r = it.row;
+      r.score = it.score; r.cena = it.cena; r.nota = it.nota; r.descricao = it.descricao; r.file = it.file; r.width = it.width; r.height = it.height;
+      todas.push({ origem: "matéria/B2", url: r.url, score: it.score, cena: it.cena, descricao: it.descricao, motivo: it.motivo, texto: it.textoSobreposto, tamanho: `${it.width}x${it.height}`, penalidade: it.penalidade, file: it.file });
+      if (!DRY && r.id) await api("/media/rate", { id: r.id, score: it.score, cena: it.cena, nota: it.nota, width: it.width, height: it.height });
+    }
+    resumo.avaliadasDaMateria = itens.length;
+  }
+  let sel = selecionar(atual(), regras);
 
   async function processarCandidatos(candidatos, origem) {
-    await avaliarEFiltrar(candidatos, dir, lugar);
+    await avaliarEFiltrar(candidatos, dir, topic);
     for (const c of candidatos) {
+      todas.push({ origem: c.source, sourceId: c.sourceId, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoSobreposto, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
       if (!c.aprovada) continue;
       const g = await guardar(c, topic);
       const linha = {
         id: g.id, source: c.source, sourceId: c.sourceId, url: g.url || `file://${c.file}`, width: c.width, height: c.height,
-        score: c.score, cena: c.cena, isReel: c.isReel, tipoMidia: c.source === "site_oficial" ? "site_oficial" : "instagram_oficial",
+        score: c.score, cena: c.cena, nota: c.nota, descricao: c.descricao, isReel: c.isReel,
+        tipoMidia: c.source === "site_oficial" ? "site_oficial" : "instagram_oficial",
         origemUrl: c.origemUrl, destinoUrl: c.destinoUrl, takenAt: c.takenAt, usedCount: 0, lastUsedAt: null, file: c.file,
       };
       if (DRY) locais.push(linha); else pool.push(linha);
@@ -146,9 +202,9 @@ async function prepararMidia(topic, dir) {
     } else {
       try {
         for (let e = 0; e < IG_ESTAGIOS.length; e++) {
-          // Instagram é a 1ª fonte: só pula se o acervo já tem fotos suficientes DELE.
-          if (e === 0 && atual().filter((r) => r.source === "instagram_oficial" && (r.score ?? 0) >= SCORE_MIN).length >= MAX_IMAGENS) break;
-          if (e > 0 && sel && sel.length >= MIN_IMAGENS) break;
+          // Instagram é a 1ª fonte: só pula se o acervo já tem fotos úteis suficientes DELE.
+          if (e === 0 && atual().filter((r) => r.source === "instagram_oficial" && (r.score ?? 0) >= regras.scoreUtil).length >= MAX_IMAGENS) break;
+          if (e > 0 && sel.ok) break;
           const posts = await perfil.posts(IG_ESTAGIOS[e]);
           resumo.instagram.postsLidos = Math.max(resumo.instagram.postsLidos, posts.length);
           const novos = posts.filter((p) => !rejH[p.codigo] && ![...conhecidos].some((s) => s.startsWith(`${p.codigo}:`)));
@@ -199,7 +255,7 @@ async function prepararMidia(topic, dir) {
           for (const c of uteis) aprovouPost.set(c.codigo, aprovouPost.get(c.codigo) || c.aprovada);
           for (const [codigo, ok] of aprovouPost) { if (ok) delete rejH[codigo]; else rejH[codigo] = "reprovada na avaliação visual"; }
           salvarRejeitados(rejeitados);
-          sel = selecionar(atual());
+          sel = selecionar(atual(), regras);
         }
       } finally {
         await perfil.fechar();
@@ -208,7 +264,7 @@ async function prepararMidia(topic, dir) {
   }
 
   // ── Fonte 3: site oficial (só se ainda faltar) ──
-  if ((!sel || sel.length < MIN_IMAGENS) && topic.fontes.site) {
+  if (!sel.ok && topic.fontes.site) {
     try {
       const imgs = await imagensDoSite(topic.fontes.site);
       const candidatos = [];
@@ -227,7 +283,7 @@ async function prepararMidia(topic, dir) {
       }
       resumo.site.candidatos = candidatos.length;
       await processarCandidatos(candidatos, "site");
-      sel = selecionar(atual());
+      sel = selecionar(atual(), regras);
     } catch (err) {
       log("site_erro", { erro: String(err.message).slice(0, 100) });
     }
@@ -237,41 +293,65 @@ async function prepararMidia(topic, dir) {
   if (!DRY) {
     const fim = await api("/media/pool", { partnerId: topic.partnerId, materialize: true });
     pool = fim.rows || pool;
-    sel = selecionar(pool);
+    sel = selecionar(pool, regras);
   }
-  log("midia_final", { lugar, selecionadas: sel?.length ?? 0, resumo });
-  return sel ? { ok: true, selecionadas: sel, resumo } : { ok: false, motivo: `mídia insuficiente (${atual().filter((r) => (r.score ?? SCORE_MIN) >= SCORE_MIN).length} boas, mínimo ${MIN_IMAGENS})`, resumo };
+  log("midia_final", { lugar, ok: sel.ok, selecionadas: sel.lista?.length ?? 0, motivo: sel.motivo, resumo });
+  return sel.ok ? { ok: true, selecionadas: sel.lista, todas, resumo } : { ok: false, motivo: `mídia não serve: ${sel.motivo}`, todas, resumo };
 }
 
 // ─── Texto ──────────────────────────────────────────────────────────────────
+const metaDe = (r) => ({ score: r.score ?? null, cena: r.cena ?? null, width: r.width ?? null, height: r.height ?? null });
+
 async function redigir(topic, selecionadas, dir) {
+  const capa = selecionadas[0];
+  const fotos = selecionadas.slice(1).map((r, i) => ({ n: i + 1, cena: r.cena, descricao: descricaoDe(r) }));
   let erros = null;
   for (let t = 0; t < 3; t++) {
-    const artigo = await escreverArtigo(topic, { cwd: dir, erros });
-    const v = await api("/publish", { partnerId: topic.partnerId, article: artigo, dryRun: true, imagensCount: selecionadas.length });
-    if (v.status === "dry_run_ok") return { ok: true, artigo };
+    const art = await escreverArtigo(topic, { cwd: dir, erros, capa: { cena: capa.cena, descricao: descricaoDe(capa) }, fotos });
+    // O Claude responde com o NÚMERO da foto; traduz para o índice/ID.
+    const artigo = { ...art, sections: (art.sections || []).map((s) => {
+      const n = Number.isInteger(s.imagem) && s.imagem >= 1 && s.imagem <= fotos.length ? s.imagem : null;
+      const { imagem, ...resto } = s;
+      return { ...resto, imagemIdx: n, imagemId: n ? selecionadas[n].id : null };
+    }) };
+    const v = await api("/publish", { partnerId: topic.partnerId, article: artigo, dryRun: true, imagensMeta: selecionadas.map(metaDe) });
+    if (v.status === "dry_run_ok") return { ok: true, artigo, imagensPublicadas: v.imagensPublicadas };
     erros = v.erros || [`validação: ${v.status || v.http}`];
     log("artigo_rejeitado", { tentativa: t + 1, erros });
   }
-  return { ok: false, motivo: `artigo reprovado na validação: ${erros.join(" | ").slice(0, 300)}` };
+  return { ok: false, motivo: `artigo reprovado na validação: ${erros.join(" | ").slice(0, 400)}` };
 }
 
 // Prévia do dry-run: tudo local, para revisar sem publicar nada.
-function escreverPrevia(topic, selecionadas, artigo) {
+function escreverPrevia(topic, selecionadas, artigo, todas) {
   const pasta = path.join(SAIDA_DRY, `${hojeBRT()}-${String(Date.now()).slice(-5)}`);
   fs.mkdirSync(pasta, { recursive: true });
-  const src = selecionadas.map((r, i) => {
-    if (r.file) { const nome = `${String(i + 1).padStart(2, "0")}${path.extname(r.file) || ".jpg"}`; fs.copyFileSync(r.file, path.join(pasta, nome)); return nome; }
+  const copiar = (r, nome) => {
+    if (r.file && fs.existsSync(r.file)) { const n = `${nome}${path.extname(r.file) || ".jpg"}`; fs.copyFileSync(r.file, path.join(pasta, n)); return n; }
     return r.url;
-  });
-  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  const secs = artigo.sections.map((s, i) => `<h2>${esc(s.heading)}</h2><p>${s.paragraphHtml}</p>${src[i + 1] ? `<img src="${src[i + 1]}">` : ""}`).join("\n");
+  };
+  const capaSrc = copiar(selecionadas[0], "capa");
+  const usadas = new Set(artigo.sections.map((s) => s.imagemIdx).filter(Boolean));
+  const secoes = artigo.sections.map((s) => ({ s, src: s.imagemIdx ? copiar(selecionadas[s.imagemIdx], `secao-${s.imagemIdx}`) : null }));
+  const esc = (x) => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const secs = secoes.map(({ s, src }) => `<h2>${esc(s.heading)}</h2><p>${s.paragraphHtml}</p>${src ? `<img src="${src}">` : ""}`).join("\n");
   const html = `<!doctype html><meta charset="utf-8"><title>Prévia (dry-run)</title><style>body{font-family:Georgia,serif;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.6}img{width:100%;border-radius:6px;margin:1rem 0}small{color:#777}</style>
-<p><small>PRÉVIA DO DRY-RUN. NADA FOI PUBLICADO.</small></p><h1>${esc(artigo.title)}</h1><p><em>${esc(artigo.subtitle || "")}</em></p><img src="${src[0]}">${secs}`;
+<p><small>PRÉVIA DO DRY-RUN. NADA FOI PUBLICADO.</small></p><h1>${esc(artigo.title)}</h1><p><em>${esc(artigo.subtitle || "")}</em></p><img src="${capaSrc}">${secs}`;
   fs.writeFileSync(path.join(pasta, "index.html"), html);
+  // Todas as imagens avaliadas (aprovadas ou não), para auditar o critério.
+  const avaliadas = todas.map((t, i) => {
+    let arq = null;
+    if (t.file && fs.existsSync(t.file)) { arq = `avaliada-${String(i + 1).padStart(2, "0")}${path.extname(t.file)}`; fs.copyFileSync(t.file, path.join(pasta, arq)); }
+    const { file, ...resto } = t;
+    return { arquivo: arq, ...resto };
+  });
   fs.writeFileSync(path.join(pasta, "detalhes.json"), JSON.stringify({
-    lugar: topic.fatos.nome, partnerId: topic.partnerId, titulo: artigo.title,
-    imagens: selecionadas.map((r, i) => ({ ordem: i + 1, fonte: r.source, nota: r.score, cena: r.cena, reel: r.isReel, origem: r.origemUrl, tamanho: `${r.width}x${r.height}` })),
+    lugar: topic.fatos.nome, partnerId: topic.partnerId, categoria: topic.categoria, titulo: artigo.title,
+    publicadas: [selecionadas[0], ...secoes.filter((x) => x.s.imagemIdx).map((x) => selecionadas[x.s.imagemIdx])].map((r, i) => ({
+      ordem: i + 1, papel: i === 0 ? "capa" : "seção", fonte: r.source, nota: r.score, cena: r.cena, descricao: descricaoDe(r), tamanho: `${r.width}x${r.height}`, origem: r.origemUrl,
+    })),
+    descartadasDaSelecao: selecionadas.filter((_, i) => i > 0 && !usadas.has(i)).map((r) => ({ sourceId: r.sourceId, cena: r.cena, descricao: descricaoDe(r) })),
+    todasAvaliadas: avaliadas,
   }, null, 1));
   return pasta;
 }
@@ -282,7 +362,7 @@ async function executar(runId) {
   const descartes = [];
   let infra = false;
   for (let i = 0; i < MAX_PAUTAS; i++) {
-    const topic = await api("/next-topic", { exclude: excluidos });
+    const topic = await api("/next-topic", { exclude: excluidos, only: SO_LUGAR });
     if (topic.status === "no_topic") { descartes.push("sem pauta elegível"); break; }
     if (topic.status !== "ok") throw new Error(`next-topic: ${topic.status || topic.http}`);
     const nome = topic.fatos.nome;
@@ -291,31 +371,42 @@ async function executar(runId) {
     fs.mkdirSync(dir, { recursive: true });
     try {
       const midia = await prepararMidia(topic, dir);
-      if (!midia.ok) { descartes.push(`${nome}: ${midia.motivo}`); excluidos.push(topic.partnerId); continue; }
+      if (!midia.ok) {
+        descartes.push(`${nome}: ${midia.motivo}`);
+        excluidos.push(topic.partnerId);
+        if (DRY) {
+          const d = path.join(SAIDA_DRY, `descartada-${hojeBRT()}-p${topic.partnerId}-${String(Date.now()).slice(-4)}`);
+          fs.mkdirSync(d, { recursive: true });
+          const avaliadas = midia.todas.map((t, k) => {
+            let arq = null;
+            if (t.file && fs.existsSync(t.file)) { arq = `avaliada-${String(k + 1).padStart(2, "0")}${path.extname(t.file)}`; fs.copyFileSync(t.file, path.join(d, arq)); }
+            const { file, ...resto } = t;
+            return { arquivo: arq, ...resto };
+          });
+          fs.writeFileSync(path.join(d, "detalhes.json"), JSON.stringify({ lugar: nome, categoria: topic.categoria, motivo: midia.motivo, resumo: midia.resumo, avaliadas }, null, 1));
+          log("pauta_descartada_detalhes", { pasta: d });
+        }
+        continue;
+      }
       const r = await redigir(topic, midia.selecionadas, dir);
       if (!r.ok) { descartes.push(`${nome}: ${r.motivo}`); excluidos.push(topic.partnerId); continue; }
 
       if (DRY) {
-        const pasta = escreverPrevia(topic, midia.selecionadas, r.artigo);
+        const pasta = escreverPrevia(topic, midia.selecionadas, r.artigo, midia.todas);
         if (PROBE) {
-          // Teste real do envio ao B2: sobe as imagens escolhidas (e a versão 4:5
-          // quando precisar), SEM registrar no acervo e SEM criar post.
           const enviados = [];
-          for (let k = 0; k < midia.selecionadas.length; k++) {
-            const x = midia.selecionadas[k];
+          const usados = [midia.selecionadas[0], ...r.artigo.sections.filter((s) => s.imagemIdx).map((s) => midia.selecionadas[s.imagemIdx])];
+          for (let k = 0; k < usados.length; k++) {
+            const x = usados[k];
             if (!x.file) { enviados.push({ ordem: k + 1, origem: "ja_no_b2", url: x.url }); continue; }
             const up = await enviarAoB2(api, { partnerId: topic.partnerId, source: "probe", sourceId: `probe-${Date.now()}-${k}`, hash: null, arquivo: x.file });
-            const ig = await versaoInstagram(x.file, { width: x.width, height: x.height });
-            const up45 = ig ? await enviarAoB2(api, { partnerId: topic.partnerId, source: "probe", sourceId: `probe-${Date.now()}-${k}-ig`, hash: null, arquivo: ig, role: "ig" }) : null;
-            // confere que o arquivo está mesmo acessível publicamente
-            const head = await fetch(up.url, { method: "HEAD" });
-            enviados.push({ ordem: k + 1, origem: x.source, url: up.url, url4x5: up45?.url ?? null, http: head.status, tipo: head.headers.get("content-type"), bytes: head.headers.get("content-length"), nota: x.score, cena: x.cena });
+            enviados.push({ ordem: k + 1, origem: x.source, url: up.url });
           }
           fs.writeFileSync(path.join(pasta, "enviados-b2.json"), JSON.stringify(enviados, null, 1));
           log("probe_upload_ok", { enviados: enviados.length });
         }
-        if (!NO_MARK) await api("/dry-run-complete", { resumo: { partnerId: topic.partnerId, lugar: nome, titulo: r.artigo.title, imagens: midia.selecionadas.length } });
-        log("dry_run_ok", { lugar: nome, imagens: midia.selecionadas.length, previa: pasta, marcado: !NO_MARK });
+        if (!NO_MARK) await api("/dry-run-complete", { resumo: { partnerId: topic.partnerId, lugar: nome, titulo: r.artigo.title, imagens: r.imagensPublicadas } });
+        log("dry_run_ok", { lugar: nome, imagensPublicadas: r.imagensPublicadas, previa: pasta, marcado: !NO_MARK });
         return { ok: true, dry: true, pasta };
       }
 
@@ -333,6 +424,7 @@ async function executar(runId) {
       excluidos.push(topic.partnerId);
       log("pauta_erro", { nome, erro: String(err.message).slice(0, 200) });
     }
+    if (SO_LUGAR) break; // teste forçado de um lugar: não sorteia outro
   }
   return { ok: false, descartes, infra };
 }
@@ -341,7 +433,7 @@ async function main() {
   if (!pegarLock()) { log("outra_execucao_em_andamento"); return; }
   let runId = null;
   try {
-    log("inicio", { dry: DRY, api: process.env.ENGINE_API || "producao" });
+    log("inicio", { dry: DRY, api: process.env.ENGINE_API || "producao", somenteLugar: SO_LUGAR });
     const st = await api("/status");
     if (st.http === 401) throw new Error("segredo inválido (401)");
     if (!DRY) {

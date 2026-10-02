@@ -8,6 +8,27 @@ export const COOLDOWN_DIAS = 30;
 // Destaque individual: mínimo para publicar e teto de imagens por matéria.
 export const MIN_IMAGENS_DESTAQUE = 3;
 export const MAX_IMAGENS_DESTAQUE = 6;
+// Matéria curta e boa: de 2 a 4 seções, só quando há fatos reais.
+export const MIN_SECOES = 2;
+export const MAX_SECOES = 4;
+export const MIN_PALAVRAS = 80;
+export const MAX_PALAVRAS = 600;
+// Imagem útil = nota visual final >= 7 (já com desconto de resolução e de texto).
+export const SCORE_UTIL = 7;
+// Menor lado mínimo (px) da CAPA. Quadros de Reel (720 px) não servem de capa.
+export const MIN_LADO_CAPA = 1000;
+// Cenas que explicam/vendem cada tipo de lugar. A matéria só sai se houver pelo
+// menos 2 imagens úteis dessas cenas e se a capa for uma delas.
+export const CENAS_NUCLEO: Record<string, string[]> = {
+  hospedagem: ["hospedagem", "fachada", "area_lazer"],
+  restaurante_cafe: ["prato", "bebida", "ambiente", "fachada"],
+  cervejaria: ["prato", "bebida", "ambiente", "fachada", "producao"],
+  atracao: ["ponto", "paisagem", "area_lazer", "fachada"],
+  producao_rural: ["producao", "produto", "paisagem", "fachada", "ambiente"],
+  comercio_servico: ["produto", "ambiente", "fachada"],
+};
+export const CENAS_SEM_CAPA = ["cartaz", "texto", "pessoas"];
+export const MIN_NUCLEO = 2;
 // Extensões possíveis do upload direto de mídia do motor.
 export const EXT_POR_TIPO: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
@@ -109,10 +130,15 @@ export function textoLimpo(html: string | null | undefined): string {
 }
 
 // Bloco "Serviço" já pronto da matéria vinculada (dados de contato já
-// conferidos e com link formatado) — reaproveitado literalmente.
-export function extrairServicoHtml(content: string | null | undefined): string | null {
-  const m = (content || "").match(/<h2>\s*Servi[cç]o\s*<\/h2>[\s\S]*$/i);
-  return m ? m[0] : null;
+// conferidos e com link formatado) — reaproveitado literalmente. Reconhece o
+// título como <h2>/<h3> OU como <p><strong>Serviço</strong></p>, e leva só a
+// lista que vem logo depois (nunca o resto da matéria). Devolve o trecho
+// original (para removê-lo do texto-fonte) e a versão normalizada com <h2>.
+export function extrairServico(content: string | null | undefined): { raw: string; html: string } | null {
+  const re = /(?:<h[23][^>]*>\s*Servi[cç]os?\s*<\/h[23]>|<p[^>]*>\s*<strong>\s*Servi[cç]os?\s*<\/strong>\s*<\/p>)\s*(<ul[\s\S]*?<\/ul>)/i;
+  const m = (content || "").match(re);
+  if (!m) return null;
+  return { raw: m[0], html: `<h2>Serviço</h2>${m[1]}` };
 }
 
 // ─── Validação do artigo gerado ─────────────────────────────────────────
@@ -121,7 +147,7 @@ export interface ArtigoGerado {
   subtitle?: string;
   excerpt?: string;
   metaDescription?: string;
-  sections: { heading: string; paragraphHtml: string }[];
+  sections: { heading: string; paragraphHtml: string; imagemId?: number | null; imagemIdx?: number | null }[];
 }
 
 const TRAVESSAO = /[—–]/;
@@ -130,6 +156,16 @@ const RE_URL = /https?:\/\/[^\s"'<>)]+/gi;
 const RE_EMAIL = /[^\s@"'<>]+@[^\s@"'<>]+\.[a-z]{2,}/gi;
 const RE_FONE = /\(?\d{2}\)?\s?9?\d{4}-?\d{4}/g;
 const RE_NUM = /\d[\d.,:h]*/g;
+// Adjetivos/frases de efeito: só valem se a mesma palavra já aparece nos fatos
+// (o motor não pode "embelezar" o lugar por conta própria).
+const QUALIFICADORES = [
+  "imponente", "charmoso", "charmosa", "aconchegante", "aconchegantes", "incrivel", "incriveis", "maravilhoso", "maravilhosa",
+  "perfeito", "perfeita", "deslumbrante", "paradisiaco", "paradisiaca", "encantador", "encantadora", "espetacular",
+  "exuberante", "inesquecivel", "inesqueciveis", "unico", "unica", "unicos", "unicas", "magico", "magica", "sofisticado", "sofisticada",
+  "requintado", "requintada", "romantico", "romantica", "acolhedor", "acolhedora", "belissimo", "belissima", "lindo", "linda", "lindos", "lindas",
+  "delicioso", "deliciosa", "saboroso", "saborosa", "refugio", "paraiso", "sossego", "tranquilo", "tranquila", "silencioso", "silenciosa",
+  "imperdivel", "obrigatorio", "obrigatoria", "mais procurado", "mais procuradas", "mais procuradas", "recanto",
+];
 
 export function validarArtigo(
   a: ArtigoGerado,
@@ -139,7 +175,7 @@ export function validarArtigo(
   if (!a || typeof a.title !== "string" || !Array.isArray(a.sections)) return ["JSON do artigo inválido (title/sections)."];
 
   if (norm(a.title).indexOf(norm(ctx.nome)) !== 0) erros.push(`O título deve começar com o nome "${ctx.nome}".`);
-  if (a.sections.length < 3 || a.sections.length > 6) erros.push("O artigo deve ter de 3 a 6 seções.");
+  if (a.sections.length < MIN_SECOES || a.sections.length > MAX_SECOES) erros.push(`O artigo deve ter de ${MIN_SECOES} a ${MAX_SECOES} seções.`);
 
   const partes = [a.title, a.subtitle, a.excerpt, a.metaDescription, ...a.sections.flatMap((s) => [s?.heading, s?.paragraphHtml])]
     .filter((x): x is string => typeof x === "string");
@@ -147,8 +183,8 @@ export function validarArtigo(
   const texto = textoLimpo(tudo);
 
   const palavras = texto.split(/\s+/).filter(Boolean).length;
-  if (palavras < 150) erros.push(`Texto curto demais (${palavras} palavras; mínimo 150).`);
-  if (palavras > 900) erros.push(`Texto longo demais (${palavras} palavras; máximo 900).`);
+  if (palavras < MIN_PALAVRAS) erros.push(`Texto curto demais (${palavras} palavras; mínimo ${MIN_PALAVRAS}).`);
+  if (palavras > MAX_PALAVRAS) erros.push(`Texto longo demais (${palavras} palavras; máximo ${MAX_PALAVRAS}).`);
 
   if (TRAVESSAO.test(tudo)) erros.push("Não use travessão (— ou –).");
   if (PROIBIDO.test(tudo)) erros.push("Não cite avaliações, estrelas, notas nem relatos de hóspedes.");
@@ -170,6 +206,13 @@ export function validarArtigo(
   const numeros = new Set((texto.match(RE_NUM) ?? []).map(limpa).filter((n) => n.length > 0));
   for (const n of numeros) {
     if (!numerosFatos.has(n)) erros.push(`Número fora dos fatos: "${n}" (só cite números presentes nos fatos).`);
+  }
+  // Qualificadores sem sustentação nos fatos.
+  const textoNorm = " " + texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ") + " ";
+  const fatosNorm = " " + ctx.corpusFatos.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ") + " ";
+  for (const q of new Set(QUALIFICADORES)) {
+    const k = ` ${q} `;
+    if (textoNorm.includes(k) && !fatosNorm.includes(k)) erros.push(`Qualificação sem base nos fatos: "${q}" (só use palavras de apreciação que já estejam nos fatos).`);
   }
   return erros;
 }
@@ -228,15 +271,37 @@ function figuraHtml(f: { urlArquivo: string; urlDestino: string | null }, alt: s
 // dentro do Serviço.
 export function renderArtigoComFotos(
   a: ArtigoGerado,
-  fotos: { urlArquivo: string; urlDestino: string | null }[],
+  fotos: ({ urlArquivo: string; urlDestino: string | null } | null)[],
   servicoHtml: string | null,
   materiaSlug: string,
   materiaTitulo: string,
   nome: string,
 ): string {
   const corpo = a.sections
-    .map((s, i) => `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>${fotos[i] ? figuraHtml(fotos[i], nome) : ""}`)
+    .map((s, i) => `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>${fotos[i] ? figuraHtml(fotos[i]!, nome) : ""}`)
     .join("\n");
   const leia = `<p>Leia a matéria completa: <a href="/blog/${materiaSlug}">${materiaTitulo.replace(/</g, "&lt;")}</a></p>`;
   return [corpo, leia, servicoHtml || ""].filter(Boolean).join("\n");
+}
+
+// Regras de mídia: as imagens precisam ser realmente úteis para explicar e
+// vender aquele lugar (não basta ter 3 arquivos). `imgs` na ordem de
+// publicação: a primeira é a capa.
+export interface ImgMeta { score: number | null; cena: string | null; width: number | null; height: number | null }
+
+export function validarMidia(categoria: string, imgs: ImgMeta[]): string[] {
+  const erros: string[] = [];
+  const nucleo = CENAS_NUCLEO[categoria];
+  if (!nucleo) return [`Categoria sem regra de mídia: ${categoria}`];
+  if (imgs.length < MIN_IMAGENS_DESTAQUE) erros.push(`Imagens insuficientes (${imgs.length}; mínimo ${MIN_IMAGENS_DESTAQUE}).`);
+  const fracas = imgs.filter((i) => (i.score ?? 0) < SCORE_UTIL).length;
+  if (fracas) erros.push(`${fracas} imagem(ns) com nota abaixo de ${SCORE_UTIL}.`);
+  const uteisNucleo = imgs.filter((i) => (i.score ?? 0) >= SCORE_UTIL && i.cena && nucleo.includes(i.cena)).length;
+  if (uteisNucleo < MIN_NUCLEO) erros.push(`Poucas imagens que mostram o lugar (${uteisNucleo}; mínimo ${MIN_NUCLEO} de: ${nucleo.join(", ")}).`);
+  const capa = imgs[0];
+  if (!capa) return erros;
+  if (!capa.cena || !nucleo.includes(capa.cena) || CENAS_SEM_CAPA.includes(capa.cena)) erros.push(`A capa não mostra o lugar (cena "${capa.cena ?? "?"}").`);
+  const lado = capa.width && capa.height ? Math.min(capa.width, capa.height) : 0;
+  if (lado < MIN_LADO_CAPA) erros.push(`Capa com resolução baixa (${lado || "?"} px; mínimo ${MIN_LADO_CAPA}).`);
+  return erros;
 }
