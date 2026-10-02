@@ -11,6 +11,7 @@ import {
 import { eq, and, or, inArray, sql, asc, desc } from "drizzle-orm";
 import { slugify, type MediaItem } from "../lib/article-generation";
 import { createDirectUpload } from "../lib/b2-storage";
+import { publishCarouselToInstagram } from "../lib/instagram";
 import { logger } from "../lib/logger";
 import {
   COOLDOWN_DIAS,
@@ -617,6 +618,55 @@ router.post("/publish", async (req, res): Promise<void> => {
   } catch (err: any) {
     logger.error({ error: String(err?.message ?? err) }, "[engine] Falha ao publicar destaque");
     res.status(500).json({ status: "error", error: "falha ao gravar" });
+  }
+});
+
+// ─── Instagram: carrossel (publicação supervisionada) ───────────────────
+// Só publica com confirm = "PUBLICAR". dryRun confere as imagens sem publicar.
+// Se vier postId, marca o post como já publicado no Instagram para o fluxo
+// automático matéria -> Instagram não repetir a publicação.
+router.post("/instagram/carousel", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const { imageUrls, caption, postId, confirm, dryRun } = req.body || {};
+  if (!Array.isArray(imageUrls) || imageUrls.length < 2 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) {
+    res.status(400).json({ status: "error", error: "imageUrls: de 2 a 10 URLs de imagem do nosso B2." });
+    return;
+  }
+  if (typeof caption !== "string" || caption.trim().length < 10 || caption.length > 2200) {
+    res.status(400).json({ status: "error", error: "caption inválida (10 a 2200 caracteres)." });
+    return;
+  }
+  // Confere que cada imagem existe e é JPEG.
+  const checadas: { url: string; http: number; tipo: string | null; bytes: string | null }[] = [];
+  for (const u of imageUrls as string[]) {
+    try {
+      const h = await fetch(u, { method: "HEAD", signal: AbortSignal.timeout(10000) });
+      checadas.push({ url: u.split("/").slice(-1)[0], http: h.status, tipo: h.headers.get("content-type"), bytes: h.headers.get("content-length") });
+    } catch {
+      checadas.push({ url: u.split("/").slice(-1)[0], http: 0, tipo: null, bytes: null });
+    }
+  }
+  if (checadas.some((c) => c.http !== 200 || !(c.tipo || "").includes("jpeg"))) {
+    res.status(422).json({ status: "invalid", error: "imagem inacessível ou que não é JPEG", checadas });
+    return;
+  }
+  if (dryRun === true) {
+    res.json({ status: "dry_run_ok", slides: imageUrls.length, checadas, legendaCaracteres: caption.length });
+    return;
+  }
+  if (confirm !== "PUBLICAR") {
+    res.status(400).json({ status: "error", error: 'Para publicar de verdade envie confirm: "PUBLICAR".' });
+    return;
+  }
+  try {
+    const r = await publishCarouselToInstagram(imageUrls as string[], caption);
+    if (Number.isInteger(postId)) {
+      await db.update(postsTable).set({ instagramPostedAt: new Date(), instagramMediaId: r.mediaId }).where(eq(postsTable.id, Number(postId)));
+    }
+    res.status(201).json({ status: "published", mediaId: r.mediaId, permalink: r.permalink, slides: imageUrls.length, postMarcado: Number.isInteger(postId) ? Number(postId) : null });
+  } catch (err: any) {
+    logger.error({ error: String(err?.message ?? err) }, "[engine] Falha ao publicar carrossel");
+    res.status(502).json({ status: "error", error: String(err?.message ?? err).slice(0, 300) });
   }
 });
 

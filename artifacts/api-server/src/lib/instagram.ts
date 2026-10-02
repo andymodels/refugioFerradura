@@ -275,6 +275,65 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
   return { mediaId: publishData.id, caption, permalink };
 }
 
+// Publica um CARROSSEL de fotos (2 a 10) no feed do Instagram oficial. Cada
+// imagem vira um container "item de carrossel"; depois cria-se o container do
+// carrossel com a legenda e publica. As imagens devem ser JPEG públicas; o
+// Instagram recorta todas para a proporção da 1ª. Não altera o fluxo de
+// publicação de uma mídia só (publishPostToInstagram).
+export async function publishCarouselToInstagram(imageUrls: string[], caption: string): Promise<InstagramPublishResult> {
+  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!accessToken || !igUserId) {
+    throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
+  }
+  if (imageUrls.length < 2 || imageUrls.length > 10) {
+    throw new Error("Um carrossel precisa de 2 a 10 imagens.");
+  }
+
+  const children: string[] = [];
+  for (const imageUrl of imageUrls) {
+    const itemUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
+    itemUrl.searchParams.set("image_url", imageUrl);
+    itemUrl.searchParams.set("is_carousel_item", "true");
+    itemUrl.searchParams.set("access_token", accessToken);
+    const itemRes = await fetch(itemUrl, { method: "POST" });
+    const itemData: any = await itemRes.json();
+    if (!itemRes.ok || !itemData?.id) {
+      logger.error({ status: itemRes.status, data: itemData, imageUrl }, "Falha ao criar item do carrossel no Instagram");
+      throw new Error(itemData?.error?.error_user_msg || itemData?.error?.message || "Falha ao preparar uma imagem do carrossel.");
+    }
+    await waitForContainerReady(itemData.id, accessToken, "foto");
+    children.push(itemData.id);
+  }
+
+  const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
+  containerUrl.searchParams.set("media_type", "CAROUSEL");
+  containerUrl.searchParams.set("children", children.join(","));
+  containerUrl.searchParams.set("caption", caption.slice(0, 2200));
+  containerUrl.searchParams.set("access_token", accessToken);
+  const containerRes = await fetch(containerUrl, { method: "POST" });
+  const containerData: any = await containerRes.json();
+  if (!containerRes.ok || !containerData?.id) {
+    logger.error({ status: containerRes.status, data: containerData }, "Falha ao criar container do carrossel no Instagram");
+    throw new Error(containerData?.error?.error_user_msg || containerData?.error?.message || "Falha ao preparar o carrossel.");
+  }
+  await waitForContainerReady(containerData.id, accessToken, "foto");
+
+  const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
+  publishUrl.searchParams.set("creation_id", containerData.id);
+  publishUrl.searchParams.set("access_token", accessToken);
+  const publishRes = await fetch(publishUrl, { method: "POST" });
+  const publishData: any = await publishRes.json();
+  if (!publishRes.ok || !publishData?.id) {
+    logger.error({ status: publishRes.status, data: publishData }, "Falha ao publicar carrossel no Instagram");
+    throw new Error(publishData?.error?.error_user_msg || publishData?.error?.message || "Falha ao publicar o carrossel.");
+  }
+
+  const permalink = await fetchPermalink(publishData.id, accessToken);
+  logger.info({ mediaId: publishData.id, permalink, slides: imageUrls.length }, "Carrossel publicado no Instagram");
+  return { mediaId: publishData.id, caption, permalink };
+}
+
 // O Instagram não tem sticker de menção via API (isso só existe no app,
 // composto manualmente) — pra Story em foto, grava o @ do parceiro
 // visualmente na imagem via transformação do Cloudinary, garantindo o
