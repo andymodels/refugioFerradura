@@ -1,0 +1,14 @@
+{
+  "name": "refugio-engine-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Motor de conteúdo diário do Refúgio da Ferradura (roda no Mac, com Claude Code e Playwright).",
+  "scripts": {
+    "dry-run": "node src/run.mjs --dry-run",
+    "run": "node src/run.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "^1.55.0"
+  }
+}

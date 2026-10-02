@@ -39,3 +39,7 @@ attached_assets/
 .serena
 .claude
 skills-lock.json
+
+# motor de conteúdo local (roda no Mac, não vai no deploy)
+engine-runner
+output

@@ -5,6 +5,11 @@
 
 export const MEDIA_HOST = "media.refugioferradura.com.br";
 export const COOLDOWN_DIAS = 30;
+// Destaque individual: mínimo para publicar e teto de imagens por matéria.
+export const MIN_IMAGENS_DESTAQUE = 3;
+export const MAX_IMAGENS_DESTAQUE = 6;
+// Extensões possíveis do upload direto de mídia do motor.
+export const EXT_POR_TIPO: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 export const CATEGORIA_LABEL: Record<string, string> = {
   hospedagem: "Hospedagem",
@@ -54,6 +59,8 @@ export function nomeParaConteudo(nome: string, handle: string | null): string | 
 
 export function isB2Url(u: unknown): u is string {
   if (typeof u !== "string") return false;
+  // HEIC/HEIF não serve (navegador e Instagram não exibem direito).
+  if (/\.(heic|heif)(\?|$)/i.test(u)) return false;
   try {
     return new URL(u).hostname === MEDIA_HOST;
   } catch {
@@ -176,4 +183,60 @@ export function renderArtigoHtml(a: ArtigoGerado, servicoHtml: string | null, ma
 // Data de hoje em Brasília, "YYYY-MM-DD".
 export function hojeBRT(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+// Mídia "virtual" da matéria vinculada: fotos já aprovadas e no nosso B2
+// (capa + mediaItems em foto). Entra no acervo do lugar como origem
+// "b2_materia" quando o motor a usa.
+export interface MidiaVirtual {
+  urlArquivo: string;
+  tipoMidia: string;
+  origemUrl: string | null;
+  destinoUrl: string | null;
+  isReel: boolean;
+}
+
+export function midiaVirtualDaMateria(post: { coverImage: string | null; coverImageMeta: string | null; mediaItems: string | null }): MidiaVirtual[] {
+  const out: MidiaVirtual[] = [];
+  const vistos = new Set<string>();
+  const items = (parseJson(post.mediaItems) as any[] | null) ?? [];
+  for (const m of items) {
+    if (m && m.kind === "foto" && isB2Url(m.urlArquivo) && !vistos.has(m.urlArquivo)) {
+      vistos.add(m.urlArquivo);
+      out.push({ urlArquivo: m.urlArquivo, tipoMidia: m.tipo || "instagram_oficial", origemUrl: m.urlOrigem ?? null, destinoUrl: m.urlDestino ?? null, isReel: !!m.isReel });
+    }
+  }
+  if (isB2Url(post.coverImage) && !vistos.has(post.coverImage) && !/\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.coverImage)) {
+    const meta = parseJson(post.coverImageMeta);
+    out.push({ urlArquivo: post.coverImage, tipoMidia: meta?.tipo || "instagram_oficial", origemUrl: meta?.urlOrigem ?? null, destinoUrl: meta?.urlDestino ?? null, isReel: false });
+  }
+  return out;
+}
+
+// Mesma marcação de figura do blog (classe já estilizada pelo tema).
+function figuraHtml(f: { urlArquivo: string; urlDestino: string | null }, alt: string): string {
+  const img = `<img src="${f.urlArquivo}" alt="${alt.replace(/"/g, "&quot;")}" loading="lazy">`;
+  const inner = f.urlDestino
+    ? `<a href="${f.urlDestino}" target="_blank" rel="noopener noreferrer" aria-label="Ver origem oficial">${img}</a>`
+    : img;
+  return `<figure class="instagram-editorial-photo">${inner}</figure>`;
+}
+
+// Artigo com as fotos DEPOIS do parágrafo de cada seção (uma por seção, a
+// capa fica de fora porque já aparece no topo), depois o link da matéria
+// completa e o bloco Serviço. Nunca separa título e texto, nunca põe foto
+// dentro do Serviço.
+export function renderArtigoComFotos(
+  a: ArtigoGerado,
+  fotos: { urlArquivo: string; urlDestino: string | null }[],
+  servicoHtml: string | null,
+  materiaSlug: string,
+  materiaTitulo: string,
+  nome: string,
+): string {
+  const corpo = a.sections
+    .map((s, i) => `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>${fotos[i] ? figuraHtml(fotos[i], nome) : ""}`)
+    .join("\n");
+  const leia = `<p>Leia a matéria completa: <a href="/blog/${materiaSlug}">${materiaTitulo.replace(/</g, "&lt;")}</a></p>`;
+  return [corpo, leia, servicoHtml || ""].filter(Boolean).join("\n");
 }

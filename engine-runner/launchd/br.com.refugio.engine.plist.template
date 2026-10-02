@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>br.com.refugio.engine</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>__REPO__/engine-runner/src/run.mjs</string>
+  </array>
+  <key>WorkingDirectory</key><string>__REPO__/engine-runner</string>
+  <!-- Roda ao logar e a cada 30 min; o servidor decide se já publicou hoje. -->
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StandardOutPath</key><string>__HOME__/Library/Logs/refugio-engine.out.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/Library/Logs/refugio-engine.err.log</string>
+</dict>
+</plist>
