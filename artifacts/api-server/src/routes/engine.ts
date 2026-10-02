@@ -621,6 +621,25 @@ router.post("/publish", async (req, res): Promise<void> => {
   }
 });
 
+// Teste só-leitura da autenticação do Instagram no servidor: pergunta o nome da
+// conta com o token em uso. Não publica nada e nunca devolve o token.
+router.get("/instagram/status", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const igId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!token || !igId) {
+    res.status(500).json({ ok: false, erro: "INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID ausentes no servidor." });
+    return;
+  }
+  try {
+    const r = await fetch(`https://graph.instagram.com/v21.0/${igId}?fields=username,media_count&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(15000) });
+    const d: any = await r.json();
+    res.json({ ok: r.ok && !!d?.username, username: d?.username ?? null, posts: d?.media_count ?? null, erro: d?.error?.message ?? null });
+  } catch (err: any) {
+    res.status(502).json({ ok: false, erro: String(err?.message ?? err).slice(0, 200) });
+  }
+});
+
 // ─── Instagram: carrossel (publicação supervisionada) ───────────────────
 // Só publica com confirm = "PUBLICAR". dryRun confere as imagens sem publicar.
 // Se vier postId, marca o post como já publicado no Instagram para o fluxo
