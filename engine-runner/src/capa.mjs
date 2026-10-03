@@ -81,7 +81,7 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const tituloHtml = (t) => esc(t.toUpperCase()).replace(/\*([^*]+)\*/g, '<span class="hl">$1</span>');
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
-function html({ titulo, fundoUrl, selo, assinatura, L, corte, zoom, jitter }) {
+function html({ titulo, subtitulo, fundoUrl, selo, assinatura, L, corte, zoom, jitter }) {
   const [oTopo, oMeio, oBase] = L.ov.map((a) => clamp(a + jitter, 0.08, 0.92));
   const posSelo = {
     "topo-esq": "left:84px;top:96px;",
@@ -106,6 +106,8 @@ function html({ titulo, fundoUrl, selo, assinatura, L, corte, zoom, jitter }) {
   .titulo{position:absolute;left:${L.box.l}px;right:${L.box.r}px;top:${L.box.t}px;height:${L.box.h}px;display:flex;align-items:flex-${L.v};color:#fff;text-align:${L.align}}
   .titulo h1{font-weight:900;line-height:.96;letter-spacing:-.01em;text-transform:uppercase;text-shadow:0 4px 28px rgba(0,0,0,.70),0 1px 3px rgba(0,0,0,.55);text-wrap:balance;width:100%}
   .titulo .hl{color:#F6C77A}
+  .bloco{width:100%}
+  .sub{margin-top:34px;font-family:Arial,"Helvetica Neue",sans-serif;font-weight:700;line-height:1.2;color:#fff;text-shadow:0 2px 16px rgba(0,0,0,.75);letter-spacing:.01em}
   .assin{position:absolute;color:#fff;${posAssin}}
   .assin b{display:block;font-size:40px;letter-spacing:.04em}
   .assin span{display:block;margin-top:8px;font-size:24px;letter-spacing:.22em;color:#F6C77A}
@@ -117,7 +119,7 @@ function html({ titulo, fundoUrl, selo, assinatura, L, corte, zoom, jitter }) {
   </style></head><body><div class="capa">
   <div class="bg"></div><div class="ov"></div><div class="barra"></div><div class="lateral"><span>ROTA DA FERRADURA · GUARAPARI</span></div>
   <div class="selo"><i></i>${esc(selo)}</div>
-  <div class="titulo"><h1 id="t">${tituloHtml(titulo)}</h1></div>
+  <div class="titulo"><div class="bloco" id="b"><h1 id="t">${tituloHtml(titulo)}</h1>${subtitulo ? `<p class="sub" id="s">${esc(subtitulo)}</p>` : ""}</div></div>
   <div class="assin"><b>${esc(assinatura[0])}</b><span>${esc(assinatura[1])}</span></div>
   <div class="desliza">DESLIZE<u></u></div>
   </div></body></html>`;
@@ -125,7 +127,7 @@ function html({ titulo, fundoUrl, selo, assinatura, L, corte, zoom, jitter }) {
 
 // Gera a capa 1080x1350 (4:5, JPEG). Devolve { saida, layout, corte, zoom }. O
 // tamanho do título se ajusta sozinho para ocupar o máximo do espaço sem estourar.
-export async function gerarCapa({ titulo, fundo, saida, layout = null, selo = "ROTA DA FERRADURA · GUARAPARI", assinatura = ["REFÚGIO DA FERRADURA", "GUIA DA ROTA"], browser = null }) {
+export async function gerarCapa({ titulo, subtitulo = null, fundo, saida, layout = null, selo = "ROTA DA FERRADURA · GUARAPARI", assinatura = ["REFÚGIO DA FERRADURA", "GUIA DA ROTA"], browser = null }) {
   if (!fs.existsSync(fundo)) throw new Error(`fundo não encontrado: ${fundo}`);
   const nome = layout && LAYOUTS[layout] ? layout : escolherLayout(titulo);
   const L = LAYOUTS[nome];
@@ -138,14 +140,17 @@ export async function gerarCapa({ titulo, fundo, saida, layout = null, selo = "R
   try {
     const page = await (await b.newContext({ viewport: { width: 1080, height: 1350 }, deviceScaleFactor: 1 })).newPage();
     const dataUri = "data:image/jpeg;base64," + fs.readFileSync(fundo).toString("base64");
-    await page.setContent(html({ titulo, fundoUrl: dataUri, selo, assinatura, L, corte, zoom, jitter }), { waitUntil: "load" });
+    await page.setContent(html({ titulo, subtitulo, fundoUrl: dataUri, selo, assinatura, L, corte, zoom, jitter }), { waitUntil: "load" });
     await page.evaluate(async (max) => {
       await document.fonts.ready;
       const h1 = document.getElementById("t");
-      const box = h1.parentElement;
+      const sub = document.getElementById("s");
+      const bloco = document.getElementById("b");
+      const box = h1.closest(".titulo");
       let fs = max;
-      h1.style.fontSize = fs + "px";
-      while ((h1.scrollHeight > box.clientHeight || h1.scrollWidth > box.clientWidth) && fs > 60) { fs -= 4; h1.style.fontSize = fs + "px"; }
+      const aplicar = () => { h1.style.fontSize = fs + "px"; if (sub) sub.style.fontSize = Math.min(54, Math.max(32, Math.round(fs * 0.2))) + "px"; };
+      aplicar();
+      while ((bloco.scrollHeight > box.clientHeight || h1.scrollWidth > box.clientWidth) && fs > 60) { fs -= 4; aplicar(); }
     }, L.max);
     await page.waitForTimeout(250);
     fs.mkdirSync(path.dirname(saida), { recursive: true });

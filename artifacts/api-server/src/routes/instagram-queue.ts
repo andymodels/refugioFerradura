@@ -125,7 +125,7 @@ cronRouter.get("/acervo", async (req, res): Promise<void> => {
   const paisagens = await db
     .select({ url: partnerMediaTable.urlArquivo, partnerId: partnerMediaTable.partnerId, cena: partnerMediaTable.cena })
     .from(partnerMediaTable)
-    .where(and(inArray(partnerMediaTable.cena, ["paisagem", "ponto"]), gte(partnerMediaTable.score, 6)));
+    .where(and(inArray(partnerMediaTable.cena, ["paisagem", "ponto"]), gte(partnerMediaTable.score, 3)));
   for (const m of paisagens) {
     if (!isB2Url(m.url) || vistos.has(m.url)) continue;
     vistos.add(m.url);
