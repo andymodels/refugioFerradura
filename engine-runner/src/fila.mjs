@@ -3,8 +3,8 @@
 // legenda. Aqui só se agenda o resultado.
 import { apiFila } from "./api.mjs";
 
-export async function enfileirar({ titulo, quando, caption, imageUrls, postId = null, capaFundo = null, dryRun = false }) {
+export async function enfileirar({ titulo, quando, caption, imageUrls, postId = null, capaFundo = null, pauta = null, partnerIds = [], dryRun = false }) {
   const scheduledAt = new Date(quando).toISOString();
-  return apiFila("/enqueue", { titulo, scheduledAt, caption, imageUrls, postId, capaFundo, dryRun });
+  return apiFila("/enqueue", { titulo, scheduledAt, caption, imageUrls, postId, capaFundo, pauta, partnerIds, dryRun });
 }
 export const listarFila = (limite = 60) => apiFila(`/list?limite=${limite}`);

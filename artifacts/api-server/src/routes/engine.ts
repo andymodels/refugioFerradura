@@ -318,6 +318,26 @@ router.post("/next-topic", async (req, res): Promise<void> => {
   });
 });
 
+// ─── Candidatos para o comando semanal (leitura apenas) ──────────────────
+// Mesma elegibilidade do destaque, SEM o cooldown (o rodízio é feito no Mac).
+router.get("/candidatos", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const linhas = await carregarCandidatos();
+  const candidatos: any[] = [];
+  for (const { partner, post } of linhas) {
+    if (partner.pausado || !partner.categoria || partner.categoria === "outra" || partner.categoria === "eventos") continue;
+    if (post.status !== "published") continue;
+    const nome = nomeParaConteudo(partner.nomeEstabelecimento, partner.instagramHandle);
+    if (!nome) continue;
+    if (!montarMidia(post) && !partner.instagramHandle && !partner.site) continue;
+    candidatos.push({
+      id: partner.id, nome, categoria: partner.categoria, handle: partner.instagramHandle ?? null, regiao: partner.regiao ?? null,
+      tags: partner.tags ?? [], ultimoUsoInstagramEm: partner.ultimoUsoInstagramEm ?? null, usosInstagram: partner.usosInstagram ?? 0,
+    });
+  }
+  res.json({ status: "ok", candidatos });
+});
+
 // ─── Acervo de mídia do lugar ───────────────────────────────────────────
 // Devolve o que já existe (acervo + fotos da matéria vinculada). Com
 // materialize=true grava as fotos da matéria no acervo (origem b2_materia)
@@ -532,7 +552,10 @@ router.post("/publish", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!(await engineEnabled())) {
+  // rascunho=true (comando semanal): cria a matéria como RASCUNHO, sem o motor
+  // diário ligado e sem reservar o dia; quem a libera depois é a fila na nuvem.
+  const rascunho = req.body?.rascunho === true;
+  if (!rascunho && !(await engineEnabled())) {
     res.status(403).json({ status: "disabled" });
     return;
   }
@@ -540,10 +563,13 @@ router.post("/publish", async (req, res): Promise<void> => {
     res.status(422).json({ status: "invalid", erros });
     return;
   }
-  const [run] = await db.select().from(engineRunsTable).where(eq(engineRunsTable.id, Number(runId)));
-  if (!run || run.status !== "running" || run.runDate !== hojeBRT()) {
-    res.status(409).json({ status: "error", error: "execução do dia não está reservada (running)" });
-    return;
+  let run: any = null;
+  if (!rascunho) {
+    [run] = await db.select().from(engineRunsTable).where(eq(engineRunsTable.id, Number(runId)));
+    if (!run || run.status !== "running" || run.runDate !== hojeBRT()) {
+      res.status(409).json({ status: "error", error: "execução do dia não está reservada (running)" });
+      return;
+    }
   }
 
   // Capa primeiro, depois as fotos usadas, na ordem das seções.
@@ -595,27 +621,31 @@ router.post("/publish", async (req, res): Promise<void> => {
           coverImageMeta: coverMeta,
           mediaItems: JSON.stringify(mediaItems),
           tags,
-          status: "published",
+          status: rascunho ? "draft" : "published",
           metaDescription: art.metaDescription ?? null,
           displayOrder: Math.floor(Date.now() / 1000),
         })
         .returning();
-      await tx
-        .update(instagramPartnersTable)
-        .set({ ultimoUsoInstagramEm: new Date(), usosInstagram: sql`${instagramPartnersTable.usosInstagram} + 1` })
-        .where(eq(instagramPartnersTable.id, partner.id));
+      if (!rascunho) {
+        await tx
+          .update(instagramPartnersTable)
+          .set({ ultimoUsoInstagramEm: new Date(), usosInstagram: sql`${instagramPartnersTable.usosInstagram} + 1` })
+          .where(eq(instagramPartnersTable.id, partner.id));
+      }
       await tx
         .update(partnerMediaTable)
         .set({ usedCount: sql`${partnerMediaTable.usedCount} + 1`, lastUsedAt: new Date() })
         .where(inArray(partnerMediaTable.id, usadosIds));
-      await tx
-        .update(engineRunsTable)
-        .set({ status: "published", postId: novo.id, partnerIds: [partner.id], finishedAt: new Date() })
-        .where(eq(engineRunsTable.id, run.id));
+      if (!rascunho) {
+        await tx
+          .update(engineRunsTable)
+          .set({ status: "published", postId: novo.id, partnerIds: [partner.id], finishedAt: new Date() })
+          .where(eq(engineRunsTable.id, run.id));
+      }
       return novo;
     });
     logger.info({ postId: resultado.id, partnerId: partner.id, imagens: usadosIds.length }, "[engine] Destaque publicado");
-    res.status(201).json({ status: "published", postId: resultado.id, slug: resultado.slug, imagens: usadosIds.length });
+    res.status(201).json({ status: rascunho ? "draft" : "published", postId: resultado.id, slug: resultado.slug, imagens: usadosIds.length });
   } catch (err: any) {
     logger.error({ error: String(err?.message ?? err) }, "[engine] Falha ao publicar destaque");
     res.status(500).json({ status: "error", error: "falha ao gravar" });

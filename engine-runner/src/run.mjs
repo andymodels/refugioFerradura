@@ -136,7 +136,9 @@ async function guardar(c, topic) {
   return { id: reg.id, url: principal.url };
 }
 
-async function prepararMidia(topic, dir) {
+// opts.carrossel: para carrossel de VÁRIOS lugares basta 1 foto boa por lugar (nota >= scoreUtil);
+// o destaque individual continua exigindo a seleção completa (capa, núcleo, 3+ imagens).
+export async function prepararMidia(topic, dir, opts = {}) {
   const handle = topic.fontes.instagram;
   const lugar = topic.fatos.nome;
   const regras = topic.regras;
@@ -145,6 +147,11 @@ async function prepararMidia(topic, dir) {
   const locais = []; // aprovadas ainda só locais (dry-run)
   const todas = []; // toda candidata avaliada (para transparência)
   const atual = () => [...pool, ...locais];
+  const escolher = () => {
+    if (!opts.carrossel) return selecionar(atual(), regras);
+    const boas = atual().filter((r) => (r.score ?? 0) >= regras.scoreUtil);
+    return boas.length ? { ok: true, lista: boas } : { ok: false, motivo: "nenhuma foto útil ainda" };
+  };
   const conhecidos = new Set(pool.map((r) => String(r.sourceId)));
   const hashesVistos = new Set();
   const rejeitados = lerRejeitados();
@@ -177,12 +184,12 @@ async function prepararMidia(topic, dir) {
     }
     resumo.avaliadasDaMateria = itens.length;
   }
-  let sel = selecionar(atual(), regras);
+  let sel = escolher();
 
   async function processarCandidatos(candidatos, origem) {
     await avaliarEFiltrar(candidatos, dir, topic);
     for (const c of candidatos) {
-      todas.push({ origem: c.source, sourceId: c.sourceId, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoProblematico ? "problemático" : c.textoSobreposto ? "útil" : false, chamada: c.chamada, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
+      todas.push({ origem: c.source, sourceId: c.sourceId, takenAt: c.takenAt ?? null, origemUrl: c.origemUrl ?? null, legenda: (c.legenda || "").slice(0, 400), width: c.width, height: c.height, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoProblematico ? "problemático" : c.textoSobreposto ? "útil" : false, chamada: c.chamada, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
       if (!c.aprovada) continue;
       const g = await guardar(c, topic);
       const linha = {
@@ -259,7 +266,7 @@ async function prepararMidia(topic, dir) {
           for (const c of uteis) aprovouPost.set(c.codigo, aprovouPost.get(c.codigo) || c.aprovada);
           for (const [codigo, ok] of aprovouPost) { if (ok) delete rejH[codigo]; else rejH[codigo] = "reprovada na avaliação visual"; }
           salvarRejeitados(rejeitados);
-          sel = selecionar(atual(), regras);
+          sel = escolher();
         }
       } finally {
         await perfil.fechar();
@@ -305,7 +312,7 @@ async function prepararMidia(topic, dir) {
     if (uteis.length) {
       resumo.instagram.candidatos += uteis.length;
       await processarCandidatos(uteis, "instagram");
-      sel = selecionar(atual(), regras);
+      sel = escolher();
     }
   }
 
@@ -329,7 +336,7 @@ async function prepararMidia(topic, dir) {
       }
       resumo.site.candidatos = candidatos.length;
       await processarCandidatos(candidatos, "site");
-      sel = selecionar(atual(), regras);
+      sel = escolher();
     } catch (err) {
       log("site_erro", { erro: String(err.message).slice(0, 100) });
     }
@@ -339,7 +346,7 @@ async function prepararMidia(topic, dir) {
   if (!DRY) {
     const fim = await api("/media/pool", { partnerId: topic.partnerId, materialize: true });
     pool = fim.rows || pool;
-    sel = selecionar(pool, regras);
+    sel = opts.carrossel ? escolher() : selecionar(pool, regras);
   }
   log("midia_final", { lugar, ok: sel.ok, selecionadas: sel.lista?.length ?? 0, motivo: sel.motivo, resumo });
   return sel.ok ? { ok: true, selecionadas: sel.lista, todas, resumo } : { ok: false, motivo: `mídia não serve: ${sel.motivo}`, todas, resumo };
@@ -348,7 +355,7 @@ async function prepararMidia(topic, dir) {
 // ─── Texto ──────────────────────────────────────────────────────────────────
 const metaDe = (r) => ({ score: r.score ?? null, cena: r.cena ?? null, width: r.width ?? null, height: r.height ?? null });
 
-async function redigir(topic, selecionadas, dir) {
+export async function redigir(topic, selecionadas, dir) {
   const capa = selecionadas[0];
   const fotos = selecionadas.slice(1).map((r, i) => ({ n: i + 1, cena: r.cena, descricao: descricaoDe(r) }));
   let erros = null;
@@ -512,4 +519,6 @@ async function main() {
   }
 }
 
-main();
+// Permite reaproveitar a coleta de mídia no comando semanal (semana.mjs) sem disparar o motor diário.
+export async function fecharNavegador() { if (browser) { await browser.close().catch(() => {}); browser = null; } }
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main();

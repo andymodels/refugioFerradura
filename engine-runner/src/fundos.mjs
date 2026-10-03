@@ -109,7 +109,7 @@ if (process.argv[1] && process.argv[1].endsWith("fundos.mjs")) {
 // Conferência final, UMA imagem por vez (a classificação em lote já errou
 // descrições). Só aceita se for natureza/paisagem sem construção, piscina,
 // prato, pessoa, placa ou texto.
-async function conferirFundo(arquivo) {
+export async function conferirFundo(arquivo) {
   const dir = path.dirname(arquivo), nome = path.basename(arquivo);
   const prompt = `Abra a imagem ${nome} com a ferramenta Read. Ela será o FUNDO levemente desfocado de uma capa turística (Rota da Ferradura, Guarapari). Responda SOMENTE com JSON: {"serve":true|false,"descricao":"o que realmente aparece, até 12 palavras"}. serve=true só se for natureza ou paisagem (montanha, mata, rio, cachoeira, estrada rural, vista, vale) SEM construção em destaque, piscina, prato/comida, bebida, pessoa em destaque, placa ou texto.`;
   const r = extrairJson(await rodarClaude(prompt, { cwd: dir, ferramentas: "Read", maxTurns: 4, timeoutMs: 120000 }));
