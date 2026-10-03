@@ -15,6 +15,9 @@ interface Item {
   lastError: string | null;
   permalink: string | null;
   publishedAt: string | null;
+  pauta: string | null;
+  parceiros: string[];
+  materia: { titulo: string; status: string; slug: string } | null;
 }
 
 const STATUS: Record<string, { label: string; cor: string }> = {
@@ -125,6 +128,14 @@ export default function AdminFilaInstagram() {
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${st.cor}`}>{st.label}</span>
                         <span className="text-sm font-medium">{i.titulo}</span>
                       </div>
+                      {i.pauta && <p className="text-sm">Pauta: {i.pauta}</p>}
+                      {i.parceiros.length > 0 && <p className="text-sm text-muted-foreground">Parceiros: {i.parceiros.join(", ")}</p>}
+                      {i.materia && (
+                        <p className="text-sm text-muted-foreground">
+                          Matéria no blog: {i.materia.status === "published" ? "publicada" : "rascunho (será liberada na hora)"} ·{" "}
+                          <a href={`/blog/${i.materia.slug}`} target="_blank" rel="noopener noreferrer" className="text-primary underline">ver</a>
+                        </p>
+                      )}
                       <p className="text-sm text-muted-foreground">
                         {i.status === "publicado" && i.publishedAt ? `Publicado em ${fmt(i.publishedAt)}` : `Marcado para ${fmt(i.scheduledAt)}`} · {i.imageUrls.length} slides
                         {i.attempts > 0 && i.status !== "publicado" ? ` · tentativa ${i.attempts}` : ""}

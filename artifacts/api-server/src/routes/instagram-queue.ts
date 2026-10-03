@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
-import { db, instagramQueueTable, postsTable, partnerMediaTable } from "@workspace/db";
+import { db, instagramQueueTable, postsTable, partnerMediaTable, instagramPartnersTable } from "@workspace/db";
 import { and, desc, eq, inArray, gte } from "drizzle-orm";
 import { executarFila } from "../lib/instagram-queue";
 import { isB2Url } from "../lib/engine";
@@ -44,7 +44,7 @@ cronRouter.all("/run", async (req, res): Promise<void> => {
 // ─── Entrada de conteúdo FINALIZADO (vem do Mac) ───────────────────────────
 cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
-  const { titulo, scheduledAt, caption, imageUrls, postId, capaFundo, dryRun } = req.body || {};
+  const { titulo, scheduledAt, caption, imageUrls, postId, capaFundo, dryRun, pauta, partnerIds } = req.body || {};
   const quando = new Date(String(scheduledAt));
   const erros: string[] = [];
   if (typeof titulo !== "string" || titulo.trim().length < 3) erros.push("titulo obrigatório.");
@@ -53,6 +53,7 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   if (typeof caption !== "string" || caption.trim().length < 10 || caption.length > 2200) erros.push("caption inválida (10 a 2200 caracteres).");
   if (!Array.isArray(imageUrls) || imageUrls.length < 2 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) erros.push("imageUrls: de 2 a 10 URLs do nosso B2.");
   if (postId !== undefined && postId !== null && !Number.isInteger(postId)) erros.push("postId inválido.");
+  if (partnerIds !== undefined && !(Array.isArray(partnerIds) && partnerIds.every((n: unknown) => Number.isInteger(n)))) erros.push("partnerIds deve ser uma lista de números.");
   if (erros.length) {
     res.status(400).json({ status: "error", erros });
     return;
@@ -90,7 +91,7 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   }
   const [row] = await db
     .insert(instagramQueueTable)
-    .values({ titulo: titulo.trim(), scheduledAt: quando, caption: caption.trim(), imageUrls, postId: postId ? Number(postId) : null, capaFundo: typeof capaFundo === "string" ? capaFundo : null, dedupeKey })
+    .values({ titulo: titulo.trim(), scheduledAt: quando, caption: caption.trim(), imageUrls, postId: postId ? Number(postId) : null, capaFundo: typeof capaFundo === "string" ? capaFundo : null, pauta: typeof pauta === "string" ? pauta.trim() : null, partnerIds: Array.isArray(partnerIds) ? partnerIds : [], dedupeKey })
     .returning();
   res.status(201).json({ status: "queued", id: row.id, scheduledAt: row.scheduledAt, slides: imageUrls.length });
 });
@@ -100,7 +101,7 @@ cronRouter.get("/list", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
   const limite = Math.min(Number(req.query.limite) || 60, 200);
   const rows = await db.select().from(instagramQueueTable).orderBy(desc(instagramQueueTable.scheduledAt)).limit(limite);
-  res.json({ itens: rows.map((r) => ({ id: r.id, titulo: r.titulo, scheduledAt: r.scheduledAt, status: r.status, attempts: r.attempts, capaFundo: r.capaFundo, permalink: r.permalink, postId: r.postId, slides: r.imageUrls.length })) });
+  res.json({ itens: rows.map((r) => ({ id: r.id, titulo: r.titulo, scheduledAt: r.scheduledAt, status: r.status, attempts: r.attempts, capaFundo: r.capaFundo, permalink: r.permalink, postId: r.postId, pauta: r.pauta, partnerIds: r.partnerIds, blogPublicadoEm: r.blogPublicadoEm, slides: r.imageUrls.length })) });
 });
 
 // Acervo de imagens do blog no B2 (capa e fotos das matérias publicadas), para
@@ -138,7 +139,19 @@ cronRouter.get("/acervo", async (req, res): Promise<void> => {
 adminRouter.get("/instagram-queue", async (req, res): Promise<void> => {
   if (!admin(req, res)) return;
   const rows = await db.select().from(instagramQueueTable).orderBy(desc(instagramQueueTable.scheduledAt)).limit(100);
-  res.json(rows);
+  const ids = [...new Set(rows.flatMap((r) => r.partnerIds))];
+  const nomes = new Map<number, string>();
+  if (ids.length) {
+    const ps = await db.select({ id: instagramPartnersTable.id, nome: instagramPartnersTable.nomeEstabelecimento }).from(instagramPartnersTable).where(inArray(instagramPartnersTable.id, ids));
+    for (const p of ps) nomes.set(p.id, p.nome);
+  }
+  const postIds = [...new Set(rows.map((r) => r.postId).filter((x): x is number => !!x))];
+  const materias = new Map<number, { titulo: string; status: string; slug: string }>();
+  if (postIds.length) {
+    const ps = await db.select({ id: postsTable.id, titulo: postsTable.title, status: postsTable.status, slug: postsTable.slug }).from(postsTable).where(inArray(postsTable.id, postIds));
+    for (const p of ps) materias.set(p.id, { titulo: p.titulo, status: p.status, slug: p.slug });
+  }
+  res.json(rows.map((r) => ({ ...r, parceiros: r.partnerIds.map((i) => nomes.get(i) ?? `#${i}`), materia: r.postId ? materias.get(r.postId) ?? null : null })));
 });
 
 adminRouter.post("/instagram-queue/:id/cancelar", async (req, res): Promise<void> => {

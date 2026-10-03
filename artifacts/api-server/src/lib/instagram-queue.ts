@@ -52,6 +52,41 @@ async function acharPublicada(caption: string, desde: Date): Promise<{ id: strin
   }
 }
 
+const SITE = process.env.SITE_URL || "https://refugioferradura.com.br";
+
+// Etapa 1 e 2: libera a matéria do blog (rascunho -> publicada) e CONFIRMA que
+// a URL pública responde. Só depois o Instagram pode sair. Idempotente: se a
+// matéria já está publicada, apenas reconfirma. Lança erro se não confirmar.
+async function liberarMateria(item: InstagramQueueItem): Promise<void> {
+  if (!item.postId) return;
+  const [post] = await db.select().from(postsTable).where(eq(postsTable.id, item.postId));
+  if (!post) throw new Error("A matéria vinculada à fila não existe mais.");
+  if (post.status !== "published") {
+    const agora = new Date();
+    // Mesmo comportamento do painel ao ativar um rascunho (vai ao topo da lista),
+    // mais a data pública = agora (a data de criação seria a da produção).
+    await db
+      .update(postsTable)
+      .set({ status: "published", displayOrder: Math.floor(agora.getTime() / 1000), createdAt: agora, updatedAt: agora })
+      .where(eq(postsTable.id, post.id));
+    await db.update(instagramQueueTable).set({ blogPublicadoEm: agora, updatedAt: agora }).where(eq(instagramQueueTable.id, item.id));
+    logger.info({ id: item.id, postId: post.id, slug: post.slug }, "[fila-instagram] Matéria liberada");
+  }
+  let ultimo = "sem resposta";
+  for (let i = 0; i < 4; i++) {
+    try {
+      const r = await fetch(`${SITE}/api/posts/${encodeURIComponent(post.slug)}`, { signal: AbortSignal.timeout(15000) });
+      const d: any = r.ok ? await r.json().catch(() => null) : null;
+      if (r.ok && d?.slug === post.slug && d?.status === "published") return;
+      ultimo = `HTTP ${r.status}`;
+    } catch (e: any) {
+      ultimo = String(e?.message ?? e).slice(0, 80);
+    }
+    await new Promise((res) => setTimeout(res, 4000));
+  }
+  throw new Error(`Matéria liberada, mas a URL pública não confirmou (${ultimo}). O Instagram não foi publicado.`);
+}
+
 async function marcarPublicado(item: InstagramQueueItem, mediaId: string, permalink: string | null) {
   await db
     .update(instagramQueueTable)
@@ -135,6 +170,7 @@ export async function executarFila(): Promise<ResultadoFila> {
     }
 
     try {
+      await liberarMateria(item); // blog primeiro; se não confirmar, o Instagram não sai
       const r = await publishCarouselToInstagram(item.imageUrls, item.caption);
       await marcarPublicado(item, r.mediaId, r.permalink ?? null);
       logger.info({ id: item.id, mediaId: r.mediaId }, "[fila-instagram] Publicado");

@@ -14,6 +14,13 @@ export const instagramQueueTable = pgTable("instagram_queue", {
   // URLs do B2 já prontas (JPEG 4:5), na ordem dos slides. O slide 1 é a capa.
   imageUrls: text("image_urls").array().notNull().default(sql`'{}'::text[]`),
   postId: integer("post_id").references(() => postsTable.id, { onDelete: "set null" }),
+  // Pauta (ex.: "5 lugares para curtir o frio") e parceiros envolvidos: servem
+  // ao painel e ao histórico de rodízio.
+  pauta: text("pauta"),
+  partnerIds: integer("partner_ids").array().notNull().default(sql`'{}'::integer[]`),
+  // Quando a matéria do blog (rascunho) foi liberada pela nuvem. Se já está
+  // preenchido, uma nova tentativa não repete a liberação, só reconfirma.
+  blogPublicadoEm: timestamp("blog_publicado_em", { withTimezone: true }),
   // Foto usada como FUNDO da capa: serve para não repetir fundos próximos.
   capaFundo: text("capa_fundo"),
   // "aguardando" | "publicando" | "publicado" | "falhou" | "cancelado"

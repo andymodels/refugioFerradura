@@ -1294,7 +1294,9 @@ router.get("/publish-oldest-to-instagram", async (req, res): Promise<void> => {
       and(
         eq(postsTable.status, "published"),
         sql`${postsTable.instagramPostedAt} is null`,
-        sql`(${postsTable.coverImage} is not null or ${postsTable.mediaItems} is not null)`
+        sql`(${postsTable.coverImage} is not null or ${postsTable.mediaItems} is not null)`,
+        // Matéria controlada pela fila nova (instagram_queue) nunca é postada por este fluxo.
+        sql`not exists (select 1 from instagram_queue q where q.post_id = ${postsTable.id} and q.status <> 'cancelado')`
       )
     )
     .orderBy(desc(postsTable.createdAt))
