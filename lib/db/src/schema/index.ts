@@ -10,3 +10,4 @@ export * from "./story-schedule-settings";
 export * from "./radar-findings";
 export * from "./engine-runs";
 export * from "./partner-media";
+export * from "./instagram-queue";

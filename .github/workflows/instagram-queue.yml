@@ -1,0 +1,27 @@
+name: Publicar fila do Instagram (a cada 10 min)
+
+# A nuvem NÃO cria conteúdo: só publica o que o Claude Code (no Mac) já deixou
+# pronto na fila (tabela instagram_queue) quando chega o horário marcado.
+# Funciona com o Mac desligado. Se algum item esgotar as tentativas, a rota
+# responde 500, este workflow falha e o GitHub avisa por e-mail.
+# Ver rota /api/cron/instagram-queue/run.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: instagram-queue
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publicar o que já está na hora
+        run: |
+          curl --fail --show-error --silent \
+            --max-time 300 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/instagram-queue/run
