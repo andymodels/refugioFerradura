@@ -43,9 +43,9 @@ function html({ titulo, fundoUrl, selo, assinatura }) {
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:1080px;height:1350px;overflow:hidden;background:#0a1f17}
   .capa{position:relative;width:1080px;height:1350px;overflow:hidden;font-family:"Arial Black","Helvetica Neue",Impact,Arial,sans-serif}
-  .bg{position:absolute;inset:-60px;background:url("${fundoUrl}") center/cover no-repeat;filter:blur(2.5px) saturate(.95) brightness(.74);transform:scale(1.02)}
+  .bg{position:absolute;inset:-60px;background:url("${fundoUrl}") center/cover no-repeat;filter:blur(2.5px) saturate(.95) brightness(.86);transform:scale(1.02)}
   .ov{position:absolute;inset:0;background:
-      linear-gradient(180deg,rgba(6,26,18,.50) 0%,rgba(6,26,18,.34) 32%,rgba(6,26,18,.52) 70%,rgba(5,20,14,.80) 100%),
+      linear-gradient(180deg,rgba(6,26,18,.42) 0%,rgba(6,26,18,.26) 32%,rgba(6,26,18,.42) 70%,rgba(5,20,14,.74) 100%),
       radial-gradient(120% 80% at 50% 45%,rgba(10,50,34,.10),rgba(2,12,8,.30))}
   .selo{position:absolute;left:84px;top:96px;display:flex;align-items:center;gap:22px;color:#F6C77A;font-size:30px;letter-spacing:.2em}
   .selo i{display:block;width:84px;height:6px;background:#F6C77A;border-radius:3px}

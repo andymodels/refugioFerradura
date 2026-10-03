@@ -51,7 +51,7 @@ export async function atualizarCatalogo({ max = 36, lote = 12, log = console.log
   const acervo = await apiFila("/acervo");
   if (!acervo.itens) throw new Error(`acervo indisponível: ${acervo.http}`);
   const cat = lerCatalogo();
-  const novas = acervo.itens.filter((i) => !cat[i.url]).slice(0, max);
+  const novas = acervo.itens.filter((i) => !cat[i.url] && /\.(jpe?g|png|webp)$/i.test(i.url)).slice(0, max);
   log(`acervo: ${acervo.total} imagens | já catalogadas: ${Object.keys(cat).length} | a classificar agora: ${novas.length}`);
   for (let i = 0; i < novas.length; i += lote) {
     const parte = [];
@@ -79,11 +79,14 @@ export async function atualizarCatalogo({ max = 36, lote = 12, log = console.log
 
 // Escolhe um fundo que NÃO foi usado nas últimas publicações. `tema` é opcional
 // (ex.: "cachoeira"); sem correspondência, escolhe qualquer natureza liberada.
-export async function escolherFundoVariado({ tema = null } = {}) {
+export async function escolherFundoVariado({ tema = null, excluir = new Set() } = {}) {
   const cat = lerCatalogo();
   const fila = await apiFila(`/list?limite=${NAO_REPETIR_ULTIMAS}`);
   const usados = new Set((fila.itens || []).map((i) => i.capaFundo).filter(Boolean));
-  const livres = Object.entries(cat).filter(([url, v]) => v.serve && !usados.has(url));
+  // Fotos de /engine/ são derivadas dos slides de carrosséis já publicados: nunca viram fundo.
+  // Piscina, deck, estátua e pessoa não são "paisagem da Rota": ficam fora mesmo se o Claude liberou.
+  const NAO = /piscina|deck|est[aá]tua|mulher|homem|pessoa|crian[cç]a|pousada|chal[eé]/i;
+  const livres = Object.entries(cat).filter(([url, v]) => v.serve && !/\/engine\//.test(url) && !NAO.test(v.descricao || "") && !usados.has(url) && !excluir.has(url));
   if (!livres.length) throw new Error("nenhum fundo livre no catálogo (rode atualizarCatalogo ou amplie o acervo)");
   const comTema = tema ? livres.filter(([, v]) => (v.temas || []).includes(tema)) : [];
   const pool = comTema.length ? comTema : livres;
@@ -101,4 +104,33 @@ if (process.argv[1] && process.argv[1].endsWith("fundos.mjs")) {
   const cat = await atualizarCatalogo({ max });
   const v = Object.values(cat);
   console.log(`catálogo: ${v.length} | servem de fundo: ${v.filter((x) => x.serve).length}`);
+}
+
+// Conferência final, UMA imagem por vez (a classificação em lote já errou
+// descrições). Só aceita se for natureza/paisagem sem construção, piscina,
+// prato, pessoa, placa ou texto.
+async function conferirFundo(arquivo) {
+  const dir = path.dirname(arquivo), nome = path.basename(arquivo);
+  const prompt = `Abra a imagem ${nome} com a ferramenta Read. Ela será o FUNDO levemente desfocado de uma capa turística (Rota da Ferradura, Guarapari). Responda SOMENTE com JSON: {"serve":true|false,"descricao":"o que realmente aparece, até 12 palavras"}. serve=true só se for natureza ou paisagem (montanha, mata, rio, cachoeira, estrada rural, vista, vale) SEM construção em destaque, piscina, prato/comida, bebida, pessoa em destaque, placa ou texto.`;
+  const r = extrairJson(await rodarClaude(prompt, { cwd: dir, ferramentas: "Read", maxTurns: 4, timeoutMs: 120000 }));
+  return { serve: r.serve === true, descricao: String(r.descricao || "") };
+}
+
+// Escolhe (variado), baixa e CONFERE o fundo; tenta outro se a conferência reprovar.
+export async function escolherFundoVerificado({ tema = null, saida, tentativas = 6 } = {}) {
+  ensureDirs();
+  const cat = lerCatalogo();
+  const recusados = new Set();
+  for (let i = 0; i < tentativas; i++) {
+    const f = await escolherFundoVariado({ tema, excluir: recusados });
+    await baixarFundo(f.url, saida);
+    const mini = saida.replace(/\.jpg$/i, "-conf.jpg");
+    await exec("sips", ["-s", "format", "jpeg", "--resampleHeightWidthMax", "700", saida, "--out", mini]);
+    const c = await conferirFundo(mini);
+    if (c.serve) return { ...f, descricao: c.descricao };
+    recusados.add(f.url);
+    cat[f.url] = { ...(cat[f.url] || {}), serve: false, descricao: c.descricao, reprovadoNaConferencia: true };
+    gravarCatalogo(cat);
+  }
+  throw new Error("nenhum fundo passou na conferência");
 }
