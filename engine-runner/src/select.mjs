@@ -28,7 +28,10 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
     .filter((r) => r.score != null && r.score >= regras.scoreUtil)
     .map((r) => {
       const usadoRecente = r.lastUsedAt && agora - new Date(r.lastUsedAt).getTime() < DIAS_PENALIDADE * 86400000;
-      return { r, rank: r.score - (usadoRecente ? 3 : 0) };
+      // Posts mais novos primeiro: o Instagram oficial é a melhor fonte de atualização.
+      const idadeDias = r.takenAt ? (agora - new Date(r.takenAt).getTime()) / 86400000 : 999;
+      const bonusRecente = idadeDias <= 30 ? 1 : 0;
+      return { r, rank: r.score + bonusRecente - (usadoRecente ? 3 : 0) };
     })
     .sort((a, b) =>
       b.rank - a.rank ||

@@ -38,7 +38,9 @@ export function extrairJson(texto) {
 // Avaliação visual: o Claude olha cada imagem (ferramenta Read) e dá nota.
 // `itens` = [{ nomeArquivo (relativo a cwd), legenda }]
 export async function avaliarImagens(itens, { cwd, lugar, categoria, cenasNucleo }) {
-  const lista = itens.map((i, n) => `${n + 1}. ${i.nomeArquivo}${i.legenda ? ` (legenda do post: "${i.legenda.slice(0, 120).replace(/\n/g, " ")}")` : ""}`).join("\n");
+  const hoje = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const dataBr = (d) => (d ? new Date(d).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "data desconhecida");
+  const lista = itens.map((i, n) => `${n + 1}. ${i.nomeArquivo} (post de ${dataBr(i.data)}${i.legenda ? `; legenda do post: "${i.legenda.slice(0, 160).replace(/\n/g, " ")}"` : ""})`).join("\n");
   const prompt = `Você avalia fotos do Instagram oficial de "${lugar}" (categoria: ${categoria}; turismo rural, Rota da Ferradura, Guarapari) para ilustrar e VENDER esse lugar numa matéria de blog.
 Abra CADA imagem abaixo com a ferramenta Read e avalie. Imagens (arquivos na pasta atual):
 ${lista}
@@ -48,17 +50,23 @@ Seja EXIGENTE: uma nota alta significa que a foto realmente ajuda a explicar ou 
 cena (escolha UMA): prato, bebida, ambiente (interior ou exterior do estabelecimento com mesas, decoração, clima), fachada (frente/entrada), hospedagem (chalé, quarto, cama, acomodação), area_lazer (piscina, deque, playground, estrutura de lazer), paisagem (vista, natureza), ponto (o próprio atrativo: cachoeira, mirante, trilha), producao (produção, processo, plantação, animais), produto (produtos à venda), atividade (atividade em andamento), pessoas (retrato/close de pessoas), cartaz (arte/flyer/convite), detalhe (objeto ou decoração solta, sem mostrar o lugar), outro.
 Para esta categoria as cenas que realmente mostram o lugar são: ${cenasNucleo.join(", ")}.
 
-texto_sobreposto: true se há texto ou gráfico ADICIONADO digitalmente sobre a imagem (legenda de story, "Bom dia!!!", promoção, convite, nome do prato escrito, logotipo digital, selo). Letreiros e placas FÍSICOS que fazem parte da cena NÃO contam. Se texto_sobreposto = true, a nota é NO MÁXIMO 4.
+Hoje é ${hoje}. Os posts mais recentes valem mais, porque o Instagram oficial é a melhor fonte de atualização.
+
+TEXTO SOBRE A IMAGEM NÃO É PROBLEMA POR SI SÓ. Nesta região muitos parceiros escrevem sobre as próprias fotos e Reels. Se a imagem é boa e o texto é útil, atual e coerente, APROVE e dê nota normal: o texto pode servir de chamada, gancho editorial ou inspiração para a pauta.
+- texto_sobreposto: true se há texto ou gráfico adicionado digitalmente sobre a imagem (só informativo; letreiros e placas FÍSICOS da cena não contam).
+- chamada: se há texto sobreposto útil e atual, transcreva-o em até 20 palavras (senão "").
+- texto_problematico: true SOMENTE se o texto estiver poluído demais, for promoção vencida, preço antigo, evento já passado (compare a data do texto/legenda com hoje), informação desatualizada, a arte for visualmente muito ruim, ou não tiver relação com a pauta. Se texto_problematico = true, a nota é NO MÁXIMO 4. Nunca marque true só porque há texto.
+- Aparência de imagem "gerada por computador" ou de render NÃO é motivo para reprovar nem para baixar a nota; julgue qualidade, enquadramento e relevância.
 
 Outras regras de nota:
-- REJEITAR (nota até 3): cartaz/flyer/arte de promoção, print de tela, meme, imagem borrada, escura ou de baixa qualidade, foto de outro assunto.
+- REJEITAR (nota até 3): print de tela, meme, imagem borrada, escura ou de baixa qualidade, foto de outro assunto, e cartaz/flyer/arte de promoção só quando vencido, poluído, com preço antigo ou visualmente ruim (cartaz atual, bonito e útil pode ter nota normal).
 - Pessoas: NÃO penalize só por haver gente (ambiente com pessoas ao fundo, em mesas, passeando ou de costas é ótimo). Mas retrato, selfie ou close de cliente/funcionário em primeiro plano: cena "pessoas", nota NO MÁXIMO 5.
 - Objeto ou decoração solta que não mostra o lugar (cena "detalhe"): nota NO MÁXIMO 6.
 - Nota 8 a 10: foto nítida, bonita, sem texto, que mostra claramente o lugar (prato apetitoso, chalé ou quarto, fachada, vista do ponto, ambiente completo).
 - descricao: UMA frase curta e FACTUAL do que aparece (não invente nomes nem detalhes que não se veem).
 
 Responda SOMENTE com JSON, sem texto extra, um item por imagem na mesma ordem:
-[{"arquivo":"<nome>","nota":<0-10>,"cena":"<cena>","texto_sobreposto":true|false,"descricao":"<até 15 palavras>","motivo":"<até 12 palavras>"}]`;
+[{"arquivo":"<nome>","nota":<0-10>,"cena":"<cena>","texto_sobreposto":true|false,"texto_problematico":true|false,"chamada":"<texto útil ou vazio>","descricao":"<até 15 palavras>","motivo":"<até 12 palavras>"}]`;
   const texto = await rodarClaude(prompt, { cwd, ferramentas: "Read", maxTurns: itens.length + 4, timeoutMs: 480000 });
   const arr = extrairJson(texto);
   if (!Array.isArray(arr)) throw new Error("avaliação sem lista");

@@ -71,7 +71,7 @@ const descricaoDe = (r) => String(r.descricao ?? r.nota ?? "").split(" | ")[0] |
 
 // ─── Avaliação visual (todas as imagens, inclusive as antigas da matéria) ────
 // Cada item precisa de { file, width, height, legenda? }. Preenche score final
-// (nota visual com texto sobreposto limitado a 4 e desconto de resolução),
+// (nota visual, com teto 4 só para texto problemático, e desconto de resolução),
 // cena, descricao e `aprovada`. Imagem ilegível é descartada sozinha.
 async function avaliarEFiltrar(itens, dir, topic) {
   if (!itens.length) return itens;
@@ -89,15 +89,19 @@ async function avaliarEFiltrar(itens, dir, topic) {
     }
   }
   if (!lote.length) return itens;
-  const resp = await avaliarImagens(lote.map((l) => ({ nomeArquivo: l.nome, legenda: l.c.legenda })), {
+  const resp = await avaliarImagens(lote.map((l) => ({ nomeArquivo: l.nome, legenda: l.c.legenda, data: l.c.takenAt })), {
     cwd: vetDir, lugar: topic.fatos.nome, categoria: topic.categoria, cenasNucleo: regras.cenasNucleo,
   });
   lote.forEach((l, i) => {
     const r = resp.find((x) => x.arquivo === l.nome) || resp[i] || {};
     const c = l.c;
     let nota = Number.isFinite(r.nota) ? r.nota : 0;
+    // Texto sobre a imagem NÃO reprova por si só: só o texto problemático
+    // (poluído, promoção vencida, preço antigo, evento passado, arte ruim).
     c.textoSobreposto = r.texto_sobreposto === true;
-    if (c.textoSobreposto) nota = Math.min(nota, 4);
+    c.textoProblematico = r.texto_problematico === true;
+    c.chamada = typeof r.chamada === "string" ? r.chamada.trim() : "";
+    if (c.textoProblematico) nota = Math.min(nota, 4);
     const pen = penalidadeResolucao(c.width, c.height);
     c.score = Math.max(0, Math.round(nota - pen));
     c.cena = r.cena || "outro";
@@ -106,7 +110,7 @@ async function avaliarEFiltrar(itens, dir, topic) {
     c.penalidade = pen;
     c.notaVisual = Math.round(Number.isFinite(r.nota) ? r.nota : 0);
     c.aprovada = c.score >= regras.scoreUtil;
-    c.nota = `${c.descricao} | ${c.motivo}${c.textoSobreposto ? " | texto sobreposto" : ""}${pen ? ` | -${pen} resolução` : ""}`;
+    c.nota = `${c.descricao} | ${c.motivo}${c.textoProblematico ? " | texto problemático" : ""}${c.chamada ? ` | chamada: ${c.chamada}` : ""}${pen ? ` | -${pen} resolução` : ""}`;
   });
   return itens;
 }
@@ -168,7 +172,7 @@ async function prepararMidia(topic, dir) {
     for (const it of itens) {
       const r = it.row;
       r.score = it.score; r.cena = it.cena; r.nota = it.nota; r.descricao = it.descricao; r.file = it.file; r.width = it.width; r.height = it.height;
-      todas.push({ origem: "matéria/B2", url: r.url, score: it.score, cena: it.cena, descricao: it.descricao, motivo: it.motivo, texto: it.textoSobreposto, tamanho: `${it.width}x${it.height}`, penalidade: it.penalidade, file: it.file });
+      todas.push({ origem: "matéria/B2", url: r.url, score: it.score, cena: it.cena, descricao: it.descricao, motivo: it.motivo, texto: it.textoProblematico ? "problemático" : it.textoSobreposto ? "útil" : false, chamada: it.chamada, tamanho: `${it.width}x${it.height}`, penalidade: it.penalidade, file: it.file });
       if (!DRY && r.id) await api("/media/rate", { id: r.id, score: it.score, cena: it.cena, nota: it.nota, width: it.width, height: it.height });
     }
     resumo.avaliadasDaMateria = itens.length;
@@ -178,7 +182,7 @@ async function prepararMidia(topic, dir) {
   async function processarCandidatos(candidatos, origem) {
     await avaliarEFiltrar(candidatos, dir, topic);
     for (const c of candidatos) {
-      todas.push({ origem: c.source, sourceId: c.sourceId, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoSobreposto, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
+      todas.push({ origem: c.source, sourceId: c.sourceId, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoProblematico ? "problemático" : c.textoSobreposto ? "útil" : false, chamada: c.chamada, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
       if (!c.aprovada) continue;
       const g = await guardar(c, topic);
       const linha = {
