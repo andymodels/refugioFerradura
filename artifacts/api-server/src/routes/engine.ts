@@ -12,6 +12,7 @@ import { eq, and, or, inArray, sql, asc, desc } from "drizzle-orm";
 import { slugify, type MediaItem } from "../lib/article-generation";
 import { createDirectUpload } from "../lib/b2-storage";
 import { publishCarouselToInstagram } from "../lib/instagram";
+import { getInstagramToken } from "../lib/instagram-token";
 import { logger } from "../lib/logger";
 import {
   COOLDOWN_DIAS,
@@ -625,7 +626,7 @@ router.post("/publish", async (req, res): Promise<void> => {
 // conta com o token em uso. Não publica nada e nunca devolve o token.
 router.get("/instagram/status", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
-  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const { token, origem } = await getInstagramToken();
   const igId = process.env.INSTAGRAM_BUSINESS_ID;
   if (!token || !igId) {
     res.status(500).json({ ok: false, erro: "INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID ausentes no servidor." });
@@ -634,7 +635,7 @@ router.get("/instagram/status", async (req, res): Promise<void> => {
   try {
     const r = await fetch(`https://graph.instagram.com/v21.0/${igId}?fields=username,media_count&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(15000) });
     const d: any = await r.json();
-    res.json({ ok: r.ok && !!d?.username, username: d?.username ?? null, posts: d?.media_count ?? null, erro: d?.error?.message ?? null });
+    res.json({ ok: r.ok && !!d?.username, username: d?.username ?? null, posts: d?.media_count ?? null, origemDoToken: origem, erro: d?.error?.message ?? null });
   } catch (err: any) {
     res.status(502).json({ ok: false, erro: String(err?.message ?? err).slice(0, 200) });
   }

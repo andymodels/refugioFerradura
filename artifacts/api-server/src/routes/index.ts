@@ -8,6 +8,7 @@ import settingsRouter from "./settings";
 import fontesRouter from "./fontes";
 import cronRouter from "./cron";
 import engineRouter from "./engine";
+import instagramTokenRouter from "./instagram-token";
 import partnersRouter from "./partners";
 import instagramCardRouter from "./instagram-card";
 
@@ -23,6 +24,7 @@ router.use(fontesRouter);
 router.use(partnersRouter);
 router.use(instagramCardRouter);
 router.use("/cron/engine", engineRouter);
+router.use("/cron/instagram-token", instagramTokenRouter);
 router.use("/cron", cronRouter);
 
 router.use((_req, res) => {

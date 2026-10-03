@@ -4,6 +4,7 @@ import type { Post } from "@workspace/db";
 import { logger } from "./logger";
 import { extractInstagramHandle } from "./partner-extraction";
 import { makeInstagramSafeImage } from "./media-library";
+import { getInstagramToken } from "./instagram-token";
 
 const GRAPH_API_VERSION = "v21.0";
 
@@ -212,7 +213,7 @@ async function waitForContainerReady(containerId: string, accessToken: string, k
 // Publica no feed do Instagram oficial (@refugioferradura). Sempre disparado
 // manualmente pelo painel admin — nunca por cron/agendamento.
 export async function publishPostToInstagram(post: Post): Promise<InstagramPublishResult> {
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const accessToken = (await getInstagramToken()).token;
   const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
   if (!accessToken || !igUserId) {
     throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
@@ -281,7 +282,7 @@ export async function publishPostToInstagram(post: Post): Promise<InstagramPubli
 // Instagram recorta todas para a proporção da 1ª. Não altera o fluxo de
 // publicação de uma mídia só (publishPostToInstagram).
 export async function publishCarouselToInstagram(imageUrls: string[], caption: string): Promise<InstagramPublishResult> {
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const accessToken = (await getInstagramToken()).token;
   const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
   if (!accessToken || !igUserId) {
     throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
@@ -365,7 +366,7 @@ export async function publishPartnerContentToInstagram(
   item: PartnerContentToPublish,
   partner: PartnerForPublish,
 ): Promise<InstagramPublishResult> {
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const accessToken = (await getInstagramToken()).token;
   const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
   if (!accessToken || !igUserId) {
     throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
