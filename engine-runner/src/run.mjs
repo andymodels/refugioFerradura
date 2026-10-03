@@ -206,6 +206,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
 
   // ── Fonte 1: Instagram oficial (busca gradual 12 -> 20 -> 30 posts) ──
   if (handle) {
+    if (browser && !browser.isConnected()) browser = null; // Chrome caiu: reabre
     browser = browser || (await abrirNavegador());
     const perfil = await abrirPerfil(browser, handle);
     if (perfil.bloqueado) {
@@ -218,6 +219,8 @@ export async function prepararMidia(topic, dir, opts = {}) {
           if (e > 0 && sel.ok) break;
           const posts = await perfil.posts(IG_ESTAGIOS[e]);
           resumo.instagram.postsLidos = Math.max(resumo.instagram.postsLidos, posts.length);
+          // Data do post mais recente do PERFIL (independe de as fotos terem sido reavaliadas agora).
+          for (const p of posts) if (p.data && (!resumo.instagram.ultimoPost || new Date(p.data) > new Date(resumo.instagram.ultimoPost))) resumo.instagram.ultimoPost = new Date(p.data).toISOString();
           const novos = posts.filter((p) => !rejH[p.codigo] && ![...conhecidos].some((s) => s.startsWith(`${p.codigo}:`)));
           log("instagram_estagio", { handle, limite: IG_ESTAGIOS[e], posts: posts.length, novos: novos.length });
           const candidatos = [];

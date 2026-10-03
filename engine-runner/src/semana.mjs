@@ -53,6 +53,8 @@ const DIA_MS = 86400000;
 // ─── Calendário: um conteúdo por dia ────────────────────────────────────────
 const HORARIO = { 0: "11:00", 6: "11:00" }; // fim de semana de manhã; demais dias 19:00
 const horarioDe = (dow) => HORARIO[dow] || "19:00";
+// O horário final depende da pauta: almoço de manhã, café à tarde, hospedagem à noite.
+const HORA_PAUTA = { almoco: "10:00", cafe: "14:00", destaque: "12:00", natureza: "09:00", ficar: "19:00" };
 const dataBRT = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 const dowBRT = (d) => ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 })[new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(d)];
 
@@ -129,7 +131,8 @@ function fotosDoLugar(todas, regras) {
   }
   return out;
 }
-const temPresencaRecente = (todas) => todas.some((t) => t.takenAt && idadeDias(t.takenAt) <= 90);
+// Presença recente = post do perfil nos últimos 90 dias (data lida do perfil; as fotos já avaliadas antes não contam de novo).
+const temPresencaRecente = (midia) => (midia.resumo?.instagram?.ultimoPost && idadeDias(midia.resumo.instagram.ultimoPost) <= 90) || midia.todas.some((t) => t.takenAt && idadeDias(t.takenAt) <= 90);
 
 // ─── Legenda (Claude local escreve; o código valida) ───────────────────────
 const PROIBIDAS = /experi[eê]ncia inesquec[ií]vel|para[ií]so escondido|destino imperd[ií]vel|encanto em cada detalhe|criar mem[oó]rias|imperd[ií]vel|aconchegante|charmos[oa]/i;
@@ -197,7 +200,7 @@ Responda SOMENTE com JSON: {"corpo":"..."}`;
 async function escolherFundo({ tema, locais, usados, dir }) {
   // 1) acervo do blog/B2 (catálogo já classificado), conferido uma a uma
   const recusados = new Set();
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {
     let f;
     try { f = await escolherFundoVariado({ tema, excluir: recusados }); } catch { break; }
     const saida = path.join(dir, "fundo.jpg");
@@ -220,15 +223,19 @@ async function escolherFundo({ tema, locais, usados, dir }) {
 }
 
 // ─── Produção de um dia ────────────────────────────────────────────────────
-async function produzirDia(dia, ctx) {
-  const pautaId = escolherPauta(dia, ctx.fila, ctx.planejadas);
+async function produzirDia(dia, ctx, pautaForcada = null) {
+  const pautaId = pautaForcada || escolherPauta(dia, ctx.fila, ctx.planejadas);
   const P = PAUTAS[pautaId];
+  dia.quando = `${dia.data}T${HORA_PAUTA[pautaId] || horarioDe(dia.dow)}:00-03:00`;
   const dir = path.join(SAIDA, `${dia.data}-${pautaId}`);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   const rel = { dia: dia.data, quando: dia.quando, pauta: pautaId, lugares: [], descartados: [] };
-  console.log(`\n=== ${dia.data} (${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][dia.dow]}) ${horarioDe(dia.dow)}  pauta: ${pautaId}`);
+  console.log(`\n=== ${dia.data} (${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][dia.dow]}) ${HORA_PAUTA[pautaId] || horarioDe(dia.dow)}  pauta: ${pautaId}`);
 
+  // Fundo do acervo primeiro: se não houver, falha cedo (sem gastar a coleta de mídia).
+  const usadosFundo = new Set(ctx.fila.map((i) => i.capaFundo).filter(Boolean));
+  let fundo = await escolherFundo({ tema: P.tema || "paisagem", locais: [], usados: usadosFundo, dir });
   const recentes = new Set(ctx.fila.slice(0, 4).flatMap((i) => i.partnerIds || []));
   const ordenados = ordenar({ candidatos: ctx.candidatos, historico: ctx.historico, categorias: P.cats, recentes, bloqueados: ctx.usadosNaSemana, semMidia: ctx.semMidia });
   const escolhidos = [];
@@ -244,7 +251,7 @@ async function produzirDia(dia, ctx) {
       fs.mkdirSync(sub, { recursive: true });
       const midia = await run.prepararMidia(topic, sub, { carrossel: P.tipo !== "destaque" });
       locais.push(...midia.todas);
-      if (!temPresencaRecente(midia.todas)) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: "sem post oficial nos últimos 90 dias" }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
+      if (!temPresencaRecente(midia)) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: "sem post oficial nos últimos 90 dias" }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
       let fotos;
       if (P.tipo === "destaque") {
         if (!midia.ok) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: midia.motivo }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
@@ -279,8 +286,7 @@ async function produzirDia(dia, ctx) {
   }
 
   // Capa
-  const usadosFundo = new Set(ctx.fila.map((i) => i.capaFundo).filter(Boolean));
-  const fundo = await escolherFundo({ tema: P.tema || "paisagem", locais, usados: usadosFundo, dir });
+  if (!fundo) fundo = await escolherFundo({ tema: P.tema || "paisagem", locais, usados: usadosFundo, dir });
   if (!fundo) throw new Error("sem fundo de natureza livre e conferido (acervo esgotado)");
   const titulo = P.tipo === "destaque" ? `*${escolhidos[0].nome.toUpperCase()}* NA ROTA DA FERRADURA` : P.titulo(dia);
   const subtitulo = P.tipo === "destaque" ? (CATEGORIA_LABEL[escolhidos[0].categoria] ? `Destaque da Rota: ${CATEGORIA_LABEL[escolhidos[0].categoria]}` : null) : P.sub(escolhidos.length);
@@ -352,7 +358,14 @@ async function main() {
   const resumo = [];
   for (const dia of faltantes) {
     try {
-      const r = await produzirDia(dia, ctx);
+      // Se a pauta do dia não achar lugares viáveis, tenta outras antes de desistir do dia.
+      let r = null, ultimoErro = null;
+      const primeira = escolherPauta(dia, fila, ctx.planejadas);
+      const tentativas = [primeira, ...ORDEM_ALT.filter((p) => p !== primeira)].slice(0, 3);
+      for (const pid of tentativas) {
+        try { r = await produzirDia(dia, ctx, pid); break; } catch (e) { ultimoErro = e; console.log(`  pauta ${pid} não deu certo (${String(e.message).slice(0, 90)}); tentando outra`); }
+      }
+      if (!r) throw ultimoErro;
       ctx.planejadas.push(r.pauta);
       // o histórico passa a contar o que acabou de ser produzido (rodízio dentro da própria semana)
       fila.unshift({ status: "aguardando", scheduledAt: dia.quando, partnerIds: r.lugares.map((l) => l.id), pauta: `${r.pauta}:`, capaFundo: r.capa.fundo });
