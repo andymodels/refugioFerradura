@@ -1,27 +1,57 @@
-name: Publicar fila do Instagram (a cada 10 min)
+name: Publicar fila do Instagram (vigia contínuo)
 
 # A nuvem NÃO cria conteúdo: só publica o que o Claude Code (no Mac) já deixou
 # pronto na fila (tabela instagram_queue) quando chega o horário marcado.
-# Funciona com o Mac desligado. Se algum item esgotar as tentativas, a rota
-# responde 500, este workflow falha e o GitHub avisa por e-mail.
+# Funciona com o Mac desligado.
+#
+# Por que um vigia contínuo e não "a cada 10 min": o agendador do GitHub é
+# apenas uma tentativa e chegou a atrasar horas. Aqui um job confere a fila a
+# cada 60 segundos por ~5h40 e, ao terminar, dispara a si mesmo de novo. O
+# agendamento a cada 30 min fica só como reserva caso a corrente se quebre.
+# A concorrência garante um vigia por vez. Se algum item esgotar as tentativas,
+# a rota responde 500 e o job termina com erro (o GitHub avisa por e-mail).
 # Ver rota /api/cron/instagram-queue/run.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 concurrency:
   group: instagram-queue
   cancel-in-progress: false
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
-  run:
+  vigia:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 350
     steps:
-      - name: Publicar o que já está na hora
+      - name: Conferir a fila a cada 60 segundos
+        id: loop
         run: |
-          curl --fail --show-error --silent \
-            --max-time 300 -X POST \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://refugioferradura.com.br/api/cron/instagram-queue/run
+          fim=$(( $(date +%s) + 5*3600 + 40*60 ))
+          falhou=0
+          while [ "$(date +%s)" -lt "$fim" ]; do
+            code=$(curl --silent --max-time 300 -o resp.json -w "%{http_code}" -X POST \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              https://refugioferradura.com.br/api/cron/instagram-queue/run || echo 000)
+            if [ "$code" = "200" ]; then
+              if grep -q '"publicados":\[{\|"recuperados":\[{' resp.json; then echo "$(date -u +%H:%M:%S) publicou: $(cat resp.json)"; fi
+            else
+              echo "::error::fila respondeu $code: $(head -c 300 resp.json)"
+              [ "$code" = "500" ] && falhou=1
+            fi
+            sleep 60
+          done
+          echo "falhou=$falhou" >> "$GITHUB_OUTPUT"
+      - name: Reiniciar o vigia
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run instagram-queue.yml --repo "${{ github.repository }}" || true
+      - name: Avisar se algum item esgotou as tentativas
+        if: steps.loop.outputs.falhou == '1'
+        run: exit 1
