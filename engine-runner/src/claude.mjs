@@ -50,7 +50,7 @@ Seja EXIGENTE: uma nota alta significa que a foto realmente ajuda a explicar ou 
 cena (escolha UMA): prato, bebida, ambiente (interior ou exterior do estabelecimento com mesas, decoração, clima), fachada (frente/entrada), hospedagem (chalé, quarto, cama, acomodação), area_lazer (piscina, deque, playground, estrutura de lazer), paisagem (vista, natureza), ponto (o próprio atrativo: cachoeira, mirante, trilha), producao (produção, processo, plantação, animais), produto (produtos à venda), atividade (atividade em andamento), pessoas (retrato/close de pessoas), cartaz (arte/flyer/convite), detalhe (objeto ou decoração solta, sem mostrar o lugar), outro.
 Para esta categoria as cenas que realmente mostram o lugar são: ${cenasNucleo.join(", ")}.
 
-Hoje é ${hoje}. Os posts mais recentes valem mais, porque o Instagram oficial é a melhor fonte de atualização.
+Hoje é ${hoje}. Os posts mais recentes valem mais, porque o Instagram oficial é a melhor fonte de atualização: até 30 dias é prioridade forte; de 31 a 60 dias ainda pode ser atual, desde que não haja informação mais recente em conflito; acima de 60 dias serve só como apoio ou contexto, não como novidade atual. Não trate 30 dias como regra rígida.
 
 TEXTO SOBRE A IMAGEM NÃO É PROBLEMA POR SI SÓ. Nesta região muitos parceiros escrevem sobre as próprias fotos e Reels. Se a imagem é boa e o texto é útil, atual e coerente, APROVE e dê nota normal: o texto pode servir de chamada, gancho editorial ou inspiração para a pauta.
 - texto_sobreposto: true se há texto ou gráfico adicionado digitalmente sobre a imagem (só informativo; letreiros e placas FÍSICOS da cena não contam).
