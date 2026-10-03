@@ -117,10 +117,10 @@ async function conferirFundo(arquivo) {
 }
 
 // Escolhe (variado), baixa e CONFERE o fundo; tenta outro se a conferência reprovar.
-export async function escolherFundoVerificado({ tema = null, saida, tentativas = 6 } = {}) {
+export async function escolherFundoVerificado({ tema = null, saida, tentativas = 6, excluir = [] } = {}) {
   ensureDirs();
   const cat = lerCatalogo();
-  const recusados = new Set();
+  const recusados = new Set(excluir);
   for (let i = 0; i < tentativas; i++) {
     const f = await escolherFundoVariado({ tema, excluir: recusados });
     await baixarFundo(f.url, saida);

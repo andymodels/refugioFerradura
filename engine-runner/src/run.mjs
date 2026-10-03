@@ -263,6 +263,48 @@ async function prepararMidia(topic, dir) {
     }
   }
 
+  // ── Regra: a avaliação é por IMAGEM, nunca por parceiro ──
+  // Cartaz, arte promocional ou texto pesado reprovam SÓ aquela imagem. Antes de
+  // desistir do lugar, volta aos Reels já lidos do mesmo perfil e tira quadros
+  // novos (7s, 11s, 15s). Depois ainda vêm o acervo da matéria (B2) e o site.
+  if (!sel.ok && handle && browser) {
+    const reprovados = Object.entries(rejH).filter(([, v]) => v === "reprovada na avaliação visual").map(([c]) => c).slice(0, 10);
+    const candidatos = [];
+    for (const codigo of reprovados) {
+      if (rejH[`${codigo}:x`]) continue; // quadros extras deste Reel já foram tentados
+      rejH[`${codigo}:x`] = "quadros extras tentados";
+      try {
+        const permalink = `https://www.instagram.com/${handle}/reel/${codigo}/`;
+        const m = await midiaDoPost(permalink);
+        await pausa();
+        for (const it of (m?.itens || []).filter((i) => i.type === "video").slice(0, 2)) {
+          for (const [k, seg] of [["f3", 7], ["f4", 11], ["f5", 15]]) {
+            const file = path.join(dir, `${codigo}_x_${k}.jpg`);
+            try { if (!(await quadroDoVideo(it.url, seg, file))) continue; } catch { continue; }
+            candidatos.push({ file, sourceId: `${codigo}:${k}`, isReel: true, origemUrl: permalink, destinoUrl: permalink, takenAt: m.takenAt || null, legenda: m.legenda, source: "instagram_oficial", codigo });
+          }
+        }
+      } catch { /* este Reel não rende mais quadros: segue para o próximo */ }
+    }
+    const uteis = [];
+    for (const c of candidatos) {
+      try {
+        c.sha256 = sha256(fs.readFileSync(c.file));
+        if (hashesVistos.has(c.sha256)) continue;
+        hashesVistos.add(c.sha256);
+        Object.assign(c, await tamanho(c.file));
+        uteis.push(c);
+      } catch { /* imagem ilegível: só esta é ignorada */ }
+    }
+    salvarRejeitados(rejeitados);
+    log("instagram_quadros_extras", { handle, reels: reprovados.length, candidatos: uteis.length });
+    if (uteis.length) {
+      resumo.instagram.candidatos += uteis.length;
+      await processarCandidatos(uteis, "instagram");
+      sel = selecionar(atual(), regras);
+    }
+  }
+
   // ── Fonte 3: site oficial (só se ainda faltar) ──
   if (!sel.ok && topic.fontes.site) {
     try {

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
-import { db, instagramQueueTable, postsTable } from "@workspace/db";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { db, instagramQueueTable, postsTable, partnerMediaTable } from "@workspace/db";
+import { and, desc, eq, inArray, gte } from "drizzle-orm";
 import { executarFila } from "../lib/instagram-queue";
 import { isB2Url } from "../lib/engine";
 import { logger } from "../lib/logger";
@@ -120,6 +120,16 @@ cronRouter.get("/acervo", async (req, res): Promise<void> => {
     try {
       for (const m of JSON.parse(p.midia || "[]")) if (m?.kind === "foto") add(m.urlArquivo, p, "midia");
     } catch { /* mídia mal formada: ignora */ }
+  }
+  // Paisagens já avaliadas do acervo de mídia (fotos oficiais guardadas no B2).
+  const paisagens = await db
+    .select({ url: partnerMediaTable.urlArquivo, partnerId: partnerMediaTable.partnerId, cena: partnerMediaTable.cena })
+    .from(partnerMediaTable)
+    .where(and(inArray(partnerMediaTable.cena, ["paisagem", "ponto"]), gte(partnerMediaTable.score, 6)));
+  for (const m of paisagens) {
+    if (!isB2Url(m.url) || vistos.has(m.url)) continue;
+    vistos.add(m.url);
+    itens.push({ url: m.url, postId: 0, titulo: `acervo de mídia (lugar ${m.partnerId})`, slug: "", origem: "midia" });
   }
   res.json({ total: itens.length, itens });
 });
