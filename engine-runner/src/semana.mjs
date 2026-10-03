@@ -69,10 +69,10 @@ function proximosDias(n, agora = new Date()) {
 }
 
 // ─── Pautas ────────────────────────────────────────────────────────────────
-const QUANDO_TXT = { 0: "NESTE *DOMINGO*", 6: "NESTE *SÁBADO*", 5: "NESTA *SEXTA*" };
+// Títulos NEUTROS: nada de "neste domingo" etc. sem confirmar o funcionamento naquele dia nos perfis.
 const PAUTAS = {
   destaque: { tipo: "destaque", n: 1, cats: ["restaurante_cafe", "hospedagem", "atracao", "cervejaria", "producao_rural", "comercio_servico"] },
-  almoco: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: (d) => `ONDE ALMOÇAR ${QUANDO_TXT[d.dow] || "NA *ROTA*"}`, sub: (n) => `${n} casas da Rota da Ferradura`, tema: "mata" },
+  almoco: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: () => "ONDE *ALMOÇAR* NA ROTA DA FERRADURA", sub: (n) => `${n} casas para o almoço em Buenos Aires`, tema: "mata" },
   cafe: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: () => "UMA PAUSA PARA O *CAFÉ*", sub: (n) => `${n} paradas na Rota da Ferradura`, tema: "montanha" },
   ficar: { tipo: "lugares", n: 3, cats: ["hospedagem"], titulo: () => "ONDE *FICAR* NA ROTA DA FERRADURA", sub: (n) => `${n} hospedagens em Guarapari`, tema: "vista" },
   natureza: { tipo: "lugares", n: 3, cats: ["atracao", "producao_rural"], titulo: () => "NATUREZA E *PRODUÇÃO LOCAL*", sub: (n) => `${n} paradas na Rota da Ferradura`, tema: "cachoeira" },
@@ -155,7 +155,7 @@ async function escreverLegenda({ pauta, lugares, dia, dir }) {
   const fatos = lugares.map((l, i) => ({
     ordem: i + 1, nome: l.nome, handle: l.handle, categoria: CATEGORIA_LABEL[l.categoria] || l.categoria, regiao: l.regiao ?? null,
     contexto_antigo_so_para_localizacao_e_caracteristicas: l.descricaoCurta ?? l.resumo ?? null,
-    fotos: l.fotos.map((f) => ({ data: (f.takenAt || "").slice(0, 10) || null, idade_dias: idadeDias(f.takenAt), descricao: f.descricao, chamada_no_post: f.chamada || null, legenda_do_post: (f.legenda || "").slice(0, 280) })),
+    fotos: l.fotos.map((f) => ({ data: (f.takenAt || "").slice(0, 10) || null, idade_dias: idadeDias(f.takenAt) ?? "desconhecida", vale_como_atual: idadeDias(f.takenAt) !== null && idadeDias(f.takenAt) <= 60, descricao: f.descricao, chamada_no_post: f.chamada || null, legenda_do_post: (f.legenda || "").slice(0, 280) })),
   }));
   const fatosTexto = JSON.stringify(fatos);
   const varios = lugares.length > 1;
@@ -173,7 +173,11 @@ REGRAS (todas obrigatórias):
 - Marque cada lugar com @handle exatamente como no JSON.
 - Use SOMENTE o que está no JSON. O campo de contexto antigo vale só para localização e características estruturais; NUNCA como novidade atual.
 - Informação que muda com o tempo (cardápio, horário, dias de funcionamento, preço, evento, promoção, disponibilidade) só pode aparecer se constar numa foto/post de até 45 dias, e então diga que é o que o perfil mostra. Na dúvida, não cite.
+- Foto com "vale_como_atual": false (sem data ou com mais de 60 dias) NÃO sustenta nenhuma afirmação atual sobre o lugar: dela use apenas a categoria e a localização. Só descreva o que o perfil mostra quando a foto vale como atual.
 - Se uma foto tiver "chamada_no_post" útil e atual, pode aproveitá-la como gancho.
+- A abertura é direta e não atribui ações à Rota (nada de "a Rota separou..."): apresente os lugares e o tema.
+- Não afirme que abre em dia ou horário específico.
+- Escreva "em Buenos Aires" e "em Boa Esperança" (nunca "no/na" antes do bairro).
 - Português do Brasil simples, jornalístico e concreto. Sem clichês ("experiência inesquecível", "paraíso escondido", "destino imperdível", "encanto em cada detalhe", "perfeito para criar memórias"), sem adjetivos de apreciação, sem enchimento.
 - PROIBIDO travessão (— ou –). Não cite avaliações, notas, estrelas.
 - NUNCA descreva de forma improvisada elementos que podem ter nome próprio (pedras, morros, cachoeiras, mirantes). Se o JSON não traz o nome, não nomeie nem descreva.

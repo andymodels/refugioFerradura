@@ -114,8 +114,8 @@ function html({ titulo, subtitulo, fundoUrl, selo, assinatura, L, corte, zoom, j
   .desliza{position:absolute;bottom:96px;${ladoDesliza};display:${L.desliza ? "flex" : "none"};align-items:center;gap:18px;font-size:26px;letter-spacing:.18em;color:#F6C77A}
   .desliza u{display:block;width:0;height:0;border-top:16px solid transparent;border-bottom:16px solid transparent;border-left:26px solid #F6C77A}
   .barra{position:absolute;right:84px;top:240px;width:8px;height:780px;background:#F6C77A;border-radius:4px;display:${L.barra ? "block" : "none"}}
-  .lateral{position:absolute;left:22px;top:0;bottom:0;display:${L.lateral ? "flex" : "none"};align-items:center}
-  .lateral span{display:block;transform:rotate(-90deg);white-space:nowrap;color:#F6C77A;font-size:24px;letter-spacing:.35em}
+  .lateral{position:absolute;left:24px;top:0;bottom:0;display:${L.lateral ? "flex" : "none"};align-items:center}
+  .lateral span{display:block;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;color:#F6C77A;font-size:24px;letter-spacing:.35em}
   </style></head><body><div class="capa">
   <div class="bg"></div><div class="ov"></div><div class="barra"></div><div class="lateral"><span>ROTA DA FERRADURA · GUARAPARI</span></div>
   <div class="selo"><i></i>${esc(selo)}</div>
