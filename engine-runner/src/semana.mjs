@@ -38,7 +38,7 @@ const { log } = await import("./log.mjs");
 const run = await import("./run.mjs"); // reaproveita coleta de mídia e redação do destaque
 const { gerarCapa } = await import("./capa.mjs");
 const { escolherFundoVariado, baixarFundo, conferirFundo } = await import("./fundos.mjs");
-const { tamanho, versaoInstagram, enviarAoB2 } = await import("./media.mjs");
+const { tamanho, versaoInstagram, enviarAoB2, baixar } = await import("./media.mjs");
 const { rodarClaude, extrairJson } = await import("./claude.mjs");
 const { enfileirar, listarFila } = await import("./fila.mjs");
 const { montarHistorico, ordenar } = await import("./rodizio.mjs");
@@ -268,6 +268,16 @@ async function produzirDia(dia, ctx) {
   if (escolhidos.length < (P.tipo === "destaque" ? 1 : 2)) throw new Error(`poucos lugares viáveis (${escolhidos.length}); descartados: ${rel.descartados.map((d) => `${d.nome}: ${d.motivo}`).join(" | ").slice(0, 400)}`);
   rel.lugares = escolhidos.map((e) => ({ id: e.id, nome: e.nome, handle: e.handle, categoria: e.categoria, fotos: e.fotos.length }));
 
+  // Fotos que já estavam no B2 (acervo/matéria) não têm arquivo local: baixa para montar o slide.
+  let nDl = 0;
+  for (const e of escolhidos) for (const f of e.fotos) {
+    if (f.file && fs.existsSync(f.file)) continue;
+    const url = f.urlInstagram || f.url;
+    if (!url) throw new Error(`foto sem arquivo nem URL (${f.sourceId})`);
+    f.file = path.join(dir, `dl-${++nDl}.jpg`);
+    await baixar(url, f.file);
+  }
+
   // Capa
   const usadosFundo = new Set(ctx.fila.map((i) => i.capaFundo).filter(Boolean));
   const fundo = await escolherFundo({ tema: P.tema || "paisagem", locais, usados: usadosFundo, dir });
@@ -312,7 +322,7 @@ async function produzirDia(dia, ctx) {
     if (pub.status !== "draft") throw new Error(`matéria em rascunho não foi criada: ${pub.status || pub.http} ${(pub.erros || [pub.error]).join(" | ")}`);
     postId = pub.postId;
   }
-  const q = await enfileirar({ titulo: pautaTxt.titulo, quando: dia.quando, caption, imageUrls: urls, postId, capaFundo: fundo.origem, pauta: `${pautaId}: ${pautaTxt.titulo}`, partnerIds: escolhidos.map((e) => e.id) });
+  const q = await enfileirar({ titulo: pautaTxt.titulo, quando: dia.quando, caption, imageUrls: urls, postId, capaFundo: fundo.origem, pauta: P.tipo === "destaque" ? `${pautaId}: ${escolhidos[0].nome}` : `${pautaId}: ${pautaTxt.titulo}`, partnerIds: escolhidos.map((e) => e.id) });
   if (q.status !== "queued") throw new Error(`fila recusou: ${q.status || q.http} ${JSON.stringify(q.erros || q.erro || "")}`);
   rel.fila = { id: q.id, postId };
   fs.writeFileSync(path.join(dir, "plano.json"), JSON.stringify(rel, null, 1));
