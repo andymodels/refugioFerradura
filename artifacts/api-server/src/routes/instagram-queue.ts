@@ -108,7 +108,7 @@ cronRouter.get("/list", async (req, res): Promise<void> => {
 // o Mac escolher fundos de capa variados. Só lista; classificar é trabalho do Mac.
 cronRouter.get("/acervo", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
-  const posts = await db.select({ id: postsTable.id, titulo: postsTable.title, slug: postsTable.slug, capa: postsTable.coverImage, midia: postsTable.mediaItems }).from(postsTable).where(eq(postsTable.status, "published"));
+  const posts = await db.select({ id: postsTable.id, titulo: postsTable.title, slug: postsTable.slug, capa: postsTable.coverImage, midia: postsTable.mediaItems, conteudo: postsTable.content }).from(postsTable).where(eq(postsTable.status, "published"));
   const vistos = new Set<string>();
   const itens: { url: string; postId: number; titulo: string; slug: string; origem: "capa" | "midia" }[] = [];
   const add = (url: unknown, p: (typeof posts)[number], origem: "capa" | "midia") => {
@@ -119,8 +119,13 @@ cronRouter.get("/acervo", async (req, res): Promise<void> => {
   for (const p of posts) {
     add(p.capa, p, "capa");
     try {
-      for (const m of JSON.parse(p.midia || "[]")) if (m?.kind === "foto") add(m.urlArquivo, p, "midia");
+      for (const m of JSON.parse(p.midia || "[]")) {
+        if (m?.kind === "foto") add(m.urlArquivo, p, "midia");
+        else if (m?.poster) add(m.poster, p, "midia"); // quadro de abertura de vídeo
+      }
     } catch { /* mídia mal formada: ignora */ }
+    // Fotos que estão dentro do texto da matéria (a maior parte do acervo do blog).
+    for (const m of (p.conteudo || "").matchAll(/<img[^>]+src="([^"]+)"/g)) add(m[1], p, "midia");
   }
   // Paisagens já avaliadas do acervo de mídia (fotos oficiais guardadas no B2).
   const paisagens = await db

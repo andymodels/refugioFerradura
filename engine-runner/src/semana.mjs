@@ -83,7 +83,7 @@ const ORDEM_ALT = ["destaque", "almoco", "cafe", "natureza", "ficar"];
 
 function escolherPauta(dia, itensFila, jaPlanejadas) {
   if (FORCAR && PAUTAS[FORCAR]) return FORCAR;
-  const recentes = [...itensFila.filter((i) => i.pauta).slice(0, 2).map((i) => String(i.pauta).split(":")[0]), ...jaPlanejadas.slice(-1)];
+  const recentes = [...itensFila.filter((i) => i.pauta).slice(0, 2).map((i) => String(i.pauta).split(":")[0].toLowerCase()), ...jaPlanejadas.slice(-1)];
   let id = POR_DIA[dia.dow];
   for (let k = 0; recentes.includes(id) && k < ORDEM_ALT.length; k++) id = ORDEM_ALT[(ORDEM_ALT.indexOf(id) + 1) % ORDEM_ALT.length];
   return id;

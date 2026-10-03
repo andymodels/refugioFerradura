@@ -189,7 +189,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
   async function processarCandidatos(candidatos, origem) {
     await avaliarEFiltrar(candidatos, dir, topic);
     for (const c of candidatos) {
-      todas.push({ origem: c.source, sourceId: c.sourceId, takenAt: c.takenAt ?? null, origemUrl: c.origemUrl ?? null, legenda: (c.legenda || "").slice(0, 400), width: c.width, height: c.height, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoProblematico ? "problemático" : c.textoSobreposto ? "útil" : false, chamada: c.chamada, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
+      todas.push({ origem: c.source, sourceId: c.sourceId, takenAt: c.takenAt ? new Date(c.takenAt).toISOString() : null, origemUrl: c.origemUrl ?? null, legenda: (c.legenda || "").slice(0, 400), width: c.width, height: c.height, score: c.score, cena: c.cena, descricao: c.descricao, motivo: c.motivo, texto: c.textoProblematico ? "problemático" : c.textoSobreposto ? "útil" : false, chamada: c.chamada, tamanho: `${c.width}x${c.height}`, penalidade: c.penalidade, reel: c.isReel, file: c.file });
       if (!c.aprovada) continue;
       const g = await guardar(c, topic);
       const linha = {
