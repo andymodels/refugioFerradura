@@ -26,13 +26,14 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
   const semCapa = new Set(regras.cenasSemCapa);
   const uteis = pool
     .filter((r) => r.score != null && r.score >= regras.scoreUtil)
+    // cartaz/arte (horário, promoção, aviso) e texto problemático nunca entram; foto pequena também não
+    .filter((r) => r.cena !== "cartaz" && !/texto problemático/.test(String(r.nota || "")) && !(lado(r) && lado(r) < 800))
     .map((r) => {
       const usadoRecente = r.lastUsedAt && agora - new Date(r.lastUsedAt).getTime() < DIAS_PENALIDADE * 86400000;
-      // Idade do post (faixas, não regra rígida): até 30 dias = prioridade forte;
-      // 31 a 60 = ainda atual se não houver informação mais recente conflitante;
-      // acima de 60 = só apoio/contexto, sem bônus e nunca como "novidade atual".
+      // Idade do post: fotos ATUAIS do perfil oficial vêm primeiro (pedido do usuário, 2026-10-24).
+      // Até 30 dias = +2; 31 a 60 = +1; acima de 60 ou sem data = -1 (só apoio).
       const idadeDias = r.takenAt ? (agora - new Date(r.takenAt).getTime()) / 86400000 : 999;
-      const bonusRecente = idadeDias <= 30 ? 1 : idadeDias <= 60 ? 0.5 : 0;
+      const bonusRecente = idadeDias <= 30 ? 2 : idadeDias <= 60 ? 1 : -1;
       return { r, rank: r.score + bonusRecente - (usadoRecente ? 3 : 0) };
     })
     .sort((a, b) =>

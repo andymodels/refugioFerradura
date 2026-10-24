@@ -91,6 +91,7 @@ CAPA (já definida, não use em seção): [${capa.cena}] ${capa.descricao}
 Fotos para as seções:
 ${listaFotos}
 
+${topic.novidades?.length ? `O QUE O PERFIL OFICIAL MOSTROU NAS ÚLTIMAS SEMANAS (legendas dos posts, com data; use como contexto atual e fonte de fatos):\n${topic.novidades.map((n) => `- ${n.data}: ${n.texto}`).join("\n")}\n` : ""}${topic.anteriores?.length ? `MATÉRIAS JÁ PUBLICADAS NO BLOG SOBRE ESTE LUGAR (não repita):\n${topic.anteriores.map((a) => `- ${a.data}: "${a.titulo}". ${a.resumo}`).join("\n")}\nESTA matéria precisa de um ÂNGULO NOVO: outro foco principal, outros intertítulos, outro complemento no título (depois do nome) e frases diferentes. Se houver novidade recente do perfil, ela pode ser o fio da matéria.\n` : ""}
 REGRAS (todas obrigatórias):
 - O título COMEÇA com o nome exato "${f.nome}".
 - Português do Brasil natural e informativo. MELHOR CURTO E BOM do que encher espaço: escreva de ${minSec} a ${maxSec} seções, SÓ quando houver fatos reais para cada uma (se os fatos sustentam só ${minSec}, escreva ${minSec}). Total entre ${minPal} e ${maxPal} palavras. Cada seção tem um intertítulo curto e específico e um parágrafo.

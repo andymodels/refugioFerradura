@@ -5,7 +5,7 @@
 // Este comando olha os próximos N dias (padrão 7), vê quais ainda não têm item
 // na fila e produz SÓ os que faltam. Para cada dia faltante:
 //   pauta -> parceiros pelo rodízio -> fontes oficiais recentes (Instagram) ->
-//   mídia (avaliada por imagem) -> capa editorial -> (matéria em RASCUNHO se a
+//   mídia (avaliada por imagem) -> capa com a foto do lugar -> (matéria em RASCUNHO se a
 //   pauta é destaque) -> carrossel 4:5 no B2 -> legenda -> item na fila.
 // No fim, a semana está pronta; o Mac pode ser desligado. Este comando NUNCA
 // publica: a publicação é 100% da fila + GitHub.
@@ -13,7 +13,8 @@
 // Uso:
 //   node src/semana.mjs                      simulação (padrão): não grava nada no B2, banco nem fila
 //   node src/semana.mjs --real               produz de verdade (B2 + rascunho + fila)
-//   opções: --dias 7  --forcar-pauta almoco  --so-dia AAAA-MM-DD  --snapshot arquivo.json
+//   opções: --dias 7  --forcar-pauta almoco|blog  --so-dia AAAA-MM-DD  --snapshot arquivo.json
+//   Se nenhuma pauta der certo num dia, entra a reserva: carrossel de uma matéria já publicada no blog.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -34,10 +35,9 @@ const SNAPSHOT = val("--snapshot");
 const exec = promisify(execFile);
 const { CACHE_DIR, ensureDirs } = await import("./config.mjs");
 const { api, apiFila } = await import("./api.mjs");
-const { log } = await import("./log.mjs");
+const { log, notify } = await import("./log.mjs");
 const run = await import("./run.mjs"); // reaproveita coleta de mídia e redação do destaque
-const { gerarCapa } = await import("./capa.mjs");
-const { escolherFundoVariado, baixarFundo, conferirFundo } = await import("./fundos.mjs");
+const { gerarCapaV2 } = await import("./capa-v2.mjs");
 const { tamanho, versaoInstagram, enviarAoB2, baixar } = await import("./media.mjs");
 const { rodarClaude, extrairJson } = await import("./claude.mjs");
 const { enfileirar, listarFila } = await import("./fila.mjs");
@@ -73,26 +73,27 @@ function proximosDias(n, agora = new Date()) {
 // ─── Pautas ────────────────────────────────────────────────────────────────
 // Títulos NEUTROS: nada de "neste domingo" etc. sem confirmar o funcionamento naquele dia nos perfis.
 const PAUTAS = {
+// titulo: nome da pauta (legenda e fila). reserva: título da capa se a IA não entregar um válido.
   destaque: { tipo: "destaque", n: 1, cats: ["restaurante_cafe", "hospedagem", "atracao", "cervejaria", "producao_rural", "comercio_servico"] },
-  almoco: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: () => "ONDE *ALMOÇAR* NA ROTA DA FERRADURA", sub: (n) => `${n} casas para o almoço em Buenos Aires`, tema: "mata" },
-  cafe: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: () => "UMA PAUSA PARA O *CAFÉ*", sub: (n) => `${n} paradas na Rota da Ferradura`, tema: "montanha" },
-  ficar: { tipo: "lugares", n: 3, cats: ["hospedagem"], titulo: () => "ONDE *FICAR* NA ROTA DA FERRADURA", sub: (n) => `${n} hospedagens em Guarapari`, tema: "vista" },
-  natureza: { tipo: "lugares", n: 3, cats: ["atracao", "producao_rural"], titulo: () => "NATUREZA E *PRODUÇÃO LOCAL*", sub: (n) => `${n} paradas na Rota da Ferradura`, tema: "cachoeira" },
+  almoco: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: () => "Onde almoçar na Rota da Ferradura", rotulo: "ONDE ALMOÇAR", reserva: (n) => `${n} mesas para o *almoço*` },
+  cafe: { tipo: "lugares", n: 3, cats: ["restaurante_cafe"], titulo: () => "Uma pausa para o café", rotulo: "CAFÉ", reserva: () => "Uma pausa para o *café*" },
+  ficar: { tipo: "lugares", n: 3, cats: ["hospedagem"], titulo: () => "Onde ficar na Rota da Ferradura", rotulo: "ONDE FICAR", reserva: (n) => `${n} lugares para dormir no *verde*` },
+  natureza: { tipo: "lugares", n: 3, cats: ["atracao", "producao_rural"], titulo: () => "Natureza e produção local", rotulo: "NATUREZA E PRODUÇÃO LOCAL", reserva: () => "O que sai da *terra* por aqui" },
 };
 // Sequência por dia da semana (0=dom). Não repete a pauta do dia anterior nem das últimas da fila.
-const POR_DIA = { 1: "destaque", 2: "cafe", 3: "destaque", 4: "ficar", 5: "almoco", 6: "natureza", 0: "almoco" };
-const ORDEM_ALT = ["destaque", "almoco", "cafe", "natureza", "ficar"];
+// Desde 2026-10-24 todo dia é DESTAQUE de um parceiro só (pedido do usuário: nada de misturar parceiros).
+// As pautas de vários lugares ficam só para uso manual com --forcar-pauta.
+const POR_DIA = { 1: "destaque", 2: "destaque", 3: "destaque", 4: "destaque", 5: "destaque", 6: "destaque", 0: "destaque" };
 
-function escolherPauta(dia, itensFila, jaPlanejadas) {
+function escolherPauta(dia) {
   if (FORCAR && PAUTAS[FORCAR]) return FORCAR;
-  const recentes = [...itensFila.filter((i) => i.pauta).slice(0, 2).map((i) => String(i.pauta).split(":")[0].toLowerCase()), ...jaPlanejadas.slice(-1)];
-  let id = POR_DIA[dia.dow];
-  for (let k = 0; recentes.includes(id) && k < ORDEM_ALT.length; k++) id = ORDEM_ALT[(ORDEM_ALT.indexOf(id) + 1) % ORDEM_ALT.length];
-  return id;
+  return POR_DIA[dia.dow];
 }
 
 // ─── Utilidades ────────────────────────────────────────────────────────────
 const lerJson = (f, pad) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return pad; } };
+// takenAt pode vir como texto ISO ou como Date (fotos lidas agora do Instagram)
+const dataIso = (d) => { if (!d) return null; const t = new Date(d); return isNaN(t) ? null : t.toISOString().slice(0, 10); };
 const idadeDias = (iso) => (iso ? Math.round((Date.now() - new Date(iso).getTime()) / DIA_MS) : null);
 const CATEGORIA_LABEL = { restaurante_cafe: "restaurante ou café", hospedagem: "hospedagem", atracao: "atração", cervejaria: "cervejaria", producao_rural: "produção rural", comercio_servico: "comércio ou serviço" };
 
@@ -119,7 +120,7 @@ async function prepararSlide(arquivo) {
 function fotosDoLugar(todas, regras) {
   const nucleo = new Set(regras.cenasNucleo || []);
   const boas = todas
-    .filter((t) => t.file && fs.existsSync(t.file) && t.score >= SCORE_UTIL && t.texto !== "problemático")
+    .filter((t) => ((t.file && fs.existsSync(t.file)) || t.urlInstagram || t.url) && t.score >= SCORE_UTIL && t.texto !== "problemático" && !t.textoProblematico)
     .sort((a, b) => (nucleo.has(b.cena) - nucleo.has(a.cena)) || b.score - a.score || String(b.takenAt || "").localeCompare(String(a.takenAt || "")));
   const out = [];
   const posts = new Set();
@@ -158,7 +159,7 @@ async function escreverLegenda({ pauta, lugares, dia, dir }) {
   const fatos = lugares.map((l, i) => ({
     ordem: i + 1, nome: l.nome, handle: l.handle, categoria: CATEGORIA_LABEL[l.categoria] || l.categoria, regiao: l.regiao ?? null,
     contexto_antigo_so_para_localizacao_e_caracteristicas: l.descricaoCurta ?? l.resumo ?? null,
-    fotos: l.fotos.map((f) => ({ data: (f.takenAt || "").slice(0, 10) || null, idade_dias: idadeDias(f.takenAt) ?? "desconhecida", vale_como_atual: idadeDias(f.takenAt) !== null && idadeDias(f.takenAt) <= 60, descricao: f.descricao, chamada_no_post: f.chamada || null, legenda_do_post: (f.legenda || "").slice(0, 280) })),
+    fotos: l.fotos.map((f) => ({ data: dataIso(f.takenAt), idade_dias: idadeDias(f.takenAt) ?? "desconhecida", vale_como_atual: idadeDias(f.takenAt) !== null && idadeDias(f.takenAt) <= 60, descricao: f.descricao, chamada_no_post: f.chamada || null, legenda_do_post: (f.legenda || "").slice(0, 280) })),
   }));
   const fatosTexto = JSON.stringify(fatos);
   const varios = lugares.length > 1;
@@ -196,35 +197,165 @@ Responda SOMENTE com JSON: {"corpo":"..."}`;
   throw new Error(`legenda reprovada: ${erros.join(" | ")}`);
 }
 
-// ─── Fundo da capa: acervo do blog e paisagens oficiais do próprio dia ─────
-async function escolherFundo({ tema, locais, usados, dir }) {
-  // 1) acervo do blog/B2 (catálogo já classificado), conferido uma a uma
-  const recusados = new Set();
-  for (let i = 0; i < 8; i++) {
-    let f;
-    try { f = await escolherFundoVariado({ tema, excluir: recusados }); } catch { break; }
-    const saida = path.join(dir, "fundo.jpg");
-    await baixarFundo(f.url, saida);
-    const mini = path.join(dir, "fundo-mini.jpg");
-    await exec("sips", ["-s", "format", "jpeg", "--resampleHeightWidthMax", "700", saida, "--out", mini]);
-    const c = await conferirFundo(mini);
-    if (c.serve) return { arquivo: saida, origem: f.url, descricao: c.descricao };
-    recusados.add(f.url);
+// ─── Capa: foto do lugar, título com gancho, conferência visual ─────────────
+// Fotos candidatas à capa, da melhor para a pior: do primeiro lugar, nota alta, grande. Texto na foto
+// não elimina (a conferência visual julga se combina); só pesa um pouco quando há opção sem texto.
+function fotosParaCapa(escolhidos) {
+  const todas = escolhidos.flatMap((e, i) => e.fotos.map((f) => ({ f, i })));
+  const nota = ({ f, i }) => (f.texto || f.textoSobreposto ? 0 : 0.5) + (i === 0 ? 2 : 0) + (f.score ?? 0) / 10 + Math.min(f.width || 1080, f.height || 1080) / 5000;
+  return todas.sort((a, b) => nota(b) - nota(a)).map((x) => x.f);
+}
+
+// Título da capa: curto, concreto, com gancho; nunca "Rota da Ferradura" (o perfil já diz).
+function validarTitulo(t, fatosTexto) {
+  const erros = [];
+  const limpo = t.replace(/\*/g, "");
+  if (limpo.length < 12 || limpo.length > 46) erros.push("de 12 a 46 caracteres");
+  if (/rota da ferradura/i.test(limpo)) erros.push("não escreva 'Rota da Ferradura' (pode 'da Rota')");
+  if (/[—–]/.test(limpo)) erros.push("sem travessão");
+  if (PROIBIDAS.test(limpo)) erros.push("sem clichê nem adjetivo de apreciação");
+  if ((t.match(/\*/g) || []).length !== 2) erros.push("marque exatamente UMA palavra ou expressão curta entre *asteriscos*");
+  const nums = (limpo.match(/\d+/g) || []).filter((n) => !fatosTexto.includes(n) && !["2", "3"].includes(n));
+  if (nums.length) erros.push(`número que não está nos fatos: ${nums.join(", ")}`);
+  return erros;
+}
+async function escreverTituloCapa({ P, lugares, dir, capaDescricao = null }) {
+  const fatos = lugares.map((l) => ({ nome: l.nome, categoria: CATEGORIA_LABEL[l.categoria] || l.categoria, regiao: l.regiao ?? null, descricao: l.descricaoCurta ?? null, fotos: l.fotos.map((f) => f.descricao).filter(Boolean).slice(0, 4) }));
+  const fatosTexto = JSON.stringify(fatos);
+  let erros = null;
+  for (let t = 0; t < 2; t++) {
+    const prompt = `Escreva o TÍTULO da capa de um carrossel do Instagram do Refúgio da Ferradura (turismo rural em Guarapari, ES). ${lugares.length > 1 ? `O carrossel reúne ${lugares.length} lugares (pauta: ${P.titulo()}); os nomes aparecem numa lista abaixo do título, então NÃO repita nomes no título.` : "É sobre UM lugar; o nome dele aparece abaixo do título, então o título NÃO precisa ter o nome."}
+
+FATOS (JSON): ${fatosTexto}
+${capaDescricao ? `\nA FOTO DA CAPA mostra: ${capaDescricao}. O título fica em cima dessa foto, então precisa combinar com ela (não fale de algo que não aparece nela).\n` : ""}
+REGRAS: de 3 a 7 palavras, até 46 caracteres; concreto e com gancho, a partir do que as fotos e os fatos mostram (ex.: "Siriemas na beira da *piscina*", "Hidromassagem de frente para as *montanhas*", "Chope feito *ali mesmo*"); marque UMA palavra ou expressão curta entre *asteriscos* (vira destaque); nada que mude com o tempo (horário, preço, evento); sem "Rota da Ferradura" por extenso (o perfil já diz; "da Rota" pode); sem travessão; sem clichê ("imperdível", "aconchegante", "charmoso", "paraíso"); só maiúscula na primeira letra e em nomes próprios.
+${erros ? `SUA VERSÃO ANTERIOR FOI REJEITADA: ${erros.join("; ")}\n` : ""}Responda SOMENTE com JSON: {"titulo":"..."}`;
+    try {
+      const r = extrairJson(await rodarClaude(prompt, { cwd: dir, ferramentas: "", maxTurns: 3, timeoutMs: 150000 }));
+      const titulo = String(r.titulo || "").trim();
+      erros = validarTitulo(titulo, fatosTexto);
+      if (!erros.length) return titulo;
+      log("titulo_capa_rejeitado", { tentativa: t + 1, titulo, erros });
+    } catch (e) { log("titulo_capa_erro", { erro: String(e.message).slice(0, 160) }); break; }
   }
-  // 2) paisagens dos posts oficiais avaliados hoje (origem conhecida, nunca repetida)
-  const cand = locais.filter((t) => ["paisagem", "ponto"].includes(t.cena) && t.file && fs.existsSync(t.file) && t.texto !== "problemático" && !usados.has(t.origemUrl));
-  for (const t of cand.slice(0, 3)) {
-    const mini = path.join(dir, "fundo-mini.jpg");
-    await exec("sips", ["-s", "format", "jpeg", "--resampleHeightWidthMax", "700", t.file, "--out", mini]);
-    const c = await conferirFundo(mini);
-    if (c.serve) return { arquivo: t.file, origem: t.origemUrl, descricao: c.descricao };
+  return P.tipo === "destaque" ? "Destaque da *semana*" : P.reserva(lugares.length);
+}
+
+// A IA olha a capa pronta, como uma pessoa olharia. Se reprovar, refaz com outro modelo.
+async function conferirCapa(arquivo) {
+  const mini = arquivo.replace(/\.jpg$/i, "-conf.jpg");
+  await exec("sips", ["-s", "format", "jpeg", "--resampleHeightWidthMax", "900", arquivo, "--out", mini]);
+  const prompt = `Abra a imagem ${path.basename(mini)} com a ferramenta Read. É a capa de um carrossel do Instagram de turismo. Reprove SÓ se houver problema real: o título ou a lista da capa difícil de ler, embaçado, cortado ou saindo da imagem; título em cima do assunto principal da foto (rosto, prato, construção principal); foto sem sentido, distorcida ou de baixa qualidade.
+TEXTO QUE JÁ VEM ESCRITO NA FOTO (os perfis da região escrevem muito nas próprias fotos) NÃO é motivo de reprovação por si só: leia esse texto e aprove se ele combina com o assunto da capa e não atrapalha a leitura do título (ex.: "Cantinhos aconchegantes e instagramáveis!" numa capa de almoço combina). Reprove por ele só se for preço, promoção, data ou evento, telefone, nome de outro estabelecimento, algo que contradiz a capa, ou se ficar encavalado com o título.
+Responda SOMENTE com JSON: {"aprova":true|false,"motivo":"até 12 palavras"}`;
+  const r = extrairJson(await rodarClaude(prompt, { cwd: path.dirname(mini), ferramentas: "Read", maxTurns: 4, timeoutMs: 150000 }));
+  return { aprova: r.aprova === true, motivo: String(r.motivo || "") };
+}
+// Reprovou: tenta a próxima foto (o modelo é decidido de novo pela medição de contraste).
+async function montarCapa({ fotos, ...dados }) {
+  let ultima = null;
+  for (const f of fotos.slice(0, 4)) {
+    let capa;
+    try { capa = await gerarCapaV2({ ...dados, foto: f.file }); } catch (e) { log("capa_erro", { erro: String(e.message).slice(0, 160) }); continue; }
+    ultima = { ...capa, fotoUsada: f };
+    let c;
+    try { c = await conferirCapa(capa.saida); } catch (e) {
+      // o contraste já foi aprovado pela medição; sem a conferência visual, segue com a capa
+      log("capa_conferencia_indisponivel", { erro: String(e.message).slice(0, 160) });
+      return { ...ultima, conferencia: "indisponível (contraste aprovado)" };
+    }
+    if (c.aprova) return { ...ultima, conferencia: "aprovada" };
+    log("capa_reprovada", { modelo: capa.modelo, motivo: c.motivo });
   }
-  return null;
+  if (!ultima) throw new Error("nenhuma foto serviu para a capa");
+  // nenhuma passou na conferência visual: não arrisca publicar capa ruim
+  throw new Error(`capa reprovada na conferência visual em ${Math.min(fotos.length, 4)} foto(s)`);
+}
+
+// ─── Curadoria das fotos do destaque ───────────────────────────────────────
+// Fotos que vieram do acervo (B2) não têm arquivo local: baixa.
+async function garantirArquivos(fotos, dir) {
+  let n = 0;
+  for (const f of fotos) {
+    if (f.file && fs.existsSync(f.file)) continue;
+    const url = f.urlInstagram || f.url;
+    if (!url || url.startsWith("file://")) { f.file = null; continue; }
+    f.file = path.join(dir, `acv-${++n}.jpg`);
+    try { await baixar(url, f.file); } catch { f.file = null; }
+  }
+  return fotos.filter((f) => f.file);
+}
+
+// A IA olha cada slide JÁ CORTADO em 4:5, como vai aparecer no Instagram, com a data de hoje,
+// e tira o que não serve. Devolve as fotos aprovadas (mesma ordem), cada uma com .slide pronto.
+async function curarSlides(fotos, dir, dia) {
+  const com = fotos.filter((f) => f.file && fs.existsSync(f.file));
+  const pasta = path.join(dir, "curadoria");
+  fs.mkdirSync(pasta, { recursive: true });
+  const itens = [];
+  for (const f of com) {
+    try {
+      f.slide = await prepararSlide(f.file);
+      const nome = `s${itens.length + 1}.jpg`;
+      await exec("sips", ["-s", "format", "jpeg", "--resampleHeightWidthMax", "700", f.slide, "--out", path.join(pasta, nome)]);
+      itens.push({ f, nome });
+    } catch { /* foto ilegível: fica fora */ }
+  }
+  if (!itens.length) return [];
+  const prompt = `Abra com a ferramenta Read, uma por uma, as imagens ${itens.map((i) => i.nome).join(", ")}. São os slides de um carrossel do Instagram de turismo, JÁ CORTADOS no formato final. Hoje é ${dia.data}.
+Para cada slide decida se ele entra. REPROVE se:
+- a foto está desfocada, borrada, granulada, esticada ou com cara de print ampliado;
+- o corte ficou ruim: pessoa, prato, placa, logotipo ou texto cortado pela borda;
+- tem texto ou arte com data, dia da semana, horário, "hoje", preço, promoção, sorteio, aniversariante, evento ou aviso (pode estar vencido);
+- é cartaz, flyer, cardápio ou arte gráfica em vez de foto do lugar;
+- é quase igual a outro slide da lista (mantenha só o melhor dos parecidos).
+Texto escrito na foto que é só uma chamada atemporal e combina com o lugar ("Cantinhos aconchegantes") NÃO reprova.
+Responda SOMENTE com JSON: {"slides":[{"arquivo":"s1.jpg","entra":true|false,"motivo":"até 10 palavras"}]}`;
+  let resp;
+  try {
+    resp = extrairJson(await rodarClaude(prompt, { cwd: pasta, ferramentas: "Read", maxTurns: itens.length + 4, timeoutMs: 300000 }));
+  } catch (e) {
+    // sem a conferência não dá para garantir a qualidade: o lugar fica para outro dia
+    log("curadoria_indisponivel", { erro: String(e.message).slice(0, 160) });
+    return [];
+  }
+  const aprovadas = [];
+  for (const it of itens) {
+    const r = (resp.slides || []).find((s) => s.arquivo === it.nome);
+    if (r?.entra === true) aprovadas.push(it.f);
+    else log("slide_reprovado", { arquivo: it.nome, origem: it.f.origemUrl || it.f.url, motivo: r?.motivo || "sem resposta" });
+  }
+  console.log(`    curadoria: ${aprovadas.length} de ${itens.length} foto(s) aprovadas`);
+  return aprovadas;
+}
+
+// Matérias já publicadas sobre o lugar (para a nova trazer outro ângulo).
+async function materiasAnteriores(topic, ctx) {
+  if (!ctx.posts) {
+    try { const r = await fetch(`${SITE}/api/posts?limit=200`, { signal: AbortSignal.timeout(30000) }); ctx.posts = r.ok ? (await r.json()).posts || [] : []; } catch { ctx.posts = []; }
+  }
+  const nome = String(topic.fatos.nome || "").toLowerCase();
+  const handle = String(topic.fontes.instagram || "").toLowerCase();
+  return ctx.posts
+    .filter((p) => String(p.title || "").toLowerCase().includes(nome) || (handle && String(p.content || "").toLowerCase().includes(`instagram.com/${handle}/`)))
+    .slice(0, 5)
+    .map((p) => ({ data: String(p.createdAt).slice(0, 10), titulo: p.title, resumo: String(p.excerpt || p.subtitle || "").slice(0, 200) }));
+}
+
+// Legendas recentes (até 45 dias) do perfil oficial: contexto atual para a matéria.
+function novidadesDoPerfil(todas) {
+  const vistas = new Set();
+  return todas
+    .filter((t) => t.origem === "instagram_oficial" && t.legenda && t.takenAt && idadeDias(t.takenAt) <= 45)
+    .sort((a, b) => new Date(b.takenAt) - new Date(a.takenAt))
+    .filter((t) => { const k = t.legenda.slice(0, 80); if (vistas.has(k)) return false; vistas.add(k); return true; })
+    .slice(0, 6)
+    .map((t) => ({ data: dataIso(t.takenAt), texto: t.legenda.replace(/\s+/g, " ").slice(0, 300) }));
 }
 
 // ─── Produção de um dia ────────────────────────────────────────────────────
 async function produzirDia(dia, ctx, pautaForcada = null) {
-  const pautaId = pautaForcada || escolherPauta(dia, ctx.fila, ctx.planejadas);
+  const pautaId = pautaForcada || escolherPauta(dia);
   const P = PAUTAS[pautaId];
   dia.quando = `${dia.data}T${HORA_PAUTA[pautaId] || horarioDe(dia.dow)}:00-03:00`;
   const dir = path.join(SAIDA, `${dia.data}-${pautaId}`);
@@ -233,15 +364,12 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
   const rel = { dia: dia.data, quando: dia.quando, pauta: pautaId, lugares: [], descartados: [] };
   console.log(`\n=== ${dia.data} (${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][dia.dow]}) ${HORA_PAUTA[pautaId] || horarioDe(dia.dow)}  pauta: ${pautaId}`);
 
-  // Fundo do acervo primeiro: se não houver, falha cedo (sem gastar a coleta de mídia).
-  const usadosFundo = new Set(ctx.fila.map((i) => i.capaFundo).filter(Boolean));
-  let fundo = await escolherFundo({ tema: P.tema || "paisagem", locais: [], usados: usadosFundo, dir });
   const recentes = new Set(ctx.fila.slice(0, 4).flatMap((i) => i.partnerIds || []));
   const ordenados = ordenar({ candidatos: ctx.candidatos, historico: ctx.historico, categorias: P.cats, recentes, bloqueados: ctx.usadosNaSemana, semMidia: ctx.semMidia });
   const escolhidos = [];
   let locais = [];
   let artigo = null;
-  for (const c of ordenados.slice(0, P.n * 4)) {
+  for (const c of ordenados.slice(0, P.tipo === "destaque" ? 10 : P.n * 4)) {
     if (escolhidos.length >= P.n) break;
     console.log(`  - tentando ${c.nome} (id ${c.id})`);
     try {
@@ -255,17 +383,27 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
       let fotos;
       if (P.tipo === "destaque") {
         if (!midia.ok) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: midia.motivo }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
-        const red = await run.redigir(topic, midia.selecionadas, sub);
+        // Curadoria final: cada foto vira slide 4:5 e a IA olha o slide PRONTO (corte, foco, texto cortado,
+        // cartaz vencido, repetida). A matéria do blog e o carrossel usam só as aprovadas.
+        const candidatas = midia.selecionadas.map((s) => { const t = midia.todas.find((x) => x.sourceId === s.sourceId) || {}; return { ...t, ...s, file: s.file || t.file }; });
+        await garantirArquivos(candidatas, sub);
+        const aprovadas = await curarSlides(candidatas, sub, dia);
+        if (aprovadas.length < 3) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `curadoria: só ${aprovadas.length} foto(s) boa(s)` }); continue; }
+        topic.anteriores = await materiasAnteriores(topic, ctx);
+        topic.novidades = novidadesDoPerfil(midia.todas);
+        const red = await run.redigir(topic, aprovadas, sub);
         if (!red.ok) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: red.motivo }); continue; }
-        artigo = { ...red.artigo, selecionadas: midia.selecionadas, topic };
-        fotos = midia.selecionadas.slice(0, 5).map((s) => ({ ...(midia.todas.find((t) => t.sourceId === s.sourceId) || {}), ...s, file: s.file || midia.todas.find((t) => t.sourceId === s.sourceId)?.file }));
+        artigo = { ...red.artigo, selecionadas: aprovadas, topic };
+        fotos = aprovadas;
       } else {
-        fotos = fotosDoLugar(midia.todas, topic.regras);
+        // as do acervo do site (B2) não entram em "todas" quando não são reavaliadas: somar as selecionadas
+        const doAcervo = (midia.selecionadas || []).filter((s) => !midia.todas.some((t) => t.sourceId && t.sourceId === s.sourceId));
+        fotos = fotosDoLugar([...midia.todas, ...doAcervo], topic.regras);
         if (!fotos.length) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: "nenhuma foto útil depois de esgotar as fontes" }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
       }
       escolhidos.push({ id: c.id, nome: topic.fatos.nome, handle: topic.fontes.instagram, categoria: c.categoria, regiao: topic.fatos.regiao, descricaoCurta: topic.fatos.descricaoCurta, fotos });
       ctx.usadosNaSemana.add(c.id);
-      console.log(`    ok: ${fotos.length} foto(s), ${fotos.map((f) => `${f.cena}/${f.score}/${(f.takenAt || "").slice(0, 10)}`).join(" ")}`);
+      console.log(`    ok: ${fotos.length} foto(s), ${fotos.map((f) => `${f.cena}/${f.score}/${dataIso(f.takenAt) || "sem data"}`).join(" ")}`);
     } catch (e) {
       rel.descartados.push({ id: c.id, nome: c.nome, motivo: `erro: ${String(e.message).slice(0, 120)}` });
       console.log(`    erro: ${String(e.message).slice(0, 100)}`);
@@ -285,32 +423,33 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
     await baixar(url, f.file);
   }
 
-  // Capa
-  if (!fundo) fundo = await escolherFundo({ tema: P.tema || "paisagem", locais, usados: usadosFundo, dir });
-  if (!fundo) throw new Error("sem fundo de natureza livre e conferido (acervo esgotado)");
-  const titulo = P.tipo === "destaque" ? `*${escolhidos[0].nome.toUpperCase()}* NA ROTA DA FERRADURA` : P.titulo(dia);
-  const subtitulo = P.tipo === "destaque" ? (CATEGORIA_LABEL[escolhidos[0].categoria] ? `Destaque da Rota: ${CATEGORIA_LABEL[escolhidos[0].categoria]}` : null) : P.sub(escolhidos.length);
-  const capa = await gerarCapa({ titulo, subtitulo, fundo: fundo.arquivo, saida: path.join(dir, "capa.jpg") });
-  rel.capa = { layout: capa.layout, fundo: fundo.origem, fundoDescricao: fundo.descricao, titulo, subtitulo };
+  // Capa: a foto do próprio lugar; modelo escolhido pela foto e conferido (contraste + olhar da IA)
+  const lista = P.tipo === "destaque" ? null : escolhidos.map((e) => e.nome);
+  const rotulo = P.tipo === "destaque" ? [CATEGORIA_LABEL[escolhidos[0].categoria], escolhidos[0].regiao].filter(Boolean).join(" · ").toUpperCase() : P.rotulo;
+  const candidatasCapa = fotosParaCapa(escolhidos);
+  const titulo = await escreverTituloCapa({ P, lugares: escolhidos, dir, capaDescricao: candidatasCapa[0]?.descricao || null });
+  const capa = await montarCapa({ fotos: candidatasCapa, titulo, nome: escolhidos[0].nome, rotulo, lista, saida: path.join(dir, "capa.jpg") });
+  const fotoCapa = capa.fotoUsada;
+  rel.capa = { modelo: capa.modelo, foto: fotoCapa.origemUrl || fotoCapa.url || fotoCapa.sourceId, titulo, contraste: capa.contraste, conferencia: capa.conferencia };
 
   // Legenda
-  const pautaTxt = { titulo: P.tipo === "destaque" ? `Destaque: ${escolhidos[0].nome}` : titulo.replace(/\*/g, "") };
+  const pautaTxt = { titulo: P.tipo === "destaque" ? `Destaque: ${escolhidos[0].nome}` : P.titulo() };
   const corpo = await escreverLegenda({ pauta: pautaTxt, lugares: escolhidos, dia, dir });
   const fechamento = P.tipo === "destaque" ? "Horário e cardápio mudam: confirme direto com o perfil antes de ir.\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio." : "Cardápio e horário mudam, então confirme direto com cada casa antes de ir.\n\nVeja tudo sobre a Rota da Ferradura no site Guia Refúgio Ferradura. Link na bio.";
   const caption = `${corpo}\n\n${fechamento}\n\n${HASHTAGS}`;
   fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
 
-  // Slides (capa + fotos na ordem dos lugares)
-  const arquivos = [path.join(dir, "capa.jpg"), ...escolhidos.flatMap((e) => e.fotos.map((f) => f.file))];
-  const prontos = [];
-  for (const a of arquivos) prontos.push(a.endsWith("capa.jpg") ? a : await prepararSlide(a));
+  // Slides (capa + fotos na ordem dos lugares). A foto usada na capa não se repete logo em seguida.
+  const restantes = escolhidos.flatMap((e) => e.fotos).filter((f) => f.file !== fotoCapa.file);
+  const prontos = [path.join(dir, "capa.jpg")];
+  for (const f of restantes) prontos.push(f.slide || (await prepararSlide(f.file)));
   prontos.forEach((a, i) => fs.copyFileSync(a, path.join(dir, `slide-${i + 1}.jpg`)));
   rel.slides = prontos.length;
   rel.caption = caption;
 
   if (!REAL) {
     fs.writeFileSync(path.join(dir, "plano.json"), JSON.stringify(rel, null, 1));
-    console.log(`  simulação ok: ${prontos.length} slides, capa ${capa.layout}, pasta ${dir}`);
+    console.log(`  simulação ok: ${prontos.length} slides, capa ${capa.modelo} (${capa.conferencia}), título "${titulo}", pasta ${dir}`);
     return rel;
   }
 
@@ -328,12 +467,100 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
     if (pub.status !== "draft") throw new Error(`matéria em rascunho não foi criada: ${pub.status || pub.http} ${(pub.erros || [pub.error]).join(" | ")}`);
     postId = pub.postId;
   }
-  const q = await enfileirar({ titulo: pautaTxt.titulo, quando: dia.quando, caption, imageUrls: urls, postId, capaFundo: fundo.origem, pauta: P.tipo === "destaque" ? `${pautaId}: ${escolhidos[0].nome}` : `${pautaId}: ${pautaTxt.titulo}`, partnerIds: escolhidos.map((e) => e.id) });
+  const q = await enfileirar({ titulo: pautaTxt.titulo, quando: dia.quando, caption, imageUrls: urls, postId, capaFundo: rel.capa.foto, pauta: P.tipo === "destaque" ? `${pautaId}: ${escolhidos[0].nome}` : `${pautaId}: ${pautaTxt.titulo}`, partnerIds: escolhidos.map((e) => e.id) });
   if (q.status !== "queued") throw new Error(`fila recusou: ${q.status || q.http} ${JSON.stringify(q.erros || q.erro || "")}`);
   rel.fila = { id: q.id, postId };
   fs.writeFileSync(path.join(dir, "plano.json"), JSON.stringify(rel, null, 1));
   console.log(`  NA FILA: item ${q.id}${postId ? `, matéria em rascunho ${postId}` : ""}`);
   return rel;
+}
+
+// ─── Reserva: carrossel a partir de uma matéria já publicada no blog ────────
+// Garante que nenhum dia fique vazio quando nenhuma pauta acha lugares viáveis.
+// Prefere matéria que nunca foi ao Instagram e que não está na fila; a IA confere se é atemporal.
+const SITE = "https://refugioferradura.com.br";
+const semTags = (h) => String(h || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+async function produzirDoBlog(dia, ctx) {
+  const dir = path.join(SAIDA, `${dia.data}-blog`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  dia.quando = `${dia.data}T${horarioDe(dia.dow)}:00-03:00`;
+  console.log(`\n=== ${dia.data} RESERVA: matéria do blog`);
+  const r = await fetch(`${SITE}/api/posts?limit=200`, { signal: AbortSignal.timeout(30000) });
+  if (!r.ok) throw new Error(`lista de matérias indisponível (HTTP ${r.status})`);
+  const usados = new Set([...ctx.fila.map((i) => i.postId), ...ctx.blogUsados].filter(Boolean));
+  const posts = ((await r.json()).posts || [])
+    .filter((p) => p.status === "published" && !usados.has(p.id))
+    .map((p) => ({ ...p, imgs: [...new Set([p.coverImage, ...[...String(p.content || "").matchAll(/<img[^>]+src="([^"]+)"/g)].map((m) => m[1])].filter((u) => u && /^https:\/\/media\.refugioferradura\.com\.br\//.test(u)))] }))
+    .filter((p) => p.imgs.length >= 3)
+    .sort((a, b) => (!!a.instagramPostedAt - !!b.instagramPostedAt) || String(a.instagramPostedAt || a.createdAt).localeCompare(String(b.instagramPostedAt || b.createdAt)));
+  for (const post of posts.slice(0, 6)) {
+    ctx.blogUsados.add(post.id);
+    const handles = [...new Set([...String(post.content || "").matchAll(/instagram\.com\/([A-Za-z0-9._]+)\//g)].map((m) => m[1]).filter((h) => !["p", "reel", "reels", "stories", "explore"].includes(h)))].slice(0, 3);
+    const texto = semTags(post.content).slice(0, 2500);
+    // legenda + conferência de atualidade numa chamada só
+    let corpo = null, erros = null;
+    for (let t = 0; t < 2 && !corpo; t++) {
+      const prompt = `Você é o editor do Instagram do Refúgio da Ferradura (Guarapari, ES). Vamos repostar no Instagram uma matéria JÁ PUBLICADA no blog.
+MATÉRIA: título "${post.title}". Publicada em ${String(post.createdAt).slice(0, 10)}. Hoje é ${dia.data}.
+TEXTO: ${texto}
+PERFIS A MARCAR: ${handles.length ? handles.map((h) => "@" + h).join(" ") : "(nenhum)"}
+
+1) Diga se a matéria ainda serve hoje: "serve": false se for sobre evento, data, promoção, notícia passada ou algo que perdeu a validade.
+2) Se servir, escreva o CORPO da legenda: 2 a 4 frases corridas, concretas, só com o que está no texto; marque cada perfil listado com o @ exatamente como acima; não afirme horário, preço nem dia de funcionamento; sem travessão; sem clichê ("imperdível", "aconchegante", "charmoso", "experiência inesquecível"); não escreva a frase final nem hashtags.
+${erros ? `SUA VERSÃO ANTERIOR FOI REJEITADA: ${erros.join("; ")}\n` : ""}Responda SOMENTE com JSON: {"serve":true|false,"motivo":"até 10 palavras","corpo":"..."}`;
+      let res;
+      try { res = extrairJson(await rodarClaude(prompt, { cwd: dir, ferramentas: "", maxTurns: 3, timeoutMs: 200000 })); } catch (e) { log("blog_reserva_erro", { postId: post.id, erro: String(e.message).slice(0, 120) }); break; }
+      if (res.serve !== true) { log("blog_reserva_descartada", { postId: post.id, motivo: res.motivo }); break; }
+      const c = String(res.corpo || "").trim();
+      erros = [];
+      if (/[—–]/.test(c)) erros.push("não use travessão");
+      if (PROIBIDAS.test(c)) erros.push("há clichê ou adjetivo de apreciação");
+      for (const h of handles) if (!c.toLowerCase().includes(`@${h.toLowerCase()}`)) erros.push(`falta marcar @${h}`);
+      if (c.length < 40 || c.length > 1200) erros.push("tamanho fora de 40 a 1200 caracteres");
+      if (!erros.length) corpo = c;
+    }
+    if (!corpo) continue;
+
+    // fotos da matéria (já estão no nosso B2)
+    const fotos = [];
+    for (const [i, u] of post.imgs.slice(0, 6).entries()) {
+      const f = path.join(dir, `m-${i + 1}.jpg`);
+      try { await baixar(u, f); fotos.push({ file: f, url: u }); } catch { /* segue com as outras */ }
+    }
+    const boas = await curarSlides(fotos, dir, dia);
+    if (boas.length < 3) continue;
+    fotos.splice(0, fotos.length, ...boas);
+    const lugar = [{ nome: post.title, categoria: null, regiao: null, descricaoCurta: post.excerpt || post.subtitle || null, fotos: [] }];
+    const titulo = await escreverTituloCapa({ P: { tipo: "destaque", titulo: () => post.title }, lugares: lugar, dir });
+    let capa;
+    try { capa = await montarCapa({ fotos, titulo, nome: post.subtitle || post.title, rotulo: "DO BLOG", lista: null, saida: path.join(dir, "capa.jpg") }); } catch (e) { log("blog_reserva_capa", { postId: post.id, erro: String(e.message).slice(0, 120) }); continue; }
+    const caption = `${corpo}\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio.\n\n${HASHTAGS}`;
+    fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
+    const prontos = [path.join(dir, "capa.jpg")];
+    for (const f of fotos.filter((f) => f !== capa.fotoUsada).slice(0, 5)) prontos.push(f.slide || (await prepararSlide(f.file)));
+    prontos.forEach((a, i) => fs.copyFileSync(a, path.join(dir, `slide-${i + 1}.jpg`)));
+    const rel = { dia: dia.data, quando: dia.quando, pauta: "blog", postId: post.id, materia: post.title, lugares: [], capa: { modelo: capa.modelo, foto: capa.fotoUsada.url, titulo, conferencia: capa.conferencia }, slides: prontos.length, caption };
+    if (!REAL) {
+      fs.writeFileSync(path.join(dir, "plano.json"), JSON.stringify(rel, null, 1));
+      console.log(`  simulação ok (reserva do blog): "${post.title}", ${prontos.length} slides, capa ${capa.modelo}, título "${titulo}"`);
+      return rel;
+    }
+    const parceiro = Number((post.imgs[0].match(/\/engine\/(\d+)\//) || [])[1]) || null;
+    if (!parceiro) { log("blog_reserva_sem_parceiro", { postId: post.id }); continue; }
+    const urls = [];
+    for (let i = 0; i < prontos.length; i++) {
+      const up = await enviarAoB2(api, { partnerId: parceiro, source: i === 0 ? "capa_editorial" : "instagram_oficial", sourceId: i === 0 ? `capa-${dia.data}-blog-${post.id}` : `${dia.data}-blog-${post.id}-s${i}`, arquivo: prontos[i], role: "ig" });
+      urls.push(up.url);
+    }
+    const q = await enfileirar({ titulo: `Do blog: ${post.title}`, quando: dia.quando, caption, imageUrls: urls, postId: post.id, capaFundo: rel.capa.foto, pauta: `blog: ${post.title}`, partnerIds: [parceiro] });
+    if (q.status !== "queued") { log("blog_reserva_fila_recusou", { postId: post.id, status: q.status || q.http }); continue; }
+    rel.fila = { id: q.id, postId: post.id };
+    fs.writeFileSync(path.join(dir, "plano.json"), JSON.stringify(rel, null, 1));
+    console.log(`  NA FILA (reserva do blog): item ${q.id}, matéria ${post.id}`);
+    return rel;
+  }
+  throw new Error("reserva do blog: nenhuma matéria publicada serviu");
 }
 
 // ─── Principal ────────────────────────────────────────────────────────────
@@ -354,21 +581,25 @@ async function main() {
   const candidatos = await carregarCandidatos();
   // Publicações anteriores à fila (feitas à mão) que também contam para o rodízio.
   const extra = lerJson(path.join(CACHE_DIR, "historico-manual.json"), []);
-  const ctx = { fila, extra, candidatos, historico: montarHistorico(candidatos, [...fila, ...extra]), usadosNaSemana: new Set(), semMidia: lerJson(SEM_MIDIA, {}), planejadas: [] };
+  const ctx = { fila, extra, candidatos, historico: montarHistorico(candidatos, [...fila, ...extra]), usadosNaSemana: new Set(), semMidia: lerJson(SEM_MIDIA, {}), planejadas: [], blogUsados: new Set() };
   const resumo = [];
   for (const dia of faltantes) {
     try {
       // Se a pauta do dia não achar lugares viáveis, tenta outras antes de desistir do dia.
       let r = null, ultimoErro = null;
-      const primeira = escolherPauta(dia, fila, ctx.planejadas);
-      const tentativas = [primeira, ...ORDEM_ALT.filter((p) => p !== primeira)].slice(0, 3);
+      const primeira = escolherPauta(dia);
+      // destaque tenta até 10 parceiros por dia; as pautas de vários lugares só entram se forçadas
+      const tentativas = FORCAR === "blog" ? [] : [primeira];
       for (const pid of tentativas) {
         try { r = await produzirDia(dia, ctx, pid); break; } catch (e) { ultimoErro = e; console.log(`  pauta ${pid} não deu certo (${String(e.message).slice(0, 90)}); tentando outra`); }
       }
-      if (!r) throw ultimoErro;
+      // Nenhuma pauta deu certo: o dia não pode ficar vazio, usa uma matéria já publicada no blog.
+      if (!r) {
+        try { r = await produzirDoBlog(dia, ctx); } catch (e) { throw new Error(`${String(ultimoErro?.message || ultimoErro).slice(0, 200)} | ${e.message}`); }
+      }
       ctx.planejadas.push(r.pauta);
       // o histórico passa a contar o que acabou de ser produzido (rodízio dentro da própria semana)
-      fila.unshift({ status: "aguardando", scheduledAt: dia.quando, partnerIds: r.lugares.map((l) => l.id), pauta: `${r.pauta}:`, capaFundo: r.capa.fundo });
+      fila.unshift({ status: "aguardando", scheduledAt: dia.quando, partnerIds: r.lugares.map((l) => l.id), pauta: `${r.pauta}:`, capaFundo: r.capa.foto });
       ctx.historico = montarHistorico(candidatos, [...fila, ...ctx.extra]);
       resumo.push({ dia: dia.data, ok: true, pauta: r.pauta, lugares: r.lugares.map((l) => l.nome), slides: r.slides });
     } catch (e) {
@@ -379,6 +610,8 @@ async function main() {
   console.log("\n=== RESUMO ===");
   for (const r of resumo) console.log(r.ok ? `${r.dia}  OK   ${r.pauta}: ${r.lugares.join(" | ")} (${r.slides} slides)` : `${r.dia}  FALTA ${r.erro}`);
   fs.writeFileSync(path.join(SAIDA, "resumo.json"), JSON.stringify(resumo, null, 1));
+  const faltam = resumo.filter((r) => !r.ok).map((r) => r.dia.slice(8, 10) + "/" + r.dia.slice(5, 7));
+  if (REAL && faltam.length) notify("Refúgio: fila do Instagram incompleta", `Sem post para ${faltam.join(", ")}. A próxima produção tenta de novo.`);
   process.exitCode = resumo.every((r) => r.ok) ? 0 : 2;
 }
 

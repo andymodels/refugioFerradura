@@ -214,8 +214,10 @@ export async function prepararMidia(topic, dir, opts = {}) {
     } else {
       try {
         for (let e = 0; e < IG_ESTAGIOS.length; e++) {
-          // Instagram é a 1ª fonte: só pula se o acervo já tem fotos úteis suficientes DELE.
-          if (e === 0 && atual().filter((r) => r.source === "instagram_oficial" && (r.score ?? 0) >= regras.scoreUtil).length >= MAX_IMAGENS) break;
+          // Instagram é a 1ª fonte e sempre é lido (fotos ATUAIS do parceiro); só pula se o acervo
+          // já tem fotos úteis suficientes dele postadas nas últimas 3 semanas.
+          const recente = (r) => r.takenAt && Date.now() - new Date(r.takenAt).getTime() <= 21 * 86400000;
+          if (e === 0 && atual().filter((r) => r.source === "instagram_oficial" && (r.score ?? 0) >= regras.scoreUtil && recente(r)).length >= MAX_IMAGENS) break;
           if (e > 0 && sel.ok) break;
           const posts = await perfil.posts(IG_ESTAGIOS[e]);
           resumo.instagram.postsLidos = Math.max(resumo.instagram.postsLidos, posts.length);
