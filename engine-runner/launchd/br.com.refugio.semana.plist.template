@@ -9,14 +9,13 @@
     <string>__REPO__/engine-runner/src/semana-rotina.mjs</string>
   </array>
   <key>WorkingDirectory</key><string>__REPO__/engine-runner</string>
-  <!-- Reposição diária (modelo do blog UM2TRÊS): só produz os dias que faltam na fila
-       dos próximos 8, então rodar duas vezes por dia é seguro. Se o Mac estava dormindo,
+  <!-- Reposição diária (modelo do blog UM2TRÊS): produz no máximo 2 dias por execução
+       (os que faltam nos próximos 8), cada um com revisor independente. Se o Mac estava dormindo,
        o launchd roda assim que ele acordar. Se a cota do Claude Code acabar, o script
        para na primeira falha e a próxima execução tenta de novo. -->
   <key>StartCalendarInterval</key>
   <array>
     <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>30</integer></dict>
-    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>30</integer></dict>
   </array>
   <key>EnvironmentVariables</key>
   <dict>

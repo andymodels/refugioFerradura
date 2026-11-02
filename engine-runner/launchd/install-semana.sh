@@ -12,4 +12,4 @@ sed -e "s#__NODE__#$NODE#g" -e "s#__REPO__#$REPO#g" -e "s#__HOME__#$HOME#g" \
   "$REPO/engine-runner/launchd/br.com.refugio.semana.plist.template" > "$DEST"
 launchctl bootout "gui/$(id -u)/br.com.refugio.semana" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$DEST"
-echo "Instalado: $DEST (09:30 e 15:30). Teste agora com: launchctl kickstart gui/$(id -u)/br.com.refugio.semana"
+echo "Instalado: $DEST (todo dia às 09:30, no máximo 2 dias por vez). Teste agora com: launchctl kickstart gui/$(id -u)/br.com.refugio.semana"

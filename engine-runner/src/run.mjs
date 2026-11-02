@@ -358,7 +358,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
 }
 
 // ─── Texto ──────────────────────────────────────────────────────────────────
-const metaDe = (r) => ({ score: r.score ?? null, cena: r.cena ?? null, width: r.width ?? null, height: r.height ?? null });
+export const metaDe = (r) => ({ score: r.score ?? null, cena: r.cena ?? null, width: r.width ?? null, height: r.height ?? null });
 
 export async function redigir(topic, selecionadas, dir) {
   const capa = selecionadas[0];
