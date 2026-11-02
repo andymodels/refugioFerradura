@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import { findClaudeBin } from "./config.mjs";
 
-// Limite de uso da assinatura: quando estoura, TODA chamada seguinte falha igual.
+// Limite de uso OU login expirado do Claude Code: quando acontece, TODA chamada seguinte falha igual.
 // Detectado uma vez, o motor para de produzir (ver semana.mjs e fila.mjs) em vez de
 // seguir gerando dias degradados ou vazios, como aconteceu em 26/10.
-const PADRAO_LIMITE = /session limit|usage limit|hit your .{0,20}limit|limit reached|rate limit/i;
+const PADRAO_LIMITE = /session limit|usage limit|hit your .{0,20}limit|limit reached|rate limit|failed to authenticate|oauth session expired|not logged in|please run \/login|invalid api key/i;
 let _limite = null;
 export const limiteAtingido = () => _limite;
 export class LimiteClaudeError extends Error {

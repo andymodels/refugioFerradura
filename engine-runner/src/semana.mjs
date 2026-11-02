@@ -661,7 +661,7 @@ async function main() {
   for (const r of resumo) console.log(r.adiado ? `${r.dia}  ADIADO (próxima execução)` : r.ok ? `${r.dia}  OK   ${r.pauta}: ${r.lugares.join(" | ")} (${r.slides} slides, revisor ${r.revisao ?? "-"} rodada(s))` : `${r.dia}  FALTA ${r.erro}`);
   fs.writeFileSync(path.join(SAIDA, "resumo.json"), JSON.stringify(resumo, null, 1));
   const faltam = resumo.filter((r) => !r.ok).map((r) => r.dia.slice(8, 10) + "/" + r.dia.slice(5, 7));
-  if (REAL && parouPorLimite) notify("Refúgio: limite do Claude Code", `Produção interrompida. Faltam ${faltam.join(", ")}. Rode de novo quando a cota voltar.`);
+  if (REAL && parouPorLimite) notify("Refúgio: Claude Code indisponível", `Produção interrompida (limite de uso ou login expirado: rode "claude" e /login). Faltam ${faltam.join(", ")}.`);
   else if (REAL && faltam.length) notify("Refúgio: fila do Instagram incompleta", `Sem post para ${faltam.join(", ")}. A próxima produção tenta de novo.`);
   process.exitCode = resumo.every((r) => r.ok) ? 0 : parouPorLimite ? 3 : 2;
 }
