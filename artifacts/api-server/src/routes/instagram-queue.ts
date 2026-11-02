@@ -96,6 +96,34 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   res.status(201).json({ status: "queued", id: row.id, scheduledAt: row.scheduledAt, slides: imageUrls.length });
 });
 
+// Saúde da fila (só leitura): quantos dias à frente estão cobertos. O workflow
+// "fila-saude" falha quando a cobertura está baixa, para o GitHub avisar por e-mail
+// em horas (antes a fila podia secar por dias com tudo "success").
+const MIN_DIAS_COBERTOS = 2;
+cronRouter.get("/status", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const dia = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(d);
+  const hoje = dia(new Date());
+  const rows = await db.select().from(instagramQueueTable).orderBy(desc(instagramQueueTable.scheduledAt)).limit(100);
+  const futuros = rows.filter((r) => r.status === "aguardando" || r.status === "publicando").filter((r) => r.scheduledAt.getTime() > Date.now() - 3_600_000);
+  const dias = [...new Set(futuros.map((r) => dia(r.scheduledAt)).filter((d) => d >= hoje))].sort();
+  const limite = Date.now() - 72 * 3_600_000;
+  const falhas = rows.filter((r) => r.status === "falhou" && r.updatedAt.getTime() >= limite).map((r) => ({ id: r.id, titulo: r.titulo, erro: r.lastError }));
+  const problemas: string[] = [];
+  if (dias.length < MIN_DIAS_COBERTOS) problemas.push(`fila cobre só ${dias.length} dia(s) à frente (mínimo ${MIN_DIAS_COBERTOS}). Rode a produção no Mac.`);
+  if (falhas.length) problemas.push(`${falhas.length} item(ns) falharam nas últimas 72h.`);
+  const ultimoPublicado = rows.filter((r) => r.status === "publicado").sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))[0];
+  res.status(problemas.length ? 503 : 200).json({
+    ok: problemas.length === 0,
+    problemas,
+    diasCobertos: dias.length,
+    dias,
+    proximos: futuros.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime()).slice(0, 10).map((r) => ({ id: r.id, titulo: r.titulo, scheduledAt: r.scheduledAt, status: r.status })),
+    falhasRecentes: falhas,
+    ultimoPublicado: ultimoPublicado ? { titulo: ultimoPublicado.titulo, publishedAt: ultimoPublicado.publishedAt, permalink: ultimoPublicado.permalink } : null,
+  });
+});
+
 // Para o Mac consultar a fila (e saber quais fundos de capa já foram usados).
 cronRouter.get("/list", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;

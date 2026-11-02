@@ -39,7 +39,7 @@ const { log, notify } = await import("./log.mjs");
 const run = await import("./run.mjs"); // reaproveita coleta de mídia e redação do destaque
 const { gerarCapaV2 } = await import("./capa-v2.mjs");
 const { tamanho, versaoInstagram, enviarAoB2, baixar } = await import("./media.mjs");
-const { rodarClaude, extrairJson } = await import("./claude.mjs");
+const { rodarClaude, extrairJson, limiteAtingido } = await import("./claude.mjs");
 const { enfileirar, listarFila } = await import("./fila.mjs");
 const { montarHistorico, ordenar } = await import("./rodizio.mjs");
 
@@ -583,7 +583,15 @@ async function main() {
   const extra = lerJson(path.join(CACHE_DIR, "historico-manual.json"), []);
   const ctx = { fila, extra, candidatos, historico: montarHistorico(candidatos, [...fila, ...extra]), usadosNaSemana: new Set(), semMidia: lerJson(SEM_MIDIA, {}), planejadas: [], blogUsados: new Set() };
   const resumo = [];
+  let parouPorLimite = false;
   for (const dia of faltantes) {
+    if (limiteAtingido()) {
+      // Cota esgotada: os dias restantes ficam para a próxima execução (que repõe só o que falta).
+      parouPorLimite = true;
+      console.log(`\n=== ${dia.data} não produzido: ${limiteAtingido().slice(0, 140)}`);
+      resumo.push({ dia: dia.data, ok: false, erro: "limite de uso do Claude Code atingido" });
+      continue;
+    }
     try {
       // Se a pauta do dia não achar lugares viáveis, tenta outras antes de desistir do dia.
       let r = null, ultimoErro = null;
@@ -611,8 +619,9 @@ async function main() {
   for (const r of resumo) console.log(r.ok ? `${r.dia}  OK   ${r.pauta}: ${r.lugares.join(" | ")} (${r.slides} slides)` : `${r.dia}  FALTA ${r.erro}`);
   fs.writeFileSync(path.join(SAIDA, "resumo.json"), JSON.stringify(resumo, null, 1));
   const faltam = resumo.filter((r) => !r.ok).map((r) => r.dia.slice(8, 10) + "/" + r.dia.slice(5, 7));
-  if (REAL && faltam.length) notify("Refúgio: fila do Instagram incompleta", `Sem post para ${faltam.join(", ")}. A próxima produção tenta de novo.`);
-  process.exitCode = resumo.every((r) => r.ok) ? 0 : 2;
+  if (REAL && parouPorLimite) notify("Refúgio: limite do Claude Code", `Produção interrompida. Faltam ${faltam.join(", ")}. Rode de novo quando a cota voltar.`);
+  else if (REAL && faltam.length) notify("Refúgio: fila do Instagram incompleta", `Sem post para ${faltam.join(", ")}. A próxima produção tenta de novo.`);
+  process.exitCode = resumo.every((r) => r.ok) ? 0 : parouPorLimite ? 3 : 2;
 }
 
 try { await main(); } catch (e) { console.error("ERRO:", e.message); process.exitCode = 1; } finally { await run.fecharNavegador(); }

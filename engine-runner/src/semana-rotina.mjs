@@ -11,4 +11,4 @@ const roda = (arq, args = []) => spawnSync(process.execPath, [path.join(aqui, ar
 const st = roda("semana.mjs", ["--real", "--dias", "8"]);
 console.log("\n--- Estado da semana ---");
 roda("semana-resumo.mjs");
-process.exitCode = st === 0 ? 0 : 2;
+process.exitCode = st; // 0 ok, 2 faltou dia, 3 limite de uso do Claude Code
