@@ -10,7 +10,9 @@ name: Publicar fila do Instagram (vigia contínuo)
 # agendamento a cada 30 min fica só como reserva caso a corrente se quebre.
 # A concorrência garante um vigia por vez. Se algum item esgotar as tentativas,
 # a rota responde 500 e o job termina com erro (o GitHub avisa por e-mail).
-# Ver rota /api/cron/instagram-queue/run.
+# O relógio principal passou a ser externo (cron-job.org chamando /api/cron/instagram-queue/tick
+# a cada 5 min); este vigia fica de reserva. As duas rotas usam a mesma reserva atômica.
+# Ver rotas /api/cron/instagram-queue/run e /tick.
 on:
   schedule:
     - cron: "*/30 * * * *"
