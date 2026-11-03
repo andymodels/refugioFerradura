@@ -1,0 +1,57 @@
+name: Enfileirar um post manualmente (teste ou ajuste)
+
+# Coloca UM item na fila do Instagram usando o segredo do servidor (que só o GitHub tem).
+# Só roda se alguém clicar em "Run workflow". Usa a mesma rota /enqueue do motor do Mac,
+# então o item passa pela mesma validação (imagens JPEG do nosso B2) e é publicado pelo
+# vigia/tick quando o horário chegar. Serve para testar a cadeia de ponta a ponta.
+on:
+  workflow_dispatch:
+    inputs:
+      titulo:
+        description: "Título interno do item (aparece no admin)"
+        required: true
+      minutos:
+        description: "Publicar daqui a quantos minutos"
+        required: true
+        default: "10"
+      legenda:
+        description: "Corpo da legenda (o fechamento e as hashtags são acrescentados)"
+        required: true
+      imagens:
+        description: "URLs JPEG do B2, separadas por espaço (2 a 10)"
+        required: true
+      post_id:
+        description: "ID da matéria do blog a confirmar antes de publicar (opcional)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  enfileirar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enfileirar
+        env:
+          TITULO: ${{ inputs.titulo }}
+          MINUTOS: ${{ inputs.minutos }}
+          LEGENDA: ${{ inputs.legenda }}
+          IMAGENS: ${{ inputs.imagens }}
+          POST_ID: ${{ inputs.post_id }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          QUANDO=$(date -u -d "+${MINUTOS} minutes" +%Y-%m-%dT%H:%M:%SZ)
+          FECHO="Matéria completa no site Guia Refúgio Ferradura. Link na bio."
+          TAGS="#RotaDaFerradura #BuenosAiresGuarapari #GuarapariES #TurismoCapixaba #EspiritoSanto"
+          CAPTION="$(printf '%s\n\n%s\n\n%s' "$LEGENDA" "$FECHO" "$TAGS")"
+          jq -n --arg titulo "$TITULO" --arg quando "$QUANDO" --arg caption "$CAPTION" --arg imgs "$IMAGENS" --arg post "$POST_ID" '
+            {titulo:$titulo, scheduledAt:$quando, caption:$caption, imageUrls:($imgs|split(" ")|map(select(length>0))), pauta:"teste: ponta a ponta"}
+            + (if $post != "" then {postId:($post|tonumber)} else {} end)' > body.json
+          echo "Horário marcado (UTC): $QUANDO"
+          code=$(curl --silent --max-time 120 -o resp.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" -H "Content-Type: application/json" \
+            --data @body.json https://refugioferradura.com.br/api/cron/instagram-queue/enqueue || echo 000)
+          echo "HTTP $code"; cat resp.json; echo
+          [ "$code" = "201" ]
