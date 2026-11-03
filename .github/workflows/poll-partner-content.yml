@@ -1,4 +1,4 @@
-name: Descobrir, agendar e publicar conteúdo de parceiros (a cada 6h)
+name: Descobrir, agendar e publicar conteúdo de parceiros (DESLIGADO — somente manual)
 
 # Lê o feed/Reels de parceiros com conta conectada e enfileira o que for
 # novo, aloca a fila nos horários configurados de quinta a domingo, e então
@@ -7,8 +7,10 @@ name: Descobrir, agendar e publicar conteúdo de parceiros (a cada 6h)
 # estiver ligado em /admin/stories (storyScheduleSettingsTable.automacaoAtiva)
 # — senão a rota não faz nada.
 on:
-  schedule:
-    - cron: "0 */6 * * *"
+  # DESLIGADO em 2026-11-03: o Refúgio passa a ter UM só tipo de agendamento (fila do Instagram).
+  # Só roda se alguém clicar em "Run workflow".
+  # schedule:
+  #   - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 concurrency:

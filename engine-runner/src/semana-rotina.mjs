@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const roda = (arq, args = []) => spawnSync(process.execPath, [path.join(aqui, arq), ...args], { stdio: "inherit" }).status ?? 1;
-const st = roda("semana.mjs", ["--real", "--dias", "8"]);
+const st = roda("semana.mjs", ["--real", "--dias", "8", "--max", "2"]);
 console.log("\n--- Estado da semana ---");
 roda("semana-resumo.mjs");
-process.exitCode = st === 0 ? 0 : 2;
+process.exitCode = st; // 0 ok, 2 faltou dia, 3 limite de uso do Claude Code

@@ -26,6 +26,8 @@ import {
   GetPartnerUploadInfoResponse,
 } from "@workspace/api-zod";
 import { scanPostsForPartners } from "../lib/partners";
+import { acharDuplicado } from "../lib/partner-dedupe";
+import { mesclarParceirosDuplicados } from "../lib/partner-merge";
 import { computeSchedulePreview, assignScheduleSlots } from "../lib/story-schedule";
 import { buildPartnerConnectUrl, verifyState, exchangePartnerCode } from "../lib/partner-oauth";
 import { publishPartnerContentToInstagram } from "../lib/instagram";
@@ -121,6 +123,25 @@ router.post("/partners/admin/scan", async (req, res): Promise<void> => {
   }
 });
 
+// Limpeza das duplicatas já existentes. Sem `confirmar: true` só devolve a PRÉVIA
+// (quantos repetidos, quem fica e quem sai); com `confirmar: true` aplica, guardando
+// uma cópia dos removidos em `settings` e passando tudo que apontava para eles.
+router.post("/partners/admin/dedupe", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  try {
+    const r = await mesclarParceirosDuplicados(req.body?.confirmar === true);
+    logger.info({ aplicado: r.aplicado, removeria: r.removeria }, "[partners] Limpeza de duplicados");
+    res.json(r);
+  } catch (err) {
+    logger.error({ error: String((err as any)?.message ?? err) }, "[partners] Falha na limpeza de duplicados");
+    res.status(500).json({ error: "Falha ao limpar duplicados. Nada foi alterado." });
+  }
+});
+
 // Cadastro manual — parceiros que não vieram de nenhum post do blog.
 router.post("/partners/admin", async (req, res): Promise<void> => {
   const session = req.session as any;
@@ -132,6 +153,16 @@ router.post("/partners/admin", async (req, res): Promise<void> => {
   const parsed = CreateInstagramPartnerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Nunca cadastrar o mesmo estabelecimento duas vezes (mesmo Instagram, nome exato ou telefone).
+  const todos = await db
+    .select({ id: instagramPartnersTable.id, nome: instagramPartnersTable.nomeEstabelecimento, instagram: instagramPartnersTable.instagramHandle, telefone: instagramPartnersTable.telefone })
+    .from(instagramPartnersTable);
+  const dup = acharDuplicado({ nome: parsed.data.nomeEstabelecimento, instagram: parsed.data.instagramHandle, telefone: parsed.data.telefone }, todos);
+  if (dup) {
+    res.status(409).json({ error: `Já existe um estabelecimento igual: "${dup.nome}" (${dup.instagram ? "@" + String(dup.instagram).replace(/^@/, "") : "sem Instagram"}).` });
     return;
   }
 

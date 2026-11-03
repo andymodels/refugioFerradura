@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { db, instagramQueueTable, postsTable, partnerMediaTable, instagramPartnersTable } from "@workspace/db";
-import { and, desc, eq, inArray, gte } from "drizzle-orm";
+import { and, desc, eq, inArray, gte, isNotNull, sql } from "drizzle-orm";
 import { executarFila } from "../lib/instagram-queue";
+import { getInstagramToken } from "../lib/instagram-token";
 import { isB2Url } from "../lib/engine";
 import { logger } from "../lib/logger";
 
@@ -94,6 +95,134 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
     .values({ titulo: titulo.trim(), scheduledAt: quando, caption: caption.trim(), imageUrls, postId: postId ? Number(postId) : null, capaFundo: typeof capaFundo === "string" ? capaFundo : null, pauta: typeof pauta === "string" ? pauta.trim() : null, partnerIds: Array.isArray(partnerIds) ? partnerIds : [], dedupeKey })
     .returning();
   res.status(201).json({ status: "queued", id: row.id, scheduledAt: row.scheduledAt, slides: imageUrls.length });
+});
+
+// Saúde da fila (só leitura): quantos dias à frente estão cobertos. O workflow
+// "fila-saude" falha quando a cobertura está baixa, para o GitHub avisar por e-mail
+// em horas (antes a fila podia secar por dias com tudo "success").
+const MIN_DIAS_COBERTOS = 2;
+cronRouter.get("/status", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const dia = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(d);
+  const hoje = dia(new Date());
+  const rows = await db.select().from(instagramQueueTable).orderBy(desc(instagramQueueTable.scheduledAt)).limit(100);
+  const futuros = rows.filter((r) => r.status === "aguardando" || r.status === "publicando").filter((r) => r.scheduledAt.getTime() > Date.now() - 3_600_000);
+  const dias = [...new Set(futuros.map((r) => dia(r.scheduledAt)).filter((d) => d >= hoje))].sort();
+  const limite = Date.now() - 72 * 3_600_000;
+  const falhas = rows.filter((r) => r.status === "falhou" && r.updatedAt.getTime() >= limite).map((r) => ({ id: r.id, titulo: r.titulo, erro: r.lastError }));
+  const problemas: string[] = [];
+  if (dias.length < MIN_DIAS_COBERTOS) problemas.push(`fila cobre só ${dias.length} dia(s) à frente (mínimo ${MIN_DIAS_COBERTOS}). Rode a produção no Mac.`);
+  if (falhas.length) problemas.push(`${falhas.length} item(ns) falharam nas últimas 72h.`);
+  const ultimoPublicado = rows.filter((r) => r.status === "publicado").sort((a, b) => (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0))[0];
+  res.status(problemas.length ? 503 : 200).json({
+    ok: problemas.length === 0,
+    problemas,
+    diasCobertos: dias.length,
+    dias,
+    proximos: futuros.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime()).slice(0, 10).map((r) => ({ id: r.id, titulo: r.titulo, scheduledAt: r.scheduledAt, status: r.status })),
+    falhasRecentes: falhas,
+    ultimoPublicado: ultimoPublicado ? { titulo: ultimoPublicado.titulo, publishedAt: ultimoPublicado.publishedAt, permalink: ultimoPublicado.permalink } : null,
+  });
+});
+
+// ─── Relógio externo (cron-job.org) ────────────────────────────────────────
+// Modelo do blog UM2TRÊS: o relógio NÃO tem lógica nem segredo, só chama esta URL
+// a cada poucos minutos. Ela é pública de propósito: usa os segredos que já estão no
+// servidor e só publica o que JÁ VENCEU (a mesma fila e a mesma reserva atômica da
+// rota /run), então chamar à toa ou várias vezes é inofensivo. Trava de 45 s no banco
+// para não deixar ninguém martelar a Meta. Responde só contagens, nunca texto de itens.
+const TICK_MIN_S = 45;
+const K_TICK = "instagram_queue_tick_at";
+cronRouter.get("/tick", async (_req, res): Promise<void> => {
+  try {
+    const agora = new Date();
+    const limite = new Date(agora.getTime() - TICK_MIN_S * 1000).toISOString();
+    // Atualização condicional: só uma chamada por janela leva a vez (valores ISO comparam em ordem).
+    const r: any = await db.execute(sql`
+      INSERT INTO settings (key, value, updated_at) VALUES (${K_TICK}, ${agora.toISOString()}, now())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+        WHERE settings.value < ${limite}
+      RETURNING key`);
+    if (!(r.rows ?? r).length) {
+      res.json({ ok: true, pulado: "chamada recente demais" });
+      return;
+    }
+    const x = await executarFila();
+    // 500 quando algum item esgotou as tentativas: o cron-job.org avisa por e-mail.
+    res.status(x.falhas.length ? 500 : 200).json({
+      ok: x.falhas.length === 0,
+      publicados: x.publicados.length,
+      recuperados: x.recuperados.length,
+      tentarDeNovo: x.tentarDeNovo.length,
+      falhas: x.falhas.length,
+    });
+  } catch (err: any) {
+    logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Erro no tick");
+    res.status(500).json({ ok: false, erro: "falha ao executar a fila" });
+  }
+});
+
+// ─── Diagnóstico da API do Instagram (só leitura, exige segredo) ───────────
+// Responde, com o token REAL do servidor: (1) que tipo de conta/token é; (2) se
+// business_discovery lê posts públicos de OUTROS perfis profissionais (os parceiros);
+// (3) se /tags devolve as fotos em que parceiros marcam a conta do Refúgio. Nunca
+// devolve o token. Serve para decidir se a nuvem consegue ler fotos oficiais dos
+// parceiros sem proxy e sem scraping.
+cronRouter.get("/diag-instagram", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const { token, origem } = await getInstagramToken();
+  const igId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!token || !igId) {
+    res.status(500).json({ ok: false, erro: "faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID" });
+    return;
+  }
+  const base = "https://graph.instagram.com/v21.0";
+  const chamar = async (caminho: string, params: Record<string, string>) => {
+    const url = new URL(base + caminho);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    url.searchParams.set("access_token", token);
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      const d: any = await r.json().catch(() => null);
+      const e = d?.error;
+      return { http: r.status, ok: r.ok && !e, erro: e ? { codigo: e.code, subcodigo: e.error_subcode ?? null, tipo: e.type, mensagem: String(e.message || "").slice(0, 220) } : null, dados: r.ok && !e ? d : null };
+    } catch (err: any) {
+      return { http: 0, ok: false, erro: { codigo: null, subcodigo: null, tipo: "rede", mensagem: String(err?.message ?? err).slice(0, 120) }, dados: null };
+    }
+  };
+  const conta = await chamar(`/${igId}`, { fields: "id,username,account_type,media_count" });
+  const tags = await chamar(`/${igId}/tags`, { fields: "id,media_type,media_url,permalink,timestamp,username", limit: "25" });
+  const lista: any[] = Array.isArray(tags.dados?.data) ? tags.dados.data : [];
+
+  let handles: string[] = String(req.query.handles || "").split(",").map((h) => h.trim().replace(/^@/, "")).filter(Boolean);
+  if (!handles.length) {
+    const rows = await db.select({ h: instagramPartnersTable.instagramHandle }).from(instagramPartnersTable).where(isNotNull(instagramPartnersTable.instagramHandle)).limit(4);
+    handles = rows.map((r) => String(r.h).replace(/^@/, "")).filter(Boolean);
+  }
+  const discovery: any[] = [];
+  for (const h of handles.slice(0, 5)) {
+    if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) continue;
+    const r = await chamar(`/${igId}`, { fields: `business_discovery.username(${h}){username,followers_count,media_count,media.limit(5){id,media_type,media_url,permalink,timestamp}}` });
+    const bd = r.dados?.business_discovery;
+    const media: any[] = Array.isArray(bd?.media?.data) ? bd.media.data : [];
+    discovery.push({ handle: h, http: r.http, ok: r.ok, erro: r.erro, posts: media.length, comUrlDaImagem: media.filter((m) => !!m.media_url).length, maisRecente: media[0]?.timestamp ?? null });
+  }
+
+  res.json({
+    tokenOrigem: origem,
+    tokenTipo: token.startsWith("IGAA") ? "Instagram Login (IGAA)" : "outro",
+    conta: { ok: conta.ok, erro: conta.erro, tipo: conta.dados?.account_type ?? null, usuario: conta.dados?.username ?? null },
+    tags: {
+      ok: tags.ok,
+      erro: tags.erro,
+      total: lista.length,
+      comUrlDaImagem: lista.filter((m) => !!m.media_url).length,
+      porTipo: lista.reduce((a: Record<string, number>, m) => ((a[m.media_type] = (a[m.media_type] || 0) + 1), a), {}),
+      amostra: lista.slice(0, 5).map((m) => ({ usuario: m.username ?? null, tipo: m.media_type, quando: m.timestamp, permalink: m.permalink })),
+    },
+    businessDiscovery: discovery,
+    observacao: "mentioned_media (menções na legenda) só aceita o id de um post específico, que chega por webhook; não dá para listar.",
+  });
 });
 
 // Para o Mac consultar a fila (e saber quais fundos de capa já foram usados).

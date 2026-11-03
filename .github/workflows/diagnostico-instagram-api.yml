@@ -1,0 +1,33 @@
+name: Diagnóstico da API do Instagram (business_discovery e fotos marcadas)
+
+# Só leitura. Usa o token REAL do servidor (nunca aparece aqui) para responder:
+# 1) o business_discovery lê os posts públicos dos parceiros? 2) a rota /tags devolve
+# as fotos em que os parceiros marcam a conta do Refúgio? Rode à mão (Run workflow);
+# opcionalmente informe handles separados por vírgula. Ver rota /cron/instagram-queue/diag-instagram.
+on:
+  workflow_dispatch:
+    inputs:
+      handles:
+        description: "Perfis de parceiros a testar, separados por vírgula (vazio = os primeiros cadastrados)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consultar a API do Instagram pelo servidor
+        env:
+          HANDLES: ${{ inputs.handles }}
+        run: |
+          code=$(curl --silent --max-time 120 -G -o resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --data-urlencode "handles=${HANDLES}" \
+            https://refugioferradura.com.br/api/cron/instagram-queue/diag-instagram || echo 000)
+          echo "HTTP $code"
+          python3 -m json.tool resp.json 2>/dev/null || cat resp.json
+          [ "$code" = "200" ]

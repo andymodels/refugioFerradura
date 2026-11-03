@@ -13,7 +13,7 @@
 // Uso:
 //   node src/semana.mjs                      simulação (padrão): não grava nada no B2, banco nem fila
 //   node src/semana.mjs --real               produz de verdade (B2 + rascunho + fila)
-//   opções: --dias 7  --forcar-pauta almoco|blog  --so-dia AAAA-MM-DD  --snapshot arquivo.json
+//   opções: --dias 7  --max 2 (dias produzidos por execução)  --forcar-pauta almoco|blog  --so-dia AAAA-MM-DD  --snapshot arquivo.json
 //   Se nenhuma pauta der certo num dia, entra a reserva: carrossel de uma matéria já publicada no blog.
 import fs from "node:fs";
 import os from "node:os";
@@ -28,6 +28,9 @@ const REAL = ARGS.includes("--real");
 if (!REAL && !ARGS.includes("--dry-run")) process.argv.push("--dry-run");
 const val = (n) => { const i = ARGS.indexOf(n); return i >= 0 ? ARGS[i + 1] : null; };
 const DIAS = Number(val("--dias")) || 7;
+// Quantos dias produzir por execução. Produzir a semana inteira de uma vez gastava a cota do
+// Claude Code e baixava a qualidade; o ritmo certo é repor 1 a 2 por dia (modelo UM2TRÊS).
+const MAX_POR_EXECUCAO = Math.max(1, Number(val("--max")) || 2);
 const FORCAR = val("--forcar-pauta");
 const SO_DIA = val("--so-dia");
 const SNAPSHOT = val("--snapshot");
@@ -39,7 +42,8 @@ const { log, notify } = await import("./log.mjs");
 const run = await import("./run.mjs"); // reaproveita coleta de mídia e redação do destaque
 const { gerarCapaV2 } = await import("./capa-v2.mjs");
 const { tamanho, versaoInstagram, enviarAoB2, baixar } = await import("./media.mjs");
-const { rodarClaude, extrairJson } = await import("./claude.mjs");
+const { rodarClaude, extrairJson, limiteAtingido } = await import("./claude.mjs");
+const { revisarProducao, ReprovadoError } = await import("./revisor.mjs");
 const { enfileirar, listarFila } = await import("./fila.mjs");
 const { montarHistorico, ordenar } = await import("./rodizio.mjs");
 
@@ -436,7 +440,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
   const pautaTxt = { titulo: P.tipo === "destaque" ? `Destaque: ${escolhidos[0].nome}` : P.titulo() };
   const corpo = await escreverLegenda({ pauta: pautaTxt, lugares: escolhidos, dia, dir });
   const fechamento = P.tipo === "destaque" ? "Horário e cardápio mudam: confirme direto com o perfil antes de ir.\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio." : "Cardápio e horário mudam, então confirme direto com cada casa antes de ir.\n\nVeja tudo sobre a Rota da Ferradura no site Guia Refúgio Ferradura. Link na bio.";
-  const caption = `${corpo}\n\n${fechamento}\n\n${HASHTAGS}`;
+  let caption = `${corpo}\n\n${fechamento}\n\n${HASHTAGS}`;
   fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
 
   // Slides (capa + fotos na ordem dos lugares). A foto usada na capa não se repete logo em seguida.
@@ -445,6 +449,20 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
   for (const f of restantes) prontos.push(f.slide || (await prepararSlide(f.file)));
   prontos.forEach((a, i) => fs.copyFileSync(a, path.join(dir, `slide-${i + 1}.jpg`)));
   rel.slides = prontos.length;
+
+  // Revisor independente (até 3 rodadas). Sem aprovação, nada vai ao B2, ao blog nem à fila.
+  const descFotos = (e) => e.fotos.map((f) => ({ cena: f.cena, descricao: f.descricao || null, postadoEm: dataIso(f.takenAt) || null }));
+  const fontesRev = P.tipo === "destaque"
+    ? { lugar: escolhidos[0].nome, fatos: artigo.topic.fatos, canais: artigo.topic.fontes, novidadesDoPerfil: artigo.topic.novidades || null, materiasAnteriores: Array.isArray(artigo.topic.anteriores) ? artigo.topic.anteriores.slice(0, 5) : artigo.topic.anteriores || null, fotos: descFotos(escolhidos[0]) }
+    : { lugares: escolhidos.map((e) => ({ nome: e.nome, categoria: e.categoria, regiao: e.regiao, descricaoCurta: e.descricaoCurta, perfil: e.handle, fotos: descFotos(e) })) };
+  const rev = await revisarProducao({
+    dir, tipo: P.tipo, fontes: fontesRev, caption, artigo: P.tipo === "destaque" ? artigo : null, nSlides: prontos.length, hoje: dia.data,
+    validarArtigo: P.tipo === "destaque" ? async (a) => (await api("/publish", { partnerId: artigo.topic.partnerId, article: a, dryRun: true, imagensMeta: artigo.selecionadas.map(run.metaDe) })).status === "dry_run_ok" : null,
+  });
+  caption = rev.caption;
+  if (rev.artigo) artigo = rev.artigo;
+  fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
+  rel.revisao = rev.relatorio.rodadas;
   rel.caption = caption;
 
   if (!REAL) {
@@ -535,12 +553,23 @@ ${erros ? `SUA VERSÃO ANTERIOR FOI REJEITADA: ${erros.join("; ")}\n` : ""}Respo
     const titulo = await escreverTituloCapa({ P: { tipo: "destaque", titulo: () => post.title }, lugares: lugar, dir });
     let capa;
     try { capa = await montarCapa({ fotos, titulo, nome: post.subtitle || post.title, rotulo: "DO BLOG", lista: null, saida: path.join(dir, "capa.jpg") }); } catch (e) { log("blog_reserva_capa", { postId: post.id, erro: String(e.message).slice(0, 120) }); continue; }
-    const caption = `${corpo}\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio.\n\n${HASHTAGS}`;
+    let caption = `${corpo}\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio.\n\n${HASHTAGS}`;
     fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
     const prontos = [path.join(dir, "capa.jpg")];
     for (const f of fotos.filter((f) => f !== capa.fotoUsada).slice(0, 5)) prontos.push(f.slide || (await prepararSlide(f.file)));
     prontos.forEach((a, i) => fs.copyFileSync(a, path.join(dir, `slide-${i + 1}.jpg`)));
     const rel = { dia: dia.data, quando: dia.quando, pauta: "blog", postId: post.id, materia: post.title, lugares: [], capa: { modelo: capa.modelo, foto: capa.fotoUsada.url, titulo, conferencia: capa.conferencia }, slides: prontos.length, caption };
+    // Mesmo revisor independente da matéria nova (aqui só legenda e slides: o texto do blog já está publicado).
+    let revisao;
+    try {
+      revisao = await revisarProducao({ dir, tipo: "reserva", fontes: { materia: post.title, publicadaEm: String(post.createdAt).slice(0, 10), textoDaMateria: texto, perfisMarcados: handles }, caption, nSlides: prontos.length, hoje: dia.data });
+    } catch (e) {
+      if (e instanceof ReprovadoError) { log("blog_reserva_reprovada", { postId: post.id, erro: String(e.message).slice(0, 200) }); continue; }
+      throw e;
+    }
+    rel.caption = caption = revisao.caption;
+    rel.revisao = revisao.relatorio.rodadas;
+    fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
     if (!REAL) {
       fs.writeFileSync(path.join(dir, "plano.json"), JSON.stringify(rel, null, 1));
       console.log(`  simulação ok (reserva do blog): "${post.title}", ${prontos.length} slides, capa ${capa.modelo}, título "${titulo}"`);
@@ -583,15 +612,35 @@ async function main() {
   const extra = lerJson(path.join(CACHE_DIR, "historico-manual.json"), []);
   const ctx = { fila, extra, candidatos, historico: montarHistorico(candidatos, [...fila, ...extra]), usadosNaSemana: new Set(), semMidia: lerJson(SEM_MIDIA, {}), planejadas: [], blogUsados: new Set() };
   const resumo = [];
+  let parouPorLimite = false;
+  let produzidos = 0, tentados = 0;
   for (const dia of faltantes) {
+    if (produzidos >= MAX_POR_EXECUCAO || tentados >= MAX_POR_EXECUCAO * 2) {
+      console.log(`\n=== ${dia.data} fica para a próxima execução (limite de ${MAX_POR_EXECUCAO} por vez, para manter a qualidade)`);
+      resumo.push({ dia: dia.data, ok: true, adiado: true });
+      continue;
+    }
+    tentados++;
+    if (limiteAtingido()) {
+      // Cota esgotada: os dias restantes ficam para a próxima execução (que repõe só o que falta).
+      parouPorLimite = true;
+      console.log(`\n=== ${dia.data} não produzido: ${limiteAtingido().slice(0, 140)}`);
+      resumo.push({ dia: dia.data, ok: false, erro: "limite de uso do Claude Code atingido" });
+      continue;
+    }
     try {
       // Se a pauta do dia não achar lugares viáveis, tenta outras antes de desistir do dia.
       let r = null, ultimoErro = null;
       const primeira = escolherPauta(dia);
       // destaque tenta até 10 parceiros por dia; as pautas de vários lugares só entram se forçadas
       const tentativas = FORCAR === "blog" ? [] : [primeira];
+      let reprovadoUmaVez = false;
       for (const pid of tentativas) {
-        try { r = await produzirDia(dia, ctx, pid); break; } catch (e) { ultimoErro = e; console.log(`  pauta ${pid} não deu certo (${String(e.message).slice(0, 90)}); tentando outra`); }
+        try { r = await produzirDia(dia, ctx, pid); break; } catch (e) {
+          ultimoErro = e;
+          // Revisor reprovou este lugar: tenta mais uma vez com outro (o reprovado já está em usadosNaSemana).
+          if (e instanceof ReprovadoError && !reprovadoUmaVez) { reprovadoUmaVez = true; tentativas.push(pid); }
+          console.log(`  pauta ${pid} não deu certo (${String(e.message).slice(0, 90)}); tentando outra`); }
       }
       // Nenhuma pauta deu certo: o dia não pode ficar vazio, usa uma matéria já publicada no blog.
       if (!r) {
@@ -601,18 +650,20 @@ async function main() {
       // o histórico passa a contar o que acabou de ser produzido (rodízio dentro da própria semana)
       fila.unshift({ status: "aguardando", scheduledAt: dia.quando, partnerIds: r.lugares.map((l) => l.id), pauta: `${r.pauta}:`, capaFundo: r.capa.foto });
       ctx.historico = montarHistorico(candidatos, [...fila, ...ctx.extra]);
-      resumo.push({ dia: dia.data, ok: true, pauta: r.pauta, lugares: r.lugares.map((l) => l.nome), slides: r.slides });
+      produzidos++;
+      resumo.push({ dia: dia.data, ok: true, pauta: r.pauta, lugares: r.lugares.map((l) => l.nome), slides: r.slides, revisao: r.revisao });
     } catch (e) {
       console.log(`  FALHOU ${dia.data}: ${String(e.message).slice(0, 300)}`);
       resumo.push({ dia: dia.data, ok: false, erro: String(e.message).slice(0, 300) });
     }
   }
   console.log("\n=== RESUMO ===");
-  for (const r of resumo) console.log(r.ok ? `${r.dia}  OK   ${r.pauta}: ${r.lugares.join(" | ")} (${r.slides} slides)` : `${r.dia}  FALTA ${r.erro}`);
+  for (const r of resumo) console.log(r.adiado ? `${r.dia}  ADIADO (próxima execução)` : r.ok ? `${r.dia}  OK   ${r.pauta}: ${r.lugares.join(" | ")} (${r.slides} slides, revisor ${r.revisao ?? "-"} rodada(s))` : `${r.dia}  FALTA ${r.erro}`);
   fs.writeFileSync(path.join(SAIDA, "resumo.json"), JSON.stringify(resumo, null, 1));
   const faltam = resumo.filter((r) => !r.ok).map((r) => r.dia.slice(8, 10) + "/" + r.dia.slice(5, 7));
-  if (REAL && faltam.length) notify("Refúgio: fila do Instagram incompleta", `Sem post para ${faltam.join(", ")}. A próxima produção tenta de novo.`);
-  process.exitCode = resumo.every((r) => r.ok) ? 0 : 2;
+  if (REAL && parouPorLimite) notify("Refúgio: Claude Code indisponível", `Produção interrompida (limite de uso ou login expirado: rode "claude" e /login). Faltam ${faltam.join(", ")}.`);
+  else if (REAL && faltam.length) notify("Refúgio: fila do Instagram incompleta", `Sem post para ${faltam.join(", ")}. A próxima produção tenta de novo.`);
+  process.exitCode = resumo.every((r) => r.ok) ? 0 : parouPorLimite ? 3 : 2;
 }
 
 try { await main(); } catch (e) { console.error("ERRO:", e.message); process.exitCode = 1; } finally { await run.fecharNavegador(); }

@@ -21,7 +21,6 @@ import AdminPosts from "./pages/admin/posts";
 import AdminPostEditor from "./pages/admin/posts/editor";
 import AdminMedia from "./pages/admin/media";
 import AdminSettings from "./pages/admin/settings";
-import AdminFontes from "./pages/admin/fontes";
 import AdminPartners from "./pages/admin/parceiros";
 import AdminStories from "./pages/admin/stories";
 import AdminFilaInstagram from "./pages/admin/fila-instagram";
@@ -66,9 +65,6 @@ function Router() {
 
       {/* Admin Settings */}
       <Route path="/admin/settings" component={AdminSettings} />
-
-      {/* Admin Fontes */}
-      <Route path="/admin/fontes" component={AdminFontes} />
 
       {/* Admin Parceiros */}
       <Route path="/admin/parceiros" component={AdminPartners} />
