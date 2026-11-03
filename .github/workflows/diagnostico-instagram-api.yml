@@ -7,6 +7,10 @@ name: Diagnóstico da API do Instagram (business_discovery e fotos marcadas)
 on:
   workflow_dispatch:
     inputs:
+      detalhe:
+        description: "1 = mostrar legendas e links dos posts recentes de cada perfil"
+        required: false
+        default: ""
       handles:
         description: "Perfis de parceiros a testar, separados por vírgula (vazio = os primeiros cadastrados)"
         required: false
@@ -23,10 +27,11 @@ jobs:
       - name: Consultar a API do Instagram pelo servidor
         env:
           HANDLES: ${{ inputs.handles }}
+          DETALHE: ${{ inputs.detalhe }}
         run: |
           code=$(curl --silent --max-time 120 -G -o resp.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --data-urlencode "handles=${HANDLES}" \
+            --data-urlencode "handles=${HANDLES}" --data-urlencode "detalhe=${DETALHE}" \
             https://refugioferradura.com.br/api/cron/instagram-queue/diag-instagram || echo 000)
           echo "HTTP $code"
           python3 -m json.tool resp.json 2>/dev/null || cat resp.json
