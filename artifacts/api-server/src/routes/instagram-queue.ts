@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, gte, isNotNull, sql } from "drizzle-orm";
 import { executarFila } from "../lib/instagram-queue";
 import { getInstagramToken } from "../lib/instagram-token";
 import { isB2Url } from "../lib/engine";
+import { archiveRemoteMedia } from "../lib/b2-storage";
 import { logger } from "../lib/logger";
 
 // Fila do Instagram. Duas portas:
@@ -42,6 +43,32 @@ cronRouter.all("/run", async (req, res): Promise<void> => {
   }
 });
 
+// ─── Arquiva no B2 uma mídia pública do Instagram (vídeo ou foto de um parceiro) ─────
+// O Instagram só aceita URL pública estável; o link do CDN dele é assinado e expira. Aqui o
+// servidor baixa e guarda no nosso B2, e devolve a URL pública para usar no /enqueue.
+cronRouter.post("/arquivar-midia", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const { url, tipo, nome } = req.body || {};
+  let host = "";
+  try { host = new URL(String(url)).hostname; } catch { /* inválida */ }
+  if (!/(^|\.)(cdninstagram\.com|fbcdn\.net)$/i.test(host)) {
+    res.status(400).json({ status: "error", erro: "só aceita mídia do CDN do Instagram (cdninstagram.com ou fbcdn.net)." });
+    return;
+  }
+  if (tipo !== "video" && tipo !== "image") {
+    res.status(400).json({ status: "error", erro: "tipo deve ser 'video' ou 'image'." });
+    return;
+  }
+  try {
+    const slug = String(nome || "parceiro").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "parceiro";
+    const b2 = await archiveRemoteMedia(String(url), `fila-${slug}`, Date.now() % 100000, tipo);
+    res.status(201).json({ status: "ok", url: b2 });
+  } catch (err: any) {
+    logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Falha ao arquivar mídia");
+    res.status(502).json({ status: "error", erro: String(err?.message ?? err).slice(0, 200) });
+  }
+});
+
 // ─── Entrada de conteúdo FINALIZADO (vem do Mac) ───────────────────────────
 cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
@@ -69,8 +96,8 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
       checadas.push({ arquivo: u.split("/").pop() || u, http: 0, tipo: null });
     }
   }
-  if (checadas.some((c) => c.http !== 200 || !(c.tipo || "").includes("jpeg"))) {
-    res.status(422).json({ status: "invalid", erro: "imagem inacessível ou que não é JPEG", checadas });
+  if (checadas.some((c) => c.http !== 200 || !(c.tipo || "").includes(/\.mp4(\?|$)/i.test(c.arquivo) ? "video" : "jpeg"))) {
+    res.status(422).json({ status: "invalid", erro: "mídia inacessível, imagem que não é JPEG ou vídeo que não é MP4", checadas });
     return;
   }
   if (postId) {

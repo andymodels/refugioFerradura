@@ -18,8 +18,17 @@ on:
         description: "Corpo da legenda (o fechamento e as hashtags são acrescentados)"
         required: true
       imagens:
-        description: "URLs JPEG do B2, separadas por espaço (2 a 10)"
-        required: true
+        description: "URLs do B2, separadas por espaço: 1 foto JPEG (foto única), 2 a 10 (carrossel) ou 1 vídeo .mp4 (Reel). Ignorado se video_origem estiver preenchido."
+        required: false
+        default: ""
+      video_origem:
+        description: "URL do vídeo no CDN do Instagram do parceiro (o servidor guarda no B2 e usa como Reel)"
+        required: false
+        default: ""
+      nome_parceiro:
+        description: "Nome curto do parceiro (só para nomear o arquivo guardado)"
+        required: false
+        default: "parceiro"
       post_id:
         description: "ID da matéria do blog a confirmar antes de publicar (opcional)"
         required: false
@@ -39,9 +48,20 @@ jobs:
           MINUTOS: ${{ inputs.minutos }}
           LEGENDA: ${{ inputs.legenda }}
           IMAGENS: ${{ inputs.imagens }}
+          VIDEO_ORIGEM: ${{ inputs.video_origem }}
+          NOME_PARCEIRO: ${{ inputs.nome_parceiro }}
           POST_ID: ${{ inputs.post_id }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          if [ -n "$VIDEO_ORIGEM" ]; then
+            jq -n --arg url "$VIDEO_ORIGEM" --arg nome "$NOME_PARCEIRO" '{url:$url,tipo:"video",nome:$nome}' > arq.json
+            codeA=$(curl --silent --max-time 280 -o respA.json -w "%{http_code}" -X POST \
+              -H "Authorization: Bearer ${CRON_SECRET}" -H "Content-Type: application/json" \
+              --data @arq.json https://refugioferradura.com.br/api/cron/instagram-queue/arquivar-midia || echo 000)
+            echo "arquivar HTTP $codeA: $(head -c 300 respA.json)"
+            [ "$codeA" = "201" ] || exit 1
+            IMAGENS="$(jq -r .url respA.json)"
+          fi
           QUANDO=$(date -u -d "+${MINUTOS} minutes" +%Y-%m-%dT%H:%M:%SZ)
           FECHO="Matéria completa no site Guia Refúgio Ferradura. Link na bio."
           TAGS="#RotaDaFerradura #BuenosAiresGuarapari #GuarapariES #TurismoCapixaba #EspiritoSanto"
