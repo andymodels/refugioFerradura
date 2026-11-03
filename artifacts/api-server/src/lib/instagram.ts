@@ -335,6 +335,40 @@ export async function publishCarouselToInstagram(imageUrls: string[], caption: s
   return { mediaId: publishData.id, caption, permalink };
 }
 
+// Publica UMA foto (JPEG pública) no feed do Instagram oficial, com legenda. É o formato do post
+// diário: uma foto boa, sem texto sobre a imagem, e o texto todo na legenda.
+export async function publishSinglePhotoToInstagram(imageUrl: string, caption: string): Promise<InstagramPublishResult> {
+  const accessToken = (await getInstagramToken()).token;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!accessToken || !igUserId) {
+    throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
+  }
+  const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
+  containerUrl.searchParams.set("image_url", imageUrl);
+  containerUrl.searchParams.set("caption", caption.slice(0, 2200));
+  containerUrl.searchParams.set("access_token", accessToken);
+  const containerRes = await fetch(containerUrl, { method: "POST" });
+  const containerData: any = await containerRes.json();
+  if (!containerRes.ok || !containerData?.id) {
+    logger.error({ status: containerRes.status, data: containerData, imageUrl }, "Falha ao criar container de foto única no Instagram");
+    throw new Error(containerData?.error?.error_user_msg || containerData?.error?.message || "Falha ao preparar a foto.");
+  }
+  await waitForContainerReady(containerData.id, accessToken, "foto");
+
+  const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
+  publishUrl.searchParams.set("creation_id", containerData.id);
+  publishUrl.searchParams.set("access_token", accessToken);
+  const publishRes = await fetch(publishUrl, { method: "POST" });
+  const publishData: any = await publishRes.json();
+  if (!publishRes.ok || !publishData?.id) {
+    logger.error({ status: publishRes.status, data: publishData }, "Falha ao publicar foto única no Instagram");
+    throw new Error(publishData?.error?.error_user_msg || publishData?.error?.message || "Falha ao publicar a foto.");
+  }
+  const permalink = await fetchPermalink(publishData.id, accessToken);
+  logger.info({ mediaId: publishData.id, permalink }, "Foto única publicada no Instagram");
+  return { mediaId: publishData.id, caption, permalink };
+}
+
 // O Instagram não tem sticker de menção via API (isso só existe no app,
 // composto manualmente) — pra Story em foto, grava o @ do parceiro
 // visualmente na imagem via transformação do Cloudinary, garantindo o

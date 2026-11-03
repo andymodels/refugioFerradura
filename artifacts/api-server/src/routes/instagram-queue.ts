@@ -52,7 +52,7 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   if (isNaN(quando.getTime())) erros.push("scheduledAt inválido (use ISO com fuso, ex.: 2026-10-05T19:00:00-03:00).");
   else if (quando.getTime() < Date.now() - 60_000) erros.push("scheduledAt está no passado.");
   if (typeof caption !== "string" || caption.trim().length < 10 || caption.length > 2200) erros.push("caption inválida (10 a 2200 caracteres).");
-  if (!Array.isArray(imageUrls) || imageUrls.length < 2 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) erros.push("imageUrls: de 2 a 10 URLs do nosso B2.");
+  if (!Array.isArray(imageUrls) || imageUrls.length < 1 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) erros.push("imageUrls: de 1 a 10 URLs do nosso B2 (1 = foto única, 2 ou mais = carrossel).");
   if (postId !== undefined && postId !== null && !Number.isInteger(postId)) erros.push("postId inválido.");
   if (partnerIds !== undefined && !(Array.isArray(partnerIds) && partnerIds.every((n: unknown) => Number.isInteger(n)))) erros.push("partnerIds deve ser uma lista de números.");
   if (erros.length) {
@@ -228,7 +228,7 @@ cronRouter.get("/diag-instagram", async (req, res): Promise<void> => {
     const disc: any[] = [];
     for (const h of handles.slice(0, 5)) {
       if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) continue;
-      const r = await fb(`/${fbId}`, { fields: `business_discovery.username(${h}){username,followers_count,media_count,media.limit(5){id,caption,media_type,media_url,permalink,timestamp}}` });
+      const r = await fb(`/${fbId}`, { fields: `business_discovery.username(${h}){username,followers_count,media_count,media.limit(${req.query.detalhe === "1" ? 12 : 5}){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp}}` });
       const bd = r.dados?.business_discovery;
       const media: any[] = Array.isArray(bd?.media?.data) ? bd.media.data : [];
       disc.push({
@@ -238,6 +238,8 @@ cronRouter.get("/diag-instagram", async (req, res): Promise<void> => {
         comLegenda: media.filter((m) => !!m.caption).length,
         tipos: media.reduce((a: Record<string, number>, m) => ((a[m.media_type] = (a[m.media_type] || 0) + 1), a), {}),
         maisRecente: media[0]?.timestamp ?? null,
+        // Com ?detalhe=1: os posts PÚBLICOS do parceiro (legenda, data, link, tipo, URL da foto) para a produção ler novidades.
+        ...(req.query.detalhe === "1" ? { postsDetalhe: media.map((m) => ({ tipo: m.media_type, quando: m.timestamp, permalink: m.permalink, imagem: m.media_url ?? null, miniatura: m.thumbnail_url ?? null, legenda: String(m.caption || "").slice(0, 900) })) } : {}),
       });
     }
     facebook.businessDiscovery = disc;
