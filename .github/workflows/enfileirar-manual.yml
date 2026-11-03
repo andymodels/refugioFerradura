@@ -29,6 +29,10 @@ on:
         description: "Nome curto do parceiro (só para nomear o arquivo guardado)"
         required: false
         default: "parceiro"
+      url_materia:
+        description: "Endereço completo da matéria no blog (vai no fim da legenda, em texto). Vazio = sem fechamento."
+        required: false
+        default: ""
       post_id:
         description: "ID da matéria do blog a confirmar antes de publicar (opcional)"
         required: false
@@ -51,6 +55,7 @@ jobs:
           VIDEO_ORIGEM: ${{ inputs.video_origem }}
           NOME_PARCEIRO: ${{ inputs.nome_parceiro }}
           POST_ID: ${{ inputs.post_id }}
+          URL_MATERIA: ${{ inputs.url_materia }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -n "$VIDEO_ORIGEM" ]; then
@@ -63,9 +68,14 @@ jobs:
             IMAGENS="$(jq -r .url respA.json)"
           fi
           QUANDO=$(date -u -d "+${MINUTOS} minutes" +%Y-%m-%dT%H:%M:%SZ)
-          FECHO="Matéria completa no site Guia Refúgio Ferradura. Link na bio."
           TAGS="#RotaDaFerradura #BuenosAiresGuarapari #GuarapariES #TurismoCapixaba #EspiritoSanto"
-          CAPTION="$(printf '%s\n\n%s\n\n%s' "$LEGENDA" "$FECHO" "$TAGS")"
+          # O caminho é blog primeiro, Instagram depois: o fechamento aponta para a matéria REAL no blog
+          # (endereço em texto, sem prometer "link na bio"). Sem url_materia, não há fechamento.
+          if [ -n "$URL_MATERIA" ]; then
+            CAPTION="$(printf '%s\n\nMatéria completa: %s\n\n%s' "$LEGENDA" "$URL_MATERIA" "$TAGS")"
+          else
+            CAPTION="$(printf '%s\n\n%s' "$LEGENDA" "$TAGS")"
+          fi
           jq -n --arg titulo "$TITULO" --arg quando "$QUANDO" --arg caption "$CAPTION" --arg imgs "$IMAGENS" --arg post "$POST_ID" '
             {titulo:$titulo, scheduledAt:$quando, caption:$caption, imageUrls:($imgs|split(" ")|map(select(length>0))), pauta:"teste: ponta a ponta"}
             + (if $post != "" then {postId:($post|tonumber)} else {} end)' > body.json

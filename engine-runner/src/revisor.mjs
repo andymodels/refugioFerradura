@@ -37,7 +37,7 @@ REGRAS (cada uma já reprovaria um post):
 ${ehMateria ? "7. MATÉRIA: título, subtítulo e cada seção seguem as mesmas regras 1 a 5; o texto não pode repetir parágrafos das matérias anteriores listadas em \"fontes.anteriores\".\n" : ""}
 GRAVIDADE: "bloqueante" = erro factual, algo inventado, data vencida, slide ruim, promessa que o slide não cumpre. "sugestao" = gosto/estilo menor. REPROVE (veredito "REPROVADO") SOMENTE se houver ao menos um problema bloqueante. Sugestão sozinha não reprova.
 ${anterior ? `\nRODADA ANTERIOR (outro revisor): ${JSON.stringify(anterior).slice(0, 1500)}\nConfira se os bloqueantes foram realmente resolvidos; não aceite a palavra do redator.\n` : ""}
-CORREÇÕES: quando o problema for só de TEXTO, devolva o texto corrigido (o motor aplica). Mantenha a última linha da legenda (hashtags) e a frase "Link na bio" exatamente como estão. Se o problema for um SLIDE ruim ou o lugar não serve, NÃO tente consertar: liste em "slides_ruins" (números) ou marque "sem_conserto": true.
+CORREÇÕES: quando o problema for só de TEXTO, devolva o texto corrigido (o motor aplica). Mantenha a última linha da legenda (hashtags) e o endereço refugioferradura.com.br exatamente como estão. Nunca escreva "link na bio": o perfil não tem link na bio. Se o problema for um SLIDE ruim ou o lugar não serve, NÃO tente consertar: liste em "slides_ruins" (números) ou marque "sem_conserto": true.
 
 Responda SOMENTE com JSON:
 {"veredito":"APROVADO"|"REPROVADO","problemas":[{"onde":"legenda|titulo|subtitulo|secao N|slide N","gravidade":"bloqueante|sugestao","problema":"...","correcao":"..."}],"caption_corrigida":string|null,"artigo_correcoes":[{"onde":"title"|"subtitle"|"sections.N.heading"|"sections.N.paragraphHtml","para":"texto novo completo desse campo"}],"slides_ruins":[numeros],"sem_conserto":false}`;
@@ -100,7 +100,7 @@ export async function revisarProducao({ dir, tipo, fontes, caption, artigo = nul
     let mudou = false;
     if (typeof res.caption_corrigida === "string" && res.caption_corrigida.trim() && res.caption_corrigida.trim() !== capAtual.trim()) {
       const c = res.caption_corrigida.trim();
-      const okFecho = ultimoParagrafo(c) === ultimoParagrafo(capAtual) && /Link na bio/.test(c) && c.length >= 10 && c.length <= 2200;
+      const okFecho = ultimoParagrafo(c) === ultimoParagrafo(capAtual) && /refugioferradura\.com\.br/.test(c) && !/link na bio/i.test(c) && c.length >= 10 && c.length <= 2200;
       if (okFecho) { capAtual = c; mudou = true; } else console.log("    correção de legenda ignorada (mexeu no fechamento ou no tamanho)");
     }
     if (artAtual && Array.isArray(res.artigo_correcoes) && res.artigo_correcoes.length) {
