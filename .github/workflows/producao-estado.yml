@@ -1,0 +1,32 @@
+name: Estado da produção diária (fila, ciclo e próximos parceiros)
+
+# Só leitura. A tarefa diária do Claude na nuvem dispara este workflow e lê o resultado no log
+# (mesmo padrão do diagnóstico do blog UM2TRÊS). Com ler=1 consulta o Instagram dos parceiros que
+# ainda não foram lidos (até 25 por vez; rode de novo até "pendentesDeLeitura" chegar a 0).
+on:
+  workflow_dispatch:
+    inputs:
+      ler:
+        description: "1 = ler o Instagram dos parceiros pendentes"
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+jobs:
+  estado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Consultar o estado
+        env:
+          LER: ${{ inputs.ler }}
+        run: |
+          code=$(curl --silent --max-time 200 -G -o resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --data-urlencode "ler=${LER}" \
+            https://refugioferradura.com.br/api/cron/instagram-queue/estado-producao || echo 000)
+          echo "HTTP $code"
+          python3 -m json.tool --no-ensure-ascii resp.json 2>/dev/null || cat resp.json
+          [ "$code" = "200" ]

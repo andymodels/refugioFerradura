@@ -6,6 +6,7 @@ import { executarFila } from "../lib/instagram-queue";
 import { getInstagramToken } from "../lib/instagram-token";
 import { isB2Url } from "../lib/engine";
 import { archiveRemoteMedia } from "../lib/b2-storage";
+import { estadoProducao } from "../lib/producao-estado";
 import { logger } from "../lib/logger";
 
 // Fila do Instagram. Duas portas:
@@ -39,6 +40,18 @@ cronRouter.all("/run", async (req, res): Promise<void> => {
     res.status(r.falhas.length ? 500 : 200).json({ ok: r.falhas.length === 0, ...r });
   } catch (err: any) {
     logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Erro ao executar a fila");
+    res.status(500).json({ ok: false, erro: String(err?.message ?? err).slice(0, 200) });
+  }
+});
+
+// Estado da produção diária (para a tarefa agendada do Claude na nuvem): fila, ciclo de parceiros e
+// próximos da vez. ?ler=1 lê o Instagram dos parceiros pendentes (até 25 por chamada, cache de 12 h).
+cronRouter.get("/estado-producao", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  try {
+    res.json(await estadoProducao({ ler: req.query.ler === "1" }));
+  } catch (err: any) {
+    logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Erro no estado da produção");
     res.status(500).json({ ok: false, erro: String(err?.message ?? err).slice(0, 200) });
   }
 });
