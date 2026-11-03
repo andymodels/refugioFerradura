@@ -1,6 +1,6 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db, instagramQueueTable, postsTable, type InstagramQueueItem } from "@workspace/db";
-import { publishCarouselToInstagram, publishSinglePhotoToInstagram } from "./instagram";
+import { publishCarouselToInstagram, publishSinglePhotoToInstagram, publishReelToInstagram } from "./instagram";
 import { getInstagramToken } from "./instagram-token";
 import { logger } from "./logger";
 
@@ -171,7 +171,12 @@ export async function executarFila(): Promise<ResultadoFila> {
 
     try {
       await liberarMateria(item); // blog primeiro; se não confirmar, o Instagram não sai
-      const r = item.imageUrls.length === 1 ? await publishSinglePhotoToInstagram(item.imageUrls[0], item.caption) : await publishCarouselToInstagram(item.imageUrls, item.caption);
+      const ehVideo = item.imageUrls.length === 1 && /\.mp4(\?|$)/i.test(item.imageUrls[0]);
+      const r = ehVideo
+        ? await publishReelToInstagram(item.imageUrls[0], item.caption)
+        : item.imageUrls.length === 1
+          ? await publishSinglePhotoToInstagram(item.imageUrls[0], item.caption)
+          : await publishCarouselToInstagram(item.imageUrls, item.caption);
       await marcarPublicado(item, r.mediaId, r.permalink ?? null);
       logger.info({ id: item.id, mediaId: r.mediaId }, "[fila-instagram] Publicado");
       res.publicados.push({ id: item.id, permalink: r.permalink ?? null });

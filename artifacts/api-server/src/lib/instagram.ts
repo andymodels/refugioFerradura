@@ -369,6 +369,43 @@ export async function publishSinglePhotoToInstagram(imageUrl: string, caption: s
   return { mediaId: publishData.id, caption, permalink };
 }
 
+// Publica UM vídeo (MP4 público) como Reel no feed do Instagram oficial (também aparece no feed da grade).
+// Vídeo demora para processar: espera o container ficar FINISHED (até ~90 s) antes de publicar. Se a
+// chamada estourar o tempo, a fila reconcilia com o Instagram (recuperarPresos) antes de tentar de novo.
+export async function publishReelToInstagram(videoUrl: string, caption: string): Promise<InstagramPublishResult> {
+  const accessToken = (await getInstagramToken()).token;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!accessToken || !igUserId) {
+    throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
+  }
+  const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
+  containerUrl.searchParams.set("media_type", "REELS");
+  containerUrl.searchParams.set("video_url", videoUrl);
+  containerUrl.searchParams.set("share_to_feed", "true");
+  containerUrl.searchParams.set("caption", caption.slice(0, 2200));
+  containerUrl.searchParams.set("access_token", accessToken);
+  const containerRes = await fetch(containerUrl, { method: "POST" });
+  const containerData: any = await containerRes.json();
+  if (!containerRes.ok || !containerData?.id) {
+    logger.error({ status: containerRes.status, data: containerData, videoUrl }, "Falha ao criar container de Reel no Instagram");
+    throw new Error(containerData?.error?.error_user_msg || containerData?.error?.message || "Falha ao preparar o Reel.");
+  }
+  await waitForContainerReady(containerData.id, accessToken, "video");
+
+  const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
+  publishUrl.searchParams.set("creation_id", containerData.id);
+  publishUrl.searchParams.set("access_token", accessToken);
+  const publishRes = await fetch(publishUrl, { method: "POST" });
+  const publishData: any = await publishRes.json();
+  if (!publishRes.ok || !publishData?.id) {
+    logger.error({ status: publishRes.status, data: publishData }, "Falha ao publicar Reel no Instagram");
+    throw new Error(publishData?.error?.error_user_msg || publishData?.error?.message || "Falha ao publicar o Reel.");
+  }
+  const permalink = await fetchPermalink(publishData.id, accessToken);
+  logger.info({ mediaId: publishData.id, permalink }, "Reel publicado no Instagram");
+  return { mediaId: publishData.id, caption, permalink };
+}
+
 // O Instagram não tem sticker de menção via API (isso só existe no app,
 // composto manualmente) — pra Story em foto, grava o @ do parceiro
 // visualmente na imagem via transformação do Cloudinary, garantindo o

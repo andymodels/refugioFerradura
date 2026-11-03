@@ -439,7 +439,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
   // Legenda
   const pautaTxt = { titulo: P.tipo === "destaque" ? `Destaque: ${escolhidos[0].nome}` : P.titulo() };
   const corpo = await escreverLegenda({ pauta: pautaTxt, lugares: escolhidos, dia, dir });
-  const fechamento = P.tipo === "destaque" ? "Horário e cardápio mudam: confirme direto com o perfil antes de ir.\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio." : "Cardápio e horário mudam, então confirme direto com cada casa antes de ir.\n\nVeja tudo sobre a Rota da Ferradura no site Guia Refúgio Ferradura. Link na bio.";
+  const fechamento = P.tipo === "destaque" ? "Horário e cardápio mudam: confirme direto com o perfil antes de ir.\n\nMatéria completa: refugioferradura.com.br/blog" : "Cardápio e horário mudam, então confirme direto com cada casa antes de ir.\n\nVeja tudo sobre a Rota da Ferradura em refugioferradura.com.br/blog";
   let caption = `${corpo}\n\n${fechamento}\n\n${HASHTAGS}`;
   fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
 
@@ -553,7 +553,7 @@ ${erros ? `SUA VERSÃO ANTERIOR FOI REJEITADA: ${erros.join("; ")}\n` : ""}Respo
     const titulo = await escreverTituloCapa({ P: { tipo: "destaque", titulo: () => post.title }, lugares: lugar, dir });
     let capa;
     try { capa = await montarCapa({ fotos, titulo, nome: post.subtitle || post.title, rotulo: "DO BLOG", lista: null, saida: path.join(dir, "capa.jpg") }); } catch (e) { log("blog_reserva_capa", { postId: post.id, erro: String(e.message).slice(0, 120) }); continue; }
-    let caption = `${corpo}\n\nMatéria completa no site Guia Refúgio Ferradura. Link na bio.\n\n${HASHTAGS}`;
+    let caption = `${corpo}\n\nMatéria completa: refugioferradura.com.br/blog\n\n${HASHTAGS}`;
     fs.writeFileSync(path.join(dir, "legenda.txt"), caption);
     const prontos = [path.join(dir, "capa.jpg")];
     for (const f of fotos.filter((f) => f !== capa.fotoUsada).slice(0, 5)) prontos.push(f.slide || (await prepararSlide(f.file)));
