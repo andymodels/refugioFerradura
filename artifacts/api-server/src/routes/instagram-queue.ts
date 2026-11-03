@@ -177,10 +177,10 @@ cronRouter.get("/diag-instagram", async (req, res): Promise<void> => {
     return;
   }
   const base = "https://graph.instagram.com/v21.0";
-  const chamar = async (caminho: string, params: Record<string, string>) => {
-    const url = new URL(base + caminho);
+  const fazer = (baseUrl: string, tok: string) => async (caminho: string, params: Record<string, string>) => {
+    const url = new URL(baseUrl + caminho);
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    url.searchParams.set("access_token", token);
+    url.searchParams.set("access_token", tok);
     try {
       const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
       const d: any = await r.json().catch(() => null);
@@ -190,6 +190,7 @@ cronRouter.get("/diag-instagram", async (req, res): Promise<void> => {
       return { http: 0, ok: false, erro: { codigo: null, subcodigo: null, tipo: "rede", mensagem: String(err?.message ?? err).slice(0, 120) }, dados: null };
     }
   };
+  const chamar = fazer(base, token);
   const conta = await chamar(`/${igId}`, { fields: "id,username,account_type,media_count" });
   const tags = await chamar(`/${igId}/tags`, { fields: "id,media_type,media_url,permalink,timestamp,username", limit: "25" });
   const lista: any[] = Array.isArray(tags.dados?.data) ? tags.dados.data : [];
@@ -208,7 +209,42 @@ cronRouter.get("/diag-instagram", async (req, res): Promise<void> => {
     discovery.push({ handle: h, http: r.http, ok: r.ok, erro: r.erro, posts: media.length, comUrlDaImagem: media.filter((m) => !!m.media_url).length, maisRecente: media[0]?.timestamp ?? null });
   }
 
+  // Login do Facebook (variáveis INSTAGRAM_FB_ACCESS_TOKEN e, opcional, INSTAGRAM_FB_USER_ID): é este tipo
+  // de token que habilita business_discovery. Aqui só testamos; nada é guardado nem exibido.
+  const fbToken = process.env.INSTAGRAM_FB_ACCESS_TOKEN;
+  const fbId = process.env.INSTAGRAM_FB_USER_ID || igId;
+  const facebook: Record<string, unknown> = { tokenConfigurado: !!fbToken };
+  if (fbToken) {
+    const fb = fazer("https://graph.facebook.com/v21.0", fbToken);
+    const perms = await fb("/me/permissions", {});
+    const lista2: any[] = Array.isArray(perms.dados?.data) ? perms.dados.data : [];
+    facebook.permissoesConcedidas = lista2.filter((p) => p.status === "granted").map((p) => p.permission);
+    facebook.permissoesErro = perms.erro;
+    const contaFb = await fb(`/${fbId}`, { fields: "id,username,account_type" });
+    facebook.conta = { ok: contaFb.ok, erro: contaFb.erro, usuario: contaFb.dados?.username ?? null, tipo: contaFb.dados?.account_type ?? null };
+    const tagsFb = await fb(`/${fbId}/tags`, { fields: "id,media_type,media_url,permalink,timestamp,username", limit: "25" });
+    const lfb: any[] = Array.isArray(tagsFb.dados?.data) ? tagsFb.dados.data : [];
+    facebook.tags = { ok: tagsFb.ok, erro: tagsFb.erro, total: lfb.length, comUrlDaImagem: lfb.filter((m) => !!m.media_url).length };
+    const disc: any[] = [];
+    for (const h of handles.slice(0, 5)) {
+      if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) continue;
+      const r = await fb(`/${fbId}`, { fields: `business_discovery.username(${h}){username,followers_count,media_count,media.limit(5){id,caption,media_type,media_url,permalink,timestamp}}` });
+      const bd = r.dados?.business_discovery;
+      const media: any[] = Array.isArray(bd?.media?.data) ? bd.media.data : [];
+      disc.push({
+        handle: h, http: r.http, ok: r.ok, erro: r.erro,
+        posts: media.length,
+        comUrlDaImagem: media.filter((m) => !!m.media_url).length,
+        comLegenda: media.filter((m) => !!m.caption).length,
+        tipos: media.reduce((a: Record<string, number>, m) => ((a[m.media_type] = (a[m.media_type] || 0) + 1), a), {}),
+        maisRecente: media[0]?.timestamp ?? null,
+      });
+    }
+    facebook.businessDiscovery = disc;
+  }
+
   res.json({
+    facebook,
     tokenOrigem: origem,
     tokenTipo: token.startsWith("IGAA") ? "Instagram Login (IGAA)" : "outro",
     conta: { ok: conta.ok, erro: conta.erro, tipo: conta.dados?.account_type ?? null, usuario: conta.dados?.username ?? null },
