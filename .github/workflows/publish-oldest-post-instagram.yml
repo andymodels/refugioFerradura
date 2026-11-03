@@ -1,4 +1,4 @@
-name: Publicar post pendente no Instagram (7h e 19h)
+name: Publicar post pendente no Instagram (DESLIGADO — somente manual)
 
 # Duas vezes por dia, pega o post do blog mais antigo que já está publicado
 # e ainda não foi postado no Instagram, e publica só esse — 1 por vez, pra
@@ -6,9 +6,12 @@ name: Publicar post pendente no Instagram (7h e 19h)
 # Sem revisão manual: se o post está publicado e tem mídia aprovada, vai
 # direto. Ver rota /api/cron/publish-oldest-to-instagram.
 on:
-  schedule:
-    - cron: "7 10 * * *" # ~7h BRT (UTC-3, sem horário de verão)
-    - cron: "7 22 * * *" # ~19h BRT
+  # DESLIGADO em 2026-11-03: o Refúgio passa a ter UM só tipo de agendamento (fila do Instagram,
+  # produzida no Mac e publicada pelo vigia/tick). Este fluxo antigo postava o post mais antigo do
+  # blog sozinho e podia repetir parceiro. Só roda se alguém clicar em "Run workflow".
+  # - schedule:
+  #     - cron: "7 10 * * *" # ~7h BRT (UTC-3, sem horário de verão)
+  #     - cron: "7 22 * * *" # ~19h BRT
   workflow_dispatch: {}
 
 concurrency:
