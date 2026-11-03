@@ -26,6 +26,7 @@ import {
   GetPartnerUploadInfoResponse,
 } from "@workspace/api-zod";
 import { scanPostsForPartners } from "../lib/partners";
+import { acharDuplicado } from "../lib/partner-dedupe";
 import { computeSchedulePreview, assignScheduleSlots } from "../lib/story-schedule";
 import { buildPartnerConnectUrl, verifyState, exchangePartnerCode } from "../lib/partner-oauth";
 import { publishPartnerContentToInstagram } from "../lib/instagram";
@@ -132,6 +133,16 @@ router.post("/partners/admin", async (req, res): Promise<void> => {
   const parsed = CreateInstagramPartnerBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Nunca cadastrar o mesmo estabelecimento duas vezes (mesmo Instagram, nome exato ou telefone).
+  const todos = await db
+    .select({ id: instagramPartnersTable.id, nome: instagramPartnersTable.nomeEstabelecimento, instagram: instagramPartnersTable.instagramHandle, telefone: instagramPartnersTable.telefone })
+    .from(instagramPartnersTable);
+  const dup = acharDuplicado({ nome: parsed.data.nomeEstabelecimento, instagram: parsed.data.instagramHandle, telefone: parsed.data.telefone }, todos);
+  if (dup) {
+    res.status(409).json({ error: `Já existe um estabelecimento igual: "${dup.nome}" (${dup.instagram ? "@" + String(dup.instagram).replace(/^@/, "") : "sem Instagram"}).` });
     return;
   }
 
