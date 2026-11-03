@@ -27,6 +27,7 @@ import {
 } from "@workspace/api-zod";
 import { scanPostsForPartners } from "../lib/partners";
 import { acharDuplicado } from "../lib/partner-dedupe";
+import { mesclarParceirosDuplicados } from "../lib/partner-merge";
 import { computeSchedulePreview, assignScheduleSlots } from "../lib/story-schedule";
 import { buildPartnerConnectUrl, verifyState, exchangePartnerCode } from "../lib/partner-oauth";
 import { publishPartnerContentToInstagram } from "../lib/instagram";
@@ -119,6 +120,25 @@ router.post("/partners/admin/scan", async (req, res): Promise<void> => {
   } catch (err) {
     logger.error({ error: String((err as any)?.message ?? err) }, "[partners] Falha na varredura");
     res.status(500).json({ error: "Falha ao varrer os posts." });
+  }
+});
+
+// Limpeza das duplicatas já existentes. Sem `confirmar: true` só devolve a PRÉVIA
+// (quantos repetidos, quem fica e quem sai); com `confirmar: true` aplica, guardando
+// uma cópia dos removidos em `settings` e passando tudo que apontava para eles.
+router.post("/partners/admin/dedupe", async (req, res): Promise<void> => {
+  const session = req.session as any;
+  if (!session?.adminId) {
+    res.status(401).json({ error: "Não autenticado" });
+    return;
+  }
+  try {
+    const r = await mesclarParceirosDuplicados(req.body?.confirmar === true);
+    logger.info({ aplicado: r.aplicado, removeria: r.removeria }, "[partners] Limpeza de duplicados");
+    res.json(r);
+  } catch (err) {
+    logger.error({ error: String((err as any)?.message ?? err) }, "[partners] Falha na limpeza de duplicados");
+    res.status(500).json({ error: "Falha ao limpar duplicados. Nada foi alterado." });
   }
 });
 

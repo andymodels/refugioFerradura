@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "wouter";
-import { Store, Download, Pencil, X, Check, Plus, Pause, Play, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { Store, Download, Copy, Pencil, X, Check, Plus, Pause, Play, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { AdminLayout } from "@/components/admin-layout";
 import { Button, Card, Input, Label, Textarea } from "@/components/ui-elements";
 import {
@@ -170,6 +170,33 @@ export default function AdminPartners() {
     }
   };
 
+  const [limpando, setLimpando] = React.useState(false);
+  const handleDedupe = async () => {
+    setLimpando(true);
+    try {
+      const chamar = async (confirmar: boolean) => {
+        const r = await fetch("/api/partners/admin/dedupe", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmar }) });
+        const d = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(d?.error || `Erro ${r.status}`);
+        return d;
+      };
+      const previa = await chamar(false);
+      if (!previa.removeria) {
+        toast({ title: "Nenhuma duplicata", description: `${previa.total} estabelecimentos, todos diferentes.` });
+        return;
+      }
+      const exemplos = previa.grupos.slice(0, 8).map((g: any) => `• ${g.manter.instagram || g.manter.nome} (junta ${g.remover.length})`).join("\n");
+      if (!window.confirm(`Encontrei ${previa.removeria} repetido(s). A lista vai de ${previa.total} para ${previa.ficaria} estabelecimentos.\n\n${exemplos}${previa.grupos.length > 8 ? "\n..." : ""}\n\nOs dados dos repetidos são passados para o que fica e uma cópia de segurança é guardada. Confirmar?`)) return;
+      const feito = await chamar(true);
+      invalidate();
+      toast({ title: "Duplicados removidos", description: `Agora são ${feito.ficaria} estabelecimentos (eram ${feito.total}).` });
+    } catch (e: any) {
+      toast({ title: "Erro na limpeza", description: e?.message, variant: "destructive" });
+    } finally {
+      setLimpando(false);
+    }
+  };
+
   const startEdit = (p: (typeof partners)[number]) => {
     setEditingId(p.id);
     setShowAuth(false);
@@ -264,6 +291,16 @@ export default function AdminPartners() {
             e matéria principal de cada um.
           </p>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDedupe}
+          disabled={limpando}
+          className="flex items-center gap-2 shrink-0 text-muted-foreground"
+          title="Junta estabelecimentos repetidos (mesmo Instagram, nome ou telefone). Mostra a prévia antes de apagar e guarda cópia de segurança."
+        >
+          <Copy className="w-4 h-4" /> {limpando ? "Conferindo..." : "Limpar duplicados"}
+        </Button>
         <Button
           variant="ghost"
           size="sm"
