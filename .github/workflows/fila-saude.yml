@@ -7,9 +7,10 @@ name: Saúde da fila do Instagram (diário)
 # ou se algum item falhou nas últimas 72h. Também imprime o diagnóstico completo.
 # Ver rota GET /api/cron/instagram-queue/status.
 on:
-  schedule:
-    - cron: "17 11 * * *" # ~8h17 BRT
-    - cron: "17 21 * * *" # ~18h17 BRT
+  # DESLIGADO em 2026-11-04 a pedido do João. Para religar, volte o schedule.
+  # schedule:
+  #   - cron: "17 11 * * *"
+  #   - cron: "17 21 * * *"
   workflow_dispatch: {}
 
 permissions:

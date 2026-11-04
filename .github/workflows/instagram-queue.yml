@@ -14,8 +14,10 @@ name: Publicar fila do Instagram (vigia contínuo)
 # a cada 5 min); este vigia fica de reserva. As duas rotas usam a mesma reserva atômica.
 # Ver rotas /api/cron/instagram-queue/run e /tick.
 on:
-  schedule:
-    - cron: "*/30 * * * *"
+  # DESLIGADO em 2026-11-04 a pedido do João: nenhum agendamento ativo no Refúgio. Só roda se alguém
+  # clicar em "Run workflow". Para religar, volte o schedule abaixo.
+  # schedule:
+  #   - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 concurrency:
@@ -49,11 +51,6 @@ jobs:
             sleep 60
           done
           echo "falhou=$falhou" >> "$GITHUB_OUTPUT"
-      - name: Reiniciar o vigia
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run instagram-queue.yml --repo "${{ github.repository }}" || true
       - name: Avisar se algum item esgotou as tentativas
         if: steps.loop.outputs.falhou == '1'
         run: exit 1
