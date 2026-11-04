@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CACHE_DIR, MAX_IMAGENS, IG_ESTAGIOS } from "./config.mjs";
+import { CACHE_DIR, MAX_IMAGENS, IG_ESTAGIOS, AVAL_GRUPO, IG_MAX_CANDIDATOS, REJ_VALIDADE_DIAS, LADO_MIN_FOTO, LADO_PENAL_FOTO } from "./config.mjs";
 import { log, notify } from "./log.mjs";
 import { api } from "./api.mjs";
 import { abrirNavegador, abrirPerfil, midiaDoPost, pausa } from "./ig.mjs";
@@ -56,7 +56,7 @@ const soltarLock = () => { try { fs.unlinkSync(LOCK); } catch {} };
 // Cache local de posts já reprovados na avaliação visual (não reavaliar).
 // Post reprovado só fica fora por 21 dias: depois volta a ser avaliado (as regras e a extração
 // de quadros dos vídeos mudam; antes a reprovação era para sempre e travava perfis ativos).
-const VALIDADE_REJ = 21 * 86400000;
+const VALIDADE_REJ = REJ_VALIDADE_DIAS * 86400000;
 function lerRejeitados() {
   let o;
   try { o = JSON.parse(fs.readFileSync(REJEITADOS, "utf8")); } catch { return { _quando: {} }; }
@@ -89,8 +89,8 @@ function penalidadeResolucao(w, h) {
   const lado = Math.min(w || 0, h || 0);
   if (!lado) return 2;
   // quadro de vídeo/Reel costuma ter 720 px de largura e rende boas fotos: só desconta abaixo disso
-  if (lado < 700) return 2;
-  if (lado < 900) return 1;
+  if (lado < LADO_MIN_FOTO) return 2;
+  if (lado < LADO_PENAL_FOTO) return 1;
   return 0;
 }
 
@@ -119,8 +119,8 @@ async function avaliarEFiltrar(itens, dir, topic) {
   // em grupos de 6: uma consulta com muitas imagens estoura o tempo
   const resp = [];
   const semResposta = new Set(); // nomes dos arquivos de grupos cuja avaliação falhou
-  for (let i = 0; i < lote.length; i += 6) {
-    const grupo = lote.slice(i, i + 6);
+  for (let i = 0; i < lote.length; i += AVAL_GRUPO) {
+    const grupo = lote.slice(i, i + AVAL_GRUPO);
     try {
       resp.push(...(await avaliarImagens(grupo.map((l) => ({ nomeArquivo: l.nome, legenda: l.c.legenda, data: l.c.takenAt })), {
         cwd: vetDir, lugar: topic.fatos.nome, categoria: topic.categoria, cenasNucleo: regras.cenasNucleo,
@@ -267,7 +267,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
           log("instagram_estagio", { handle, limite: IG_ESTAGIOS[e], posts: posts.length, novos: novos.length });
           const candidatos = [];
           for (const p of novos) {
-            if (candidatos.length >= 18) break; // a avaliação lê uma imagem por vez: mais que isso estoura o tempo
+            if (candidatos.length >= IG_MAX_CANDIDATOS) break; // a avaliação lê uma imagem por vez: mais que isso estoura o tempo
             try {
               const m = await midiaDoPost(p.permalink);
               await pausa();

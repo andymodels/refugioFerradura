@@ -46,7 +46,7 @@ if (AGORA && ARGS.includes("--real") && !ARGS.includes("--confirmo-agora")) {
 }
 
 const exec = promisify(execFile);
-const { CACHE_DIR, ensureDirs } = await import("./config.mjs");
+const { CACHE_DIR, ensureDirs, PRESENCA_MAX_DIAS, NOTA_SLIDE_MIN, NOTA_CAPA_MIN, PRAZO_DIA_MS, TEMPO_CURADORIA_MS } = await import("./config.mjs");
 const { api, apiFila } = await import("./api.mjs");
 const { log, notify } = await import("./log.mjs");
 const run = await import("./run.mjs"); // reaproveita coleta de mídia e redação do destaque
@@ -146,9 +146,9 @@ function fotosDoLugar(todas, regras) {
   }
   return out;
 }
-// Presença recente = post do perfil nos últimos 180 dias (era 90 até 2026-10-25: barrava perfis bons que
+// Presença recente = post do perfil nos últimos PRESENCA_MAX_DIAS dias (180; era 90 até 2026-10-25: barrava perfis bons que
 // postam pouco). Informação datada continua barrada pela legenda e pela curadoria dos slides.
-const temPresencaRecente = (midia) => (midia.resumo?.instagram?.ultimoPost && idadeDias(midia.resumo.instagram.ultimoPost) <= 180) || midia.todas.some((t) => t.takenAt && idadeDias(t.takenAt) <= 180);
+const temPresencaRecente = (midia) => (midia.resumo?.instagram?.ultimoPost && idadeDias(midia.resumo.instagram.ultimoPost) <= PRESENCA_MAX_DIAS) || midia.todas.some((t) => t.takenAt && idadeDias(t.takenAt) <= PRESENCA_MAX_DIAS);
 
 // ─── Legenda (Claude local escreve; o código valida) ───────────────────────
 const PROIBIDAS = /experi[eê]ncia inesquec[ií]vel|para[ií]so escondido|destino imperd[ií]vel|encanto em cada detalhe|criar mem[oó]rias|imperd[ií]vel|aconchegante|charmos[oa]/i;
@@ -334,7 +334,7 @@ Dê também duas notas de 0 a 10 a cada slide (seja exigente, como editor de rev
 Responda SOMENTE com JSON: {"slides":[{"arquivo":"s1.jpg","entra":true|false,"nota_slide":0,"nota_capa":0,"motivo":"até 10 palavras"}]}`;
   let resp;
   try {
-    resp = extrairJson(await rodarClaude(prompt, { cwd: pasta, ferramentas: "Read", maxTurns: itens.length * 2 + 6, timeoutMs: 420000 }));
+    resp = extrairJson(await rodarClaude(prompt, { cwd: pasta, ferramentas: "Read", maxTurns: itens.length * 2 + 6, timeoutMs: TEMPO_CURADORIA_MS }));
   } catch (e) {
     // sem a conferência não dá para garantir a qualidade: o lugar fica para outro dia
     log("curadoria_indisponivel", { erro: String(e.message).slice(0, 160) });
@@ -345,7 +345,7 @@ Responda SOMENTE com JSON: {"slides":[{"arquivo":"s1.jpg","entra":true|false,"no
     const r = (resp.slides || []).find((s) => s.arquivo === it.nome);
     it.f.notaSlide = Number(r?.nota_slide) || 0;
     it.f.notaCapa = Number(r?.nota_capa) || 0;
-    if (r?.entra === true && it.f.notaSlide >= 6) aprovadas.push(it.f);
+    if (r?.entra === true && it.f.notaSlide >= NOTA_SLIDE_MIN) aprovadas.push(it.f);
     else log("slide_reprovado", { arquivo: it.nome, origem: it.f.origemUrl || it.f.url, motivo: r?.motivo || "sem resposta" });
   }
   console.log(`    curadoria: ${aprovadas.length} de ${itens.length} foto(s) aprovadas (capa: ${aprovadas.map((f) => f.notaCapa).join("/")})`);
@@ -403,7 +403,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
       fs.mkdirSync(sub, { recursive: true });
       const midia = await run.prepararMidia(topic, sub, { carrossel: P.tipo !== "destaque" });
       locais.push(...midia.todas);
-      if (!temPresencaRecente(midia)) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: "sem post oficial nos últimos 180 dias" }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
+      if (!temPresencaRecente(midia)) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `sem post oficial nos últimos ${PRESENCA_MAX_DIAS} dias` }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
       let fotos;
       if (P.tipo === "destaque") {
         if (!midia.ok) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: midia.motivo }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
@@ -415,7 +415,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
         if (aprovadas.length < 3) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `curadoria: só ${aprovadas.length} foto(s) boa(s)` }); continue; }
         // a melhor candidata a capa vai na frente (vira também a capa da matéria do blog)
         aprovadas.sort((a, b) => b.notaCapa - a.notaCapa);
-        if (aprovadas[0].notaCapa < 7) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `curadoria: nenhuma foto boa de capa (melhor nota ${aprovadas[0].notaCapa})` }); continue; }
+        if (aprovadas[0].notaCapa < NOTA_CAPA_MIN) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `curadoria: nenhuma foto boa de capa (melhor nota ${aprovadas[0].notaCapa})` }); continue; }
         topic.anteriores = await materiasAnteriores(topic, ctx);
         topic.novidades = novidadesDoPerfil(midia.todas);
         const red = await run.redigir(topic, aprovadas, sub);
@@ -660,7 +660,9 @@ async function main() {
       // destaque tenta até 10 parceiros por dia; as pautas de vários lugares só entram se forçadas
       const tentativas = FORCAR === "blog" ? [] : [primeira];
       let reprovadoUmaVez = false;
+      const inicioDia = Date.now();
       for (const pid of tentativas) {
+        if (Date.now() - inicioDia > PRAZO_DIA_MS) { console.log(`  prazo do dia esgotado (${Math.round(PRAZO_DIA_MS / 60000)} min): vai para a reserva do blog`); break; }
         try { r = await produzirDia(dia, ctx, pid); break; } catch (e) {
           ultimoErro = e;
           // Revisor reprovou este lugar: tenta mais uma vez com outro (o reprovado já está em usadosNaSemana).

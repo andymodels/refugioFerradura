@@ -64,3 +64,7 @@ Thumbs.db
 
 # Claude Code local-only config (contains secrets in the permission allowlist history)
 .claude/settings.local.json
+
+# Saídas locais do motor e ferramentas
+output/
+.serena/

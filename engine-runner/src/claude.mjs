@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { findClaudeBin } from "./config.mjs";
+import { findClaudeBin, TEMPO_AVALIACAO_MS } from "./config.mjs";
 
 // Limite de uso OU login expirado do Claude Code: quando acontece, TODA chamada seguinte falha igual.
 // Detectado uma vez, o motor para de produzir (ver semana.mjs e fila.mjs) em vez de
@@ -80,7 +80,7 @@ Outras regras de nota:
 
 Responda SOMENTE com JSON, sem texto extra, um item por imagem na mesma ordem:
 [{"arquivo":"<nome>","nota":<0-10>,"cena":"<cena>","texto_sobreposto":true|false,"texto_problematico":true|false,"chamada":"<texto útil ou vazio>","descricao":"<até 15 palavras>","motivo":"<até 12 palavras>"}]`;
-  const texto = await rodarClaude(prompt, { cwd, ferramentas: "Read", maxTurns: itens.length * 2 + 6, timeoutMs: 600000 });
+  const texto = await rodarClaude(prompt, { cwd, ferramentas: "Read", maxTurns: itens.length * 2 + 6, timeoutMs: TEMPO_AVALIACAO_MS });
   const arr = extrairJson(texto);
   if (!Array.isArray(arr)) throw new Error("avaliação sem lista");
   return arr;

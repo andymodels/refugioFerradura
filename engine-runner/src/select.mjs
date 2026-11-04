@@ -1,4 +1,4 @@
-import { MIN_IMAGENS, MAX_IMAGENS } from "./config.mjs";
+import { MIN_IMAGENS, MAX_IMAGENS, LADO_MIN_FOTO, LADO_MIN_CAPA } from "./config.mjs";
 
 const PRIORIDADE_FONTE = { instagram_oficial: 0, b2_materia: 1, site_oficial: 2 };
 const DIAS_PENALIDADE = 14;
@@ -27,7 +27,7 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
   const uteis = pool
     .filter((r) => r.score != null && r.score >= regras.scoreUtil)
     // cartaz/arte (horário, promoção, aviso) e texto problemático nunca entram; foto pequena também não
-    .filter((r) => r.cena !== "cartaz" && !/texto problemático/.test(String(r.nota || "")) && !(lado(r) && lado(r) < 700))
+    .filter((r) => r.cena !== "cartaz" && !/texto problemático/.test(String(r.nota || "")) && !(lado(r) && lado(r) < LADO_MIN_FOTO))
     .map((r) => {
       const usadoRecente = r.lastUsedAt && agora - new Date(r.lastUsedAt).getTime() < DIAS_PENALIDADE * 86400000;
       // Idade do post: fotos ATUAIS do perfil oficial vêm primeiro (pedido do usuário, 2026-10-24).
@@ -43,7 +43,7 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
     .map((x) => x.r);
 
   // quadro de vídeo (720 px) também pode ser capa; a curadoria final dá a nota de capa olhando a foto
-  const minCapa = Math.min(regras.minLadoCapa || 1000, 720);
+  const minCapa = Math.min(regras.minLadoCapa || 1000, LADO_MIN_CAPA);
   // prefere cena que mostra o lugar; se não houver (ex.: espaço de eventos com fotos de buffet e
   // decoração), aceita qualquer foto útil que não seja cartaz/retrato. A nota de capa decide depois.
   const capa = uteis.find((r) => nucleo.has(r.cena) && !semCapa.has(r.cena) && lado(r) >= minCapa)
