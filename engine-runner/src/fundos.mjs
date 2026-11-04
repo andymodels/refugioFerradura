@@ -85,7 +85,8 @@ export async function escolherFundoVariado({ tema = null, excluir = new Set() } 
   const usados = new Set((fila.itens || []).map((i) => i.capaFundo).filter(Boolean));
   // Fotos de /engine/ são derivadas dos slides de carrosséis já publicados: nunca viram fundo.
   // Piscina, deck, estátua e pessoa não são "paisagem da Rota": ficam fora mesmo se o Claude liberou.
-  const NAO = /piscina|deck|est[aá]tua|mulher|homem|pessoa|crian[cç]a|pousada|chal[eé]/i;
+  // Palavras inteiras (\b): evita falso positivo como "mesa de pedra com vista" ou "Casa da Montanha" só pelo trecho.
+  const NAO = /\b(piscina|deck|est[aá]tua|mulher|homem|pessoa|crian[cç]a|pousada|chal[eé]|rede|balan[cç]o|quintal|restaurante|varanda|estrutura|logotipo|fogueira|playground|gramado)\b|\bconviv/i;
   const livres = Object.entries(cat).filter(([url, v]) => v.serve && !/\/engine\//.test(url) && !NAO.test(v.descricao || "") && !usados.has(url) && !excluir.has(url));
   if (!livres.length) throw new Error("nenhum fundo livre no catálogo (rode atualizarCatalogo ou amplie o acervo)");
   const comTema = tema ? livres.filter(([, v]) => (v.temas || []).includes(tema)) : [];

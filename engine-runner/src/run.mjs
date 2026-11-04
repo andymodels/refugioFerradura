@@ -37,7 +37,8 @@ const MAX_PAUTAS = 5;
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const SAIDA_DRY = path.resolve(AQUI, "..", "..", "output", "engine-dry-run");
 const LOCK = path.join(CACHE_DIR, "run.lock");
-const REJEITADOS = path.join(CACHE_DIR, "rejeitados.json");
+// v2 (2026-10-24): recomeça do zero, porque as reprovações antigas eram permanentes e com regras velhas
+const REJEITADOS = path.join(CACHE_DIR, "rejeitados-v2.json");
 
 const hojeBRT = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
@@ -53,8 +54,33 @@ function pegarLock() {
 const soltarLock = () => { try { fs.unlinkSync(LOCK); } catch {} };
 
 // Cache local de posts já reprovados na avaliação visual (não reavaliar).
-function lerRejeitados() { try { return JSON.parse(fs.readFileSync(REJEITADOS, "utf8")); } catch { return {}; } }
-function salvarRejeitados(o) { fs.writeFileSync(REJEITADOS, JSON.stringify(o)); }
+// Post reprovado só fica fora por 21 dias: depois volta a ser avaliado (as regras e a extração
+// de quadros dos vídeos mudam; antes a reprovação era para sempre e travava perfis ativos).
+const VALIDADE_REJ = 21 * 86400000;
+function lerRejeitados() {
+  let o;
+  try { o = JSON.parse(fs.readFileSync(REJEITADOS, "utf8")); } catch { return { _quando: {} }; }
+  const q = (o._quando = o._quando || {});
+  for (const chave of Object.keys(o)) {
+    if (chave === "_quando") continue;
+    for (const codigo of Object.keys(o[chave])) {
+      const em = q[chave]?.[codigo];
+      if (!em || Date.now() - new Date(em).getTime() > VALIDADE_REJ) { delete o[chave][codigo]; if (q[chave]) delete q[chave][codigo]; }
+    }
+  }
+  return o;
+}
+function salvarRejeitados(o) {
+  const q = (o._quando = o._quando || {});
+  const agora = new Date().toISOString();
+  for (const chave of Object.keys(o)) {
+    if (chave === "_quando") continue;
+    q[chave] = q[chave] || {};
+    for (const codigo of Object.keys(o[chave])) q[chave][codigo] = q[chave][codigo] || agora;
+    for (const codigo of Object.keys(q[chave])) if (!(codigo in o[chave])) delete q[chave][codigo];
+  }
+  fs.writeFileSync(REJEITADOS, JSON.stringify(o));
+}
 
 let browser = null;
 
@@ -62,8 +88,9 @@ let browser = null;
 function penalidadeResolucao(w, h) {
   const lado = Math.min(w || 0, h || 0);
   if (!lado) return 2;
-  if (lado < 800) return 2;
-  if (lado < 1000) return 1;
+  // quadro de vídeo/Reel costuma ter 720 px de largura e rende boas fotos: só desconta abaixo disso
+  if (lado < 700) return 2;
+  if (lado < 900) return 1;
   return 0;
 }
 
@@ -89,12 +116,25 @@ async function avaliarEFiltrar(itens, dir, topic) {
     }
   }
   if (!lote.length) return itens;
-  const resp = await avaliarImagens(lote.map((l) => ({ nomeArquivo: l.nome, legenda: l.c.legenda, data: l.c.takenAt })), {
-    cwd: vetDir, lugar: topic.fatos.nome, categoria: topic.categoria, cenasNucleo: regras.cenasNucleo,
-  });
+  // em grupos de 6: uma consulta com muitas imagens estoura o tempo
+  const resp = [];
+  const semResposta = new Set(); // nomes dos arquivos de grupos cuja avaliação falhou
+  for (let i = 0; i < lote.length; i += 6) {
+    const grupo = lote.slice(i, i + 6);
+    try {
+      resp.push(...(await avaliarImagens(grupo.map((l) => ({ nomeArquivo: l.nome, legenda: l.c.legenda, data: l.c.takenAt })), {
+        cwd: vetDir, lugar: topic.fatos.nome, categoria: topic.categoria, cenasNucleo: regras.cenasNucleo,
+      })));
+    } catch (e) {
+      log("avaliacao_grupo_erro", { erro: String(e.message).slice(0, 120) });
+      for (const l of grupo) semResposta.add(l.nome);
+    }
+  }
   lote.forEach((l, i) => {
-    const r = resp.find((x) => x.arquivo === l.nome) || resp[i] || {};
     const c = l.c;
+    // grupo que falhou: não é reprovação da foto; fica fora agora e NÃO entra no cache de rejeitados
+    if (semResposta.has(l.nome)) { c.score = 0; c.cena = "outro"; c.aprovada = false; c.semAvaliacao = true; c.descricao = "avaliação indisponível"; return; }
+    const r = resp.find((x) => x.arquivo === l.nome) || (resp.length === lote.length ? resp[i] : null) || {};
     let nota = Number.isFinite(r.nota) ? r.nota : 0;
     // Texto sobre a imagem NÃO reprova por si só: só o texto problemático
     // (poluído, promoção vencida, preço antigo, evento passado, arte ruim).
@@ -227,7 +267,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
           log("instagram_estagio", { handle, limite: IG_ESTAGIOS[e], posts: posts.length, novos: novos.length });
           const candidatos = [];
           for (const p of novos) {
-            if (candidatos.length >= 14) break;
+            if (candidatos.length >= 18) break; // a avaliação lê uma imagem por vez: mais que isso estoura o tempo
             try {
               const m = await midiaDoPost(p.permalink);
               await pausa();
@@ -241,7 +281,8 @@ export async function prepararMidia(topic, dir, opts = {}) {
                   try { await baixar(it.url, file); } catch { continue; }
                   candidatos.push({ file, sourceId: `${p.codigo}:${n}`, isReel: false, origemUrl: p.permalink, destinoUrl: p.permalink, takenAt: m.takenAt || p.data, legenda: m.legenda, source: "instagram_oficial", codigo: p.codigo });
                 } else {
-                  for (const [k, seg] of [["f1", 1.5], ["f2", 4]]) {
+                  // vídeos/Reels rendem bons quadros: tira 4 ao longo do vídeo e a avaliação escolhe
+                  for (const [k, seg] of [["f1", 1.5], ["f2", 4], ["f3", 7], ["f4", 11]]) {
                     const file = `${base}_${k}.jpg`;
                     try { if (!(await quadroDoVideo(it.url, seg, file))) continue; } catch { continue; }
                     candidatos.push({ file, sourceId: `${p.codigo}:${k}`, isReel: true, origemUrl: p.permalink, destinoUrl: p.permalink, takenAt: m.takenAt || p.data, legenda: m.legenda, source: "instagram_oficial", codigo: p.codigo });
@@ -268,7 +309,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
           await processarCandidatos(uteis, "instagram");
           // Posts sem nenhuma foto aprovada entram no cache (não reavaliar).
           const aprovouPost = new Map();
-          for (const c of uteis) aprovouPost.set(c.codigo, aprovouPost.get(c.codigo) || c.aprovada);
+          for (const c of uteis) aprovouPost.set(c.codigo, aprovouPost.get(c.codigo) || c.aprovada || c.semAvaliacao === true);
           for (const [codigo, ok] of aprovouPost) { if (ok) delete rejH[codigo]; else rejH[codigo] = "reprovada na avaliação visual"; }
           salvarRejeitados(rejeitados);
           sel = escolher();
@@ -294,7 +335,7 @@ export async function prepararMidia(topic, dir, opts = {}) {
         const m = await midiaDoPost(permalink);
         await pausa();
         for (const it of (m?.itens || []).filter((i) => i.type === "video").slice(0, 2)) {
-          for (const [k, seg] of [["f3", 7], ["f4", 11], ["f5", 15]]) {
+          for (const [k, seg] of [["f5", 15], ["f6", 20], ["f7", 26]]) {
             const file = path.join(dir, `${codigo}_x_${k}.jpg`);
             try { if (!(await quadroDoVideo(it.url, seg, file))) continue; } catch { continue; }
             candidatos.push({ file, sourceId: `${codigo}:${k}`, isReel: true, origemUrl: permalink, destinoUrl: permalink, takenAt: m.takenAt || null, legenda: m.legenda, source: "instagram_oficial", codigo });

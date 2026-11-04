@@ -1,5 +1,5 @@
 // Rodízio de parceiros do comando semanal. Regra simples, sem pontuação:
-//   1. quem NUNCA apareceu vem primeiro;
+//   1. quem NUNCA apareceu vem primeiro, sempre (antes de qualquer um já usado);
 //   2. depois, quem está há MAIS TEMPO sem aparecer;
 //   3. quem apareceu em poucos posts recentes fica para o fim (só volta cedo se
 //      a categoria não tiver mais ninguém);
@@ -67,10 +67,15 @@ export function ordenar({ candidatos, historico, categorias, recentes = new Set(
         desempate: aleatorio(),
       };
     });
+  // Quem NUNCA entrou vem sempre antes de quem já entrou (mesmo que a mídia tenha falhado há pouco:
+  // entre os que nunca entraram, os sem falha recente vêm primeiro). Quem apareceu nos últimos
+  // 30 dias só volta se não sobrar ninguém (pedido do usuário, 2026-10-24).
+  const usadoHaPouco = (x) => x.ultimo && agora - x.ultimo < 30 * DIA;
   lista.sort((a, b) =>
+    Number(b.nunca) - Number(a.nunca) ||
+    Number(usadoHaPouco(a)) - Number(usadoHaPouco(b)) ||
     Number(a.semMidia) - Number(b.semMidia) ||
     Number(a.recente) - Number(b.recente) ||
-    Number(b.nunca) - Number(a.nunca) ||
     a.ultimo - b.ultimo ||
     a.desempate - b.desempate);
   return lista.map((x) => x.c);

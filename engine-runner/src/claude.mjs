@@ -16,7 +16,8 @@ export function rodarClaude(prompt, { cwd, ferramentas = "", maxTurns = 3, timeo
   return new Promise((resolve, reject) => {
     const args = ["-p", prompt, "--output-format", "json", "--max-turns", String(maxTurns)];
     if (ferramentas) args.push("--allowed-tools", ferramentas);
-    const p = spawn(findClaudeBin(), args, { cwd, env: process.env });
+    // stdin fechado: com a entrada aberta o Claude Code espera dados nela (~25 s por chamada) e estoura o tempo
+    const p = spawn(findClaudeBin(), args, { cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
     let out = "", err = "";
     const timer = setTimeout(() => { p.kill("SIGKILL"); reject(new Error("Claude Code: tempo esgotado")); }, timeoutMs);
     p.stdout.on("data", (d) => (out += d));
@@ -79,7 +80,7 @@ Outras regras de nota:
 
 Responda SOMENTE com JSON, sem texto extra, um item por imagem na mesma ordem:
 [{"arquivo":"<nome>","nota":<0-10>,"cena":"<cena>","texto_sobreposto":true|false,"texto_problematico":true|false,"chamada":"<texto útil ou vazio>","descricao":"<até 15 palavras>","motivo":"<até 12 palavras>"}]`;
-  const texto = await rodarClaude(prompt, { cwd, ferramentas: "Read", maxTurns: itens.length + 4, timeoutMs: 480000 });
+  const texto = await rodarClaude(prompt, { cwd, ferramentas: "Read", maxTurns: itens.length * 2 + 6, timeoutMs: 600000 });
   const arr = extrairJson(texto);
   if (!Array.isArray(arr)) throw new Error("avaliação sem lista");
   return arr;

@@ -14,6 +14,7 @@
 //   node src/semana.mjs                      simulação (padrão): não grava nada no B2, banco nem fila
 //   node src/semana.mjs --real               produz de verdade (B2 + rascunho + fila)
 //   opções: --dias 7  --max 2 (dias produzidos por execução)  --forcar-pauta almoco|blog  --so-dia AAAA-MM-DD  --snapshot arquivo.json
+//           --agora (um post para hoje, agendado 5 minutos depois de pronto)
 //   Se nenhuma pauta der certo num dia, entra a reserva: carrossel de uma matéria já publicada no blog.
 import fs from "node:fs";
 import os from "node:os";
@@ -34,6 +35,15 @@ const MAX_POR_EXECUCAO = Math.max(1, Number(val("--max")) || 2);
 const FORCAR = val("--forcar-pauta");
 const SO_DIA = val("--so-dia");
 const SNAPSHOT = val("--snapshot");
+// --agora: produz UM post para hoje e agenda para 5 minutos depois de ficar pronto (teste manual).
+const AGORA = ARGS.includes("--agora");
+// --parceiro ID: força o destaque deste parceiro (teste manual).
+const PARCEIRO = Number(val("--parceiro")) || null;
+// --agora publica de verdade 5 minutos depois: não combina com --real sem confirmação explícita.
+if (AGORA && ARGS.includes("--real") && !ARGS.includes("--confirmo-agora")) {
+  console.error("--agora com --real publica um post em 5 minutos. Se é isso mesmo, acrescente --confirmo-agora.");
+  process.exit(1);
+}
 
 const exec = promisify(execFile);
 const { CACHE_DIR, ensureDirs } = await import("./config.mjs");
@@ -136,8 +146,9 @@ function fotosDoLugar(todas, regras) {
   }
   return out;
 }
-// Presença recente = post do perfil nos últimos 90 dias (data lida do perfil; as fotos já avaliadas antes não contam de novo).
-const temPresencaRecente = (midia) => (midia.resumo?.instagram?.ultimoPost && idadeDias(midia.resumo.instagram.ultimoPost) <= 90) || midia.todas.some((t) => t.takenAt && idadeDias(t.takenAt) <= 90);
+// Presença recente = post do perfil nos últimos 180 dias (era 90 até 2026-10-25: barrava perfis bons que
+// postam pouco). Informação datada continua barrada pela legenda e pela curadoria dos slides.
+const temPresencaRecente = (midia) => (midia.resumo?.instagram?.ultimoPost && idadeDias(midia.resumo.instagram.ultimoPost) <= 180) || midia.todas.some((t) => t.takenAt && idadeDias(t.takenAt) <= 180);
 
 // ─── Legenda (Claude local escreve; o código valida) ───────────────────────
 const PROIBIDAS = /experi[eê]ncia inesquec[ií]vel|para[ií]so escondido|destino imperd[ií]vel|encanto em cada detalhe|criar mem[oó]rias|imperd[ií]vel|aconchegante|charmos[oa]/i;
@@ -206,7 +217,8 @@ Responda SOMENTE com JSON: {"corpo":"..."}`;
 // não elimina (a conferência visual julga se combina); só pesa um pouco quando há opção sem texto.
 function fotosParaCapa(escolhidos) {
   const todas = escolhidos.flatMap((e, i) => e.fotos.map((f) => ({ f, i })));
-  const nota = ({ f, i }) => (f.texto || f.textoSobreposto ? 0 : 0.5) + (i === 0 ? 2 : 0) + (f.score ?? 0) / 10 + Math.min(f.width || 1080, f.height || 1080) / 5000;
+  // a nota de capa dada pela IA olhando a foto manda; o resto só desempata
+  const nota = ({ f, i }) => (f.notaCapa ?? 0) * 10 + (f.texto || f.textoSobreposto ? 0 : 0.5) + (i === 0 ? 2 : 0) + (f.score ?? 0) / 10 + Math.min(f.width || 1080, f.height || 1080) / 5000;
   return todas.sort((a, b) => nota(b) - nota(a)).map((x) => x.f);
 }
 
@@ -313,11 +325,16 @@ Para cada slide decida se ele entra. REPROVE se:
 - tem texto ou arte com data, dia da semana, horário, "hoje", preço, promoção, sorteio, aniversariante, evento ou aviso (pode estar vencido);
 - é cartaz, flyer, cardápio ou arte gráfica em vez de foto do lugar;
 - é quase igual a outro slide da lista (mantenha só o melhor dos parecidos).
+- a foto é mal composta, escura, sem graça ou não mostra nada interessante do lugar (canto de muro, chão, parede, objeto solto).
 Texto escrito na foto que é só uma chamada atemporal e combina com o lugar ("Cantinhos aconchegantes") NÃO reprova.
-Responda SOMENTE com JSON: {"slides":[{"arquivo":"s1.jpg","entra":true|false,"motivo":"até 10 palavras"}]}`;
+
+Dê também duas notas de 0 a 10 a cada slide (seja exigente, como editor de revista de turismo):
+- "nota_slide": qualidade como foto do carrossel (foco, luz, composição, interesse).
+- "nota_capa": quanto ela serve de CAPA. Nota alta só para foto que apresenta o lugar de cara: a hospedagem inteira ou a área principal (chalé, piscina com a paisagem, vista, salão, fachada bonita), o prato principal bem fotografado, a paisagem marcante; com boa luz, foco, enquadramento aberto e área calma para o título. Nota baixa para detalhe, canto, ângulo estranho, foto cortada, contra a luz, muro ou chão em destaque, animal ou objeto que não representa o lugar.
+Responda SOMENTE com JSON: {"slides":[{"arquivo":"s1.jpg","entra":true|false,"nota_slide":0,"nota_capa":0,"motivo":"até 10 palavras"}]}`;
   let resp;
   try {
-    resp = extrairJson(await rodarClaude(prompt, { cwd: pasta, ferramentas: "Read", maxTurns: itens.length + 4, timeoutMs: 300000 }));
+    resp = extrairJson(await rodarClaude(prompt, { cwd: pasta, ferramentas: "Read", maxTurns: itens.length * 2 + 6, timeoutMs: 420000 }));
   } catch (e) {
     // sem a conferência não dá para garantir a qualidade: o lugar fica para outro dia
     log("curadoria_indisponivel", { erro: String(e.message).slice(0, 160) });
@@ -326,11 +343,14 @@ Responda SOMENTE com JSON: {"slides":[{"arquivo":"s1.jpg","entra":true|false,"mo
   const aprovadas = [];
   for (const it of itens) {
     const r = (resp.slides || []).find((s) => s.arquivo === it.nome);
-    if (r?.entra === true) aprovadas.push(it.f);
+    it.f.notaSlide = Number(r?.nota_slide) || 0;
+    it.f.notaCapa = Number(r?.nota_capa) || 0;
+    if (r?.entra === true && it.f.notaSlide >= 6) aprovadas.push(it.f);
     else log("slide_reprovado", { arquivo: it.nome, origem: it.f.origemUrl || it.f.url, motivo: r?.motivo || "sem resposta" });
   }
-  console.log(`    curadoria: ${aprovadas.length} de ${itens.length} foto(s) aprovadas`);
-  return aprovadas;
+  console.log(`    curadoria: ${aprovadas.length} de ${itens.length} foto(s) aprovadas (capa: ${aprovadas.map((f) => f.notaCapa).join("/")})`);
+  // carrossel em ordem de qualidade: melhores primeiro
+  return aprovadas.sort((a, b) => b.notaSlide - a.notaSlide);
 }
 
 // Matérias já publicadas sobre o lugar (para a nova trazer outro ângulo).
@@ -369,7 +389,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
   console.log(`\n=== ${dia.data} (${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][dia.dow]}) ${HORA_PAUTA[pautaId] || horarioDe(dia.dow)}  pauta: ${pautaId}`);
 
   const recentes = new Set(ctx.fila.slice(0, 4).flatMap((i) => i.partnerIds || []));
-  const ordenados = ordenar({ candidatos: ctx.candidatos, historico: ctx.historico, categorias: P.cats, recentes, bloqueados: ctx.usadosNaSemana, semMidia: ctx.semMidia });
+  const ordenados = PARCEIRO ? ctx.candidatos.filter((c) => c.id === PARCEIRO) : ordenar({ candidatos: ctx.candidatos, historico: ctx.historico, categorias: P.cats, recentes, bloqueados: ctx.usadosNaSemana, semMidia: ctx.semMidia });
   const escolhidos = [];
   let locais = [];
   let artigo = null;
@@ -383,7 +403,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
       fs.mkdirSync(sub, { recursive: true });
       const midia = await run.prepararMidia(topic, sub, { carrossel: P.tipo !== "destaque" });
       locais.push(...midia.todas);
-      if (!temPresencaRecente(midia)) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: "sem post oficial nos últimos 90 dias" }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
+      if (!temPresencaRecente(midia)) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: "sem post oficial nos últimos 180 dias" }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
       let fotos;
       if (P.tipo === "destaque") {
         if (!midia.ok) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: midia.motivo }); ctx.semMidia[c.id] = new Date().toISOString(); continue; }
@@ -393,6 +413,9 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
         await garantirArquivos(candidatas, sub);
         const aprovadas = await curarSlides(candidatas, sub, dia);
         if (aprovadas.length < 3) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `curadoria: só ${aprovadas.length} foto(s) boa(s)` }); continue; }
+        // a melhor candidata a capa vai na frente (vira também a capa da matéria do blog)
+        aprovadas.sort((a, b) => b.notaCapa - a.notaCapa);
+        if (aprovadas[0].notaCapa < 7) { rel.descartados.push({ id: c.id, nome: c.nome, motivo: `curadoria: nenhuma foto boa de capa (melhor nota ${aprovadas[0].notaCapa})` }); continue; }
         topic.anteriores = await materiasAnteriores(topic, ctx);
         topic.novidades = novidadesDoPerfil(midia.todas);
         const red = await run.redigir(topic, aprovadas, sub);
@@ -485,6 +508,7 @@ async function produzirDia(dia, ctx, pautaForcada = null) {
     if (pub.status !== "draft") throw new Error(`matéria em rascunho não foi criada: ${pub.status || pub.http} ${(pub.erros || [pub.error]).join(" | ")}`);
     postId = pub.postId;
   }
+  if (dia.agora) dia.quando = new Date(Date.now() + 5 * 60000).toISOString();
   const q = await enfileirar({ titulo: pautaTxt.titulo, quando: dia.quando, caption, imageUrls: urls, postId, capaFundo: rel.capa.foto, pauta: P.tipo === "destaque" ? `${pautaId}: ${escolhidos[0].nome}` : `${pautaId}: ${pautaTxt.titulo}`, partnerIds: escolhidos.map((e) => e.id) });
   if (q.status !== "queued") throw new Error(`fila recusou: ${q.status || q.http} ${JSON.stringify(q.erros || q.erro || "")}`);
   rel.fila = { id: q.id, postId };
@@ -548,7 +572,7 @@ ${erros ? `SUA VERSÃO ANTERIOR FOI REJEITADA: ${erros.join("; ")}\n` : ""}Respo
     }
     const boas = await curarSlides(fotos, dir, dia);
     if (boas.length < 3) continue;
-    fotos.splice(0, fotos.length, ...boas);
+    fotos.splice(0, fotos.length, ...boas.sort((a, b) => b.notaCapa - a.notaCapa));
     const lugar = [{ nome: post.title, categoria: null, regiao: null, descricaoCurta: post.excerpt || post.subtitle || null, fotos: [] }];
     const titulo = await escreverTituloCapa({ P: { tipo: "destaque", titulo: () => post.title }, lugares: lugar, dir });
     let capa;
@@ -582,6 +606,7 @@ ${erros ? `SUA VERSÃO ANTERIOR FOI REJEITADA: ${erros.join("; ")}\n` : ""}Respo
       const up = await enviarAoB2(api, { partnerId: parceiro, source: i === 0 ? "capa_editorial" : "instagram_oficial", sourceId: i === 0 ? `capa-${dia.data}-blog-${post.id}` : `${dia.data}-blog-${post.id}-s${i}`, arquivo: prontos[i], role: "ig" });
       urls.push(up.url);
     }
+    if (dia.agora) dia.quando = new Date(Date.now() + 5 * 60000).toISOString();
     const q = await enfileirar({ titulo: `Do blog: ${post.title}`, quando: dia.quando, caption, imageUrls: urls, postId: post.id, capaFundo: rel.capa.foto, pauta: `blog: ${post.title}`, partnerIds: [parceiro] });
     if (q.status !== "queued") { log("blog_reserva_fila_recusou", { postId: post.id, status: q.status || q.http }); continue; }
     rel.fila = { id: q.id, postId: post.id };
@@ -601,9 +626,9 @@ async function main() {
   if (!f.itens) throw new Error(`fila indisponível (${f.http})`);
   const fila = f.itens; // mais recentes primeiro
   const ocupados = new Set(fila.filter((i) => ["aguardando", "publicando", "publicado", "falhou"].includes(i.status)).map((i) => dataBRT(new Date(i.scheduledAt))));
-  let dias = proximosDias(DIAS);
+  let dias = AGORA ? [{ data: dataBRT(new Date()), dow: dowBRT(new Date()), agora: true }] : proximosDias(DIAS);
   if (SO_DIA) dias = dias.filter((d) => d.data === SO_DIA);
-  const faltantes = dias.filter((d) => !ocupados.has(d.data));
+  const faltantes = AGORA ? dias : dias.filter((d) => !ocupados.has(d.data));
   console.log(`dias: ${dias.map((d) => d.data).join(", ")}\nprontos na fila: ${dias.length - faltantes.length} | a produzir: ${faltantes.length}${faltantes.length ? ` (${faltantes.map((d) => d.data).join(", ")})` : ""}`);
   if (!faltantes.length) { console.log("Semana completa. Nada a fazer."); return; }
 

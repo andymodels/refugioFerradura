@@ -16,7 +16,7 @@ const lado = (r) => (r.width && r.height ? Math.min(r.width, r.height) : 0);
 //   de texto sobreposto; fotos sem avaliação (score nulo) não entram;
 // - a CAPA precisa ser uma cena que mostra o lugar, sem cartaz/texto/retrato,
 //   com menor lado >= minLadoCapa;
-// - precisa haver ao menos minNucleo imagens de cenas que mostram o lugar;
+// - (minNucleo não é mais exigido aqui: a curadoria final dos slides decide);
 // - no máximo 2 por post (1 por Reel) e 3 da mesma cena; foto usada há menos de
 //   14 dias desce na fila.
 // Devolve { ok, lista, motivo }.
@@ -27,7 +27,7 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
   const uteis = pool
     .filter((r) => r.score != null && r.score >= regras.scoreUtil)
     // cartaz/arte (horário, promoção, aviso) e texto problemático nunca entram; foto pequena também não
-    .filter((r) => r.cena !== "cartaz" && !/texto problemático/.test(String(r.nota || "")) && !(lado(r) && lado(r) < 800))
+    .filter((r) => r.cena !== "cartaz" && !/texto problemático/.test(String(r.nota || "")) && !(lado(r) && lado(r) < 700))
     .map((r) => {
       const usadoRecente = r.lastUsedAt && agora - new Date(r.lastUsedAt).getTime() < DIAS_PENALIDADE * 86400000;
       // Idade do post: fotos ATUAIS do perfil oficial vêm primeiro (pedido do usuário, 2026-10-24).
@@ -42,8 +42,13 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
       (new Date(b.r.takenAt || 0).getTime() - new Date(a.r.takenAt || 0).getTime()))
     .map((x) => x.r);
 
-  const capa = uteis.find((r) => nucleo.has(r.cena) && !semCapa.has(r.cena) && lado(r) >= regras.minLadoCapa);
-  if (!capa) return { ok: false, motivo: `nenhuma capa adequada (precisa mostrar o lugar, sem texto, com ${regras.minLadoCapa}px ou mais; úteis: ${uteis.length})` };
+  // quadro de vídeo (720 px) também pode ser capa; a curadoria final dá a nota de capa olhando a foto
+  const minCapa = Math.min(regras.minLadoCapa || 1000, 720);
+  // prefere cena que mostra o lugar; se não houver (ex.: espaço de eventos com fotos de buffet e
+  // decoração), aceita qualquer foto útil que não seja cartaz/retrato. A nota de capa decide depois.
+  const capa = uteis.find((r) => nucleo.has(r.cena) && !semCapa.has(r.cena) && lado(r) >= minCapa)
+    || uteis.find((r) => !semCapa.has(r.cena) && lado(r) >= minCapa);
+  if (!capa) return { ok: false, motivo: `nenhuma capa adequada (precisa mostrar o lugar, sem texto, com ${minCapa}px ou mais; úteis: ${uteis.length})` };
 
   const escolhidas = [capa];
   const porGrupo = new Map([[grupo(capa), 1]]);
@@ -59,8 +64,7 @@ export function selecionar(pool, regras, { min = MIN_IMAGENS, max = MAX_IMAGENS 
     porCena.set(c, (porCena.get(c) || 0) + 1);
     escolhidas.push(r);
   }
-  const nNucleo = escolhidas.filter((r) => nucleo.has(r.cena)).length;
   if (escolhidas.length < min) return { ok: false, motivo: `poucas imagens úteis (${escolhidas.length}; mínimo ${min})` };
-  if (nNucleo < regras.minNucleo) return { ok: false, motivo: `poucas imagens que mostram o lugar (${nNucleo}; mínimo ${regras.minNucleo})` };
+  // (sem exigir mínimo de "cenas do lugar": a curadoria final olha cada slide e dá a nota de capa)
   return { ok: true, lista: escolhidas };
 }
