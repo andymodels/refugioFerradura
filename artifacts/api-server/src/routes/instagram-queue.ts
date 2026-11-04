@@ -6,7 +6,7 @@ import { executarFila } from "../lib/instagram-queue";
 import { getInstagramToken } from "../lib/instagram-token";
 import { isB2Url } from "../lib/engine";
 import { archiveRemoteMedia } from "../lib/b2-storage";
-import { estadoProducao } from "../lib/producao-estado";
+import { estadoProducao, levantamentoMidia } from "../lib/producao-estado";
 import { logger } from "../lib/logger";
 
 // Fila do Instagram. Duas portas:
@@ -52,6 +52,16 @@ cronRouter.get("/estado-producao", async (req, res): Promise<void> => {
     res.json(await estadoProducao({ ler: req.query.ler === "1" }));
   } catch (err: any) {
     logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Erro no estado da produção");
+    res.status(500).json({ ok: false, erro: String(err?.message ?? err).slice(0, 200) });
+  }
+});
+
+// Levantamento global de mídia dos parceiros (diagnóstico): mede fotos e conta vídeos de TODOS, em fatias.
+cronRouter.get("/levantamento-midia", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  try {
+    res.json(await levantamentoMidia(Math.max(0, Number(req.query.de) || 0), Math.min(25, Math.max(1, Number(req.query.n) || 15))));
+  } catch (err: any) {
     res.status(500).json({ ok: false, erro: String(err?.message ?? err).slice(0, 200) });
   }
 });

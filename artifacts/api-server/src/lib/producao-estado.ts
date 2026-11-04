@@ -120,3 +120,67 @@ export async function estadoProducao(opts: { ler: boolean }) {
     })),
   };
 }
+
+
+// ─── Levantamento global de mídia (diagnóstico, só leitura) ───────────────────────────────
+// Para decidir a estratégia de foto/vídeo com DADOS de todos os parceiros, não de um caso:
+// lê os últimos posts públicos de cada perfil e MEDE o tamanho real de cada foto (fotos soltas e
+// fotos dentro de carrossel); conta vídeos com arquivo disponível x só capa.
+async function dimensoesJpeg(url: string): Promise<{ w: number; h: number } | null> {
+  try {
+    const r = await fetch(url, { headers: { Range: "bytes=0-65535" }, signal: AbortSignal.timeout(10000) });
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+    let i = 2;
+    while (i < buf.length - 9) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const m = buf[i + 1];
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+  } catch { /* sem medida */ }
+  return null;
+}
+
+export async function levantamentoMidia(de: number, n: number) {
+  const fbToken = process.env.INSTAGRAM_FB_ACCESS_TOKEN;
+  const fbId = process.env.INSTAGRAM_FB_USER_ID || process.env.INSTAGRAM_BUSINESS_ID;
+  if (!fbToken || !fbId) throw new Error("faltam INSTAGRAM_FB_ACCESS_TOKEN / INSTAGRAM_FB_USER_ID");
+  const rows = await db.select().from(instagramPartnersTable);
+  const handles = new Map<string, string>();
+  for (const r of rows) {
+    const h = norm(r.instagramHandle);
+    if (!h || r.pausado || !r.categoria || r.categoria === "outra" || r.categoria === "eventos") continue;
+    if (!handles.has(h)) handles.set(h, r.nomeEstabelecimento);
+  }
+  const todos = [...handles.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const fatia = todos.slice(de, de + n);
+  const lidos = await emLotes(fatia, 4, async ([h, nome]) => {
+    const url = new URL(`https://graph.facebook.com/v21.0/${fbId}`);
+    url.searchParams.set("fields", `business_discovery.username(${h}){media.limit(12){media_type,media_url,thumbnail_url,timestamp,children{media_type,media_url}}}`);
+    url.searchParams.set("access_token", fbToken);
+    let leitura: "ok" | "sem_leitura" = "sem_leitura";
+    const fotos: string[] = [];
+    let videoComArquivo = 0, videoSoCapa = 0, ultimo: string | null = null;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      const d: any = await r.json().catch(() => null);
+      const media: any[] = d?.business_discovery?.media?.data;
+      if (r.ok && !d?.error && Array.isArray(media)) {
+        leitura = "ok";
+        ultimo = media[0]?.timestamp ?? null;
+        const alvos: { u: string; q: string }[] = [];
+        for (const m of media) {
+          const q = String(m.timestamp || "").slice(0, 10);
+          if (m.media_type === "IMAGE" && m.media_url) alvos.push({ u: m.media_url, q });
+          else if (m.media_type === "CAROUSEL_ALBUM") for (const c of m.children?.data || []) if (c.media_type === "IMAGE" && c.media_url) alvos.push({ u: c.media_url, q });
+          else if (m.media_type === "VIDEO") (m.media_url ? videoComArquivo++ : videoSoCapa++);
+        }
+        const med = await emLotes(alvos, 6, (a) => dimensoesJpeg(a.u));
+        med.forEach((d2, i) => fotos.push(d2 ? `${d2.w}x${d2.h}@${alvos[i].q}` : `?@${alvos[i].q}`));
+      }
+    } catch { /* fica sem_leitura */ }
+    return { handle: h, nome: nome.slice(0, 40), leitura, ultimoPostEm: ultimo, fotos, videoComArquivo, videoSoCapa };
+  });
+  return { total: todos.length, de, n: fatia.length, parceiros: lidos };
+}

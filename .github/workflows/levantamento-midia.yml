@@ -1,0 +1,42 @@
+name: Levantamento de mídia dos parceiros (fotos, tamanhos e vídeos)
+
+# Só leitura. Mede, para todos os parceiros, o tamanho real das fotos recentes do Instagram e conta
+# vídeos com arquivo x só capa. Rode em fatias (de=0, 15, 30, 45, 60).
+on:
+  workflow_dispatch:
+    inputs:
+      de:
+        description: "Começar no parceiro nº"
+        required: true
+        default: "0"
+      n:
+        description: "Quantos parceiros nesta fatia (máx 25)"
+        required: true
+        default: "15"
+
+permissions:
+  contents: read
+
+jobs:
+  levantar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Levantar
+        env:
+          DE: ${{ inputs.de }}
+          N: ${{ inputs.n }}
+        run: |
+          code=$(curl --silent --max-time 280 -G -o resp.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --data-urlencode "de=${DE}" --data-urlencode "n=${N}" \
+            https://refugioferradura.com.br/api/cron/instagram-queue/levantamento-midia || echo 000)
+          echo "HTTP $code"
+          python3 -c "
+          import json
+          d=json.load(open('resp.json'))
+          print('total',d.get('total'),'de',d.get('de'),'n',d.get('n'))
+          for p in d.get('parceiros',[]):
+              print('PARCEIRO|%s|%s|%s|%s|v+%s|v-%s|%s' % (p['handle'],p['leitura'],(p['ultimoPostEm'] or '-')[:10],len(p['fotos']),p['videoComArquivo'],p['videoSoCapa'],','.join(p['fotos'])))
+          " || cat resp.json
+          [ "$code" = "200" ]
