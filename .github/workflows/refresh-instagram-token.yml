@@ -6,8 +6,9 @@ name: Renovar token do Instagram (dias 1 e 15)
 # workflow falha e o GitHub avisa por e-mail: é o alerta para gerar um token
 # novo antes de o antigo vencer. Ver rota /api/cron/instagram-token/refresh.
 on:
-  schedule:
-    - cron: "17 12 1,15 * *" # ~9h17 BRT dos dias 1 e 15
+  # DESLIGADO em 2026-11-04 a pedido do João. Para religar, volte o schedule.
+  # schedule:
+  #   - cron: "17 12 1,15 * *"
   workflow_dispatch: {}
 
 jobs:
