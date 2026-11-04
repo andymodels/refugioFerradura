@@ -16,8 +16,14 @@ Esta tarefa roda sozinha numa sessão nova que **não lembra de nada**. Tudo o q
 - Manter **5 dias à frente** (10 posts). Cria só o que falta, até 4 por execução.
 - **Toda sexta-feira, às 09:00**, o post do dia é a **matéria da Rota da Ferradura** (seção "Sexta da Rota" abaixo), no lugar de um parceiro.
 
-## Ferramentas (tudo pelo GitHub MCP; carregue com ToolSearch se preciso)
-Repositório: `andymodels/refugioferradura`. Se não estiver na sessão, use `add_repo` (owner `andymodels`, repo `refugioferradura`, access `push`). Dispare workflows com `actions_run_trigger` (`ref: main`), espere ~25 s, ache a execução com `actions_list` (`list_workflow_runs`, `per_page: 1`), pegue o job com `list_workflow_jobs` e leia com `get_job_logs` (`return_content: true`, `tail_lines: 400`).
+## Passo 0: acesso ao GitHub (faça ANTES de tudo; já falhou uma vez por pular isto)
+1. **Chame a ferramenta `mcp__claude-code-remote__add_repo`** com `owner: "andymodels"`, `repo: "refugioferradura"`, `access: "push"`. Ela é uma ferramenta direta (não precisa de ToolSearch). Sem esta chamada a API do GitHub responde 403 ("GitHub access not enabled for this session"), e foi exatamente isso que travou a primeira execução.
+2. Depois de `add_repo`, clone como a resposta mandar e chame `mcp__claude-code-remote__register_repo_root`.
+3. Carregue as ferramentas do GitHub com ToolSearch (`select:mcp__github__actions_run_trigger,mcp__github__actions_list,mcp__github__get_job_logs`). Se **ainda** não existirem, use o plano B pela linha de comando: `gh workflow run <arquivo>.yml --repo andymodels/refugioferradura -f chave=valor`, `gh run list --repo andymodels/refugioferradura --workflow <arquivo>.yml --limit 1`, `gh run view <id> --repo andymodels/refugioferradura --log`.
+4. Se nem assim houver acesso de escrita ao GitHub, **pare e reporte** (não improvise).
+
+## Ferramentas (tudo pelo GitHub; ferramentas `mcp__github__*` ou o plano B acima)
+Repositório: `andymodels/refugioferradura`. Dispare workflows com `actions_run_trigger` (`ref: main`), espere ~25 s, ache a execução com `actions_list` (`list_workflow_runs`, `per_page: 1`), pegue o job com `list_workflow_jobs` e leia com `get_job_logs` (`return_content: true`, `tail_lines: 400`).
 
 | Workflow | Para quê |
 |---|---|
