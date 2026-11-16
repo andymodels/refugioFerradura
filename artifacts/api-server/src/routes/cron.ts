@@ -1270,12 +1270,14 @@ router.post("/create-draft-post", async (req, res): Promise<void> => {
     const urlB2 = (u: unknown): u is string => typeof u === "string" && isB2Url(u);
     const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const body = sections
-      .map((s: { heading: string; paragraphHtml: string; imageUrl?: string; videoUrl?: string; alt?: string }) => {
-        const midia = urlB2(s.videoUrl)
-          ? `<figure class="instagram-editorial-video"><video src="${esc(s.videoUrl)}" controls playsinline preload="metadata"></video></figure>`
-          : urlB2(s.imageUrl)
-            ? `<img src="${esc(s.imageUrl)}" alt="${esc(s.alt || title)}" loading="lazy">`
-            : "";
+      .map((s: { heading: string; paragraphHtml: string; imageUrl?: string; videoUrl?: string; midias?: string[]; alt?: string }) => {
+        const umaMidia = (u: string) =>
+          /\.mp4(\?|$)/i.test(u)
+            ? `<figure class="instagram-editorial-video"><video src="${esc(u)}" controls playsinline preload="metadata"></video></figure>`
+            : `<img src="${esc(u)}" alt="${esc(s.alt || title)}" loading="lazy">`;
+        // Uma foto/vídeo (imageUrl/videoUrl) ou várias (midias), na ordem recebida.
+        const lista: string[] = [s.videoUrl, s.imageUrl, ...(Array.isArray(s.midias) ? s.midias : [])].filter(urlB2);
+        const midia = lista.map(umaMidia).join("");
         return `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>${midia}`;
       })
       .join("\n");

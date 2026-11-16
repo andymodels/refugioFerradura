@@ -22,6 +22,7 @@ const arg = (n) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? pr
 const publicar = process.argv.includes("--publicar");
 const pastaArte = arg("arte"), legendaPath = arg("legenda"), titulo = arg("titulo");
 const materiaPath = arg("materia"), origem = arg("origem");
+const postIdArg = arg("post-id") ? Number(arg("post-id")) : null; // liga a uma matéria que já existe (não cria outra)
 const soBlog = process.argv.includes("--so-blog"); // só a matéria do blog (Instagram já publicado ou fica para depois)
 const reelArq = arg("reel"); // Reel: um único vídeo .mp4, sem arte por cima
 const storyArq = arg("story"); // Story: 1 arte pronta (1080x1920, .png/.jpg ou .mp4)
@@ -30,7 +31,7 @@ if (soBlog && !materiaPath) throw new Error("--so-blog exige --materia e --orige
 if (materiaPath && !origem) throw new Error("--materia exige --origem (pasta das mídias originais).");
 // Ordem obrigatória do fluxo: BLOG primeiro, Instagram depois. Sem matéria o script não segue.
 // Exceção (regra do usuário, 15/11/2026): REELS e STORIES NÃO entram no blog; só carrossel, ou se o usuário pedir matéria.
-if (!materiaPath && !reelArq && !storyArq && !process.argv.includes("--so-instagram-autorizado")) {
+if (!materiaPath && !postIdArg && !reelArq && !storyArq && !process.argv.includes("--so-instagram-autorizado")) {
   throw new Error("RECUSADO: falta --materia. O fluxo é blog primeiro, Instagram depois. Escreva a matéria nova do blog (materia.json) antes. Só use --so-instagram-autorizado se o usuário mandou, por escrito, publicar só no Instagram.");
 }
 const quando = arg("quando") ? new Date(arg("quando")) : new Date(Date.now() + (Number(arg("minutos")) || 5) * 60_000);
@@ -68,7 +69,8 @@ if (storyArq) { urls.push(await subirMidia(storyArq)); console.log("instagram: s
 if (reelArq) { urls.push(await subirMidia(reelArq)); console.log("instagram: subiu o vídeo do Reel"); }
 
 // 2) Matéria do blog (rascunho) com as mídias originais
-let postId = null, slug = null;
+let postId = postIdArg, slug = null;
+if (postIdArg) { slug = arg("slug"); if (!slug) throw new Error("--post-id exige --slug (endereço da matéria já criada)."); }
 if (materiaPath) {
   const m = JSON.parse(fs.readFileSync(materiaPath, "utf8"));
   const cache = {};
@@ -80,7 +82,8 @@ if (materiaPath) {
   delete payload.capa;
   for (const s of m.sections) {
     const { midia, ...resto } = s;
-    if (midia) { const u = await up(midia); if (/\.mp4$/i.test(midia)) resto.videoUrl = u; else resto.imageUrl = u; }
+    if (Array.isArray(midia)) { resto.midias = []; for (const nome of midia) resto.midias.push(await up(nome)); }
+    else if (midia) { const u = await up(midia); if (/\.mp4$/i.test(midia)) resto.videoUrl = u; else resto.imageUrl = u; }
     payload.sections.push(resto);
   }
   if (publicar) {
