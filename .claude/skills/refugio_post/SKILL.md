@@ -20,11 +20,14 @@ Responda sempre em português simples, sem jargão (o usuário não é técnico)
    `node .claude/skills/refugio_post/render.mjs <spec.json>`
    Padrão: degradê preto no rodapé clareando até a metade da foto; topo com site do Refúgio e @ do parceiro; capa com TÍTULO EM CAIXA ALTA + 3 destaques; páginas seguintes com CHAMADA grande em caixa alta + texto normal. Carrossel/feed 1080x1350, story 1080x1920.
    Confira cada PNG com Read antes de publicar (texto legível, nada cortado, foto não borrada).
-7. **Publique** (autorizado pelo usuário nesta skill, sem pedir "pode" a cada vez):
-   - **Blog**: rota existente de rascunho (`create-draft-post.yml` via `gh workflow run`, como na `refugio_blog`). Essa rota só grava **rascunho**; o usuário publica no painel. Diga isso no final com o link `refugioferradura.com.br/blog/<slug>`.
-   - **Instagram (carrossel, com fotos e vídeos misturados)**: `node .claude/skills/refugio_post/publicar.mjs <pasta-da-arte> <legenda.txt> "<título>" --publicar`. Ele sobe os arquivos ao B2 e coloca na fila do Instagram oficial (publica em ~5 min). Sem `--publicar` só confere (dry run). Antes de publicar de verdade, rode sem `--publicar` e leia o resultado.
-   - **Instagram feed (1 foto)**: mesma fila (`/enqueue`).
-   - **Reels e Stories**: Reel de um vídeo só já cabe na fila (arquivo .mp4 único), mas ainda não foi provado em uso real; **Story ainda não tem agendamento** no servidor. Quando o formato for Story, faça blog + legenda + arte, **diga claramente que a publicação ficou pendente por isso** e não improvise.
+7. **Publique** (fluxo do usuário: **blog primeiro, depois Instagram, tudo AGENDADO**; ele mantém um estoque de posts prontos, em média 1 por dia):
+   - Monte `materia.json` (matéria do blog com as fotos/vídeos originais, qualquer formato, sem cortar; `capa` e `midia` por seção) e rode
+     `node .claude/skills/refugio_post/publicar.mjs --arte <pasta-da-arte> --legenda <legenda.txt> --titulo "<título>" --materia <materia.json> --origem <pasta-do-usuário> --quando <data-hora-ISO> --publicar`
+     Sem `--publicar` só confere (rode assim primeiro e leia o resultado).
+   - O script cria a matéria como rascunho, enfileira o Instagram ligado a ela, e na hora marcada o servidor publica o blog e DEPOIS o Instagram (se o blog não confirmar, o Instagram não sai).
+   - **Datas**: use no máximo 1 post por dia (horário nobre, ex. 19h). Antes, veja o estoque no final da saída do script e escolha o próximo dia livre depois do último agendado.
+   - **Estoque**: o script imprime quantos dias a fila cobre. Se for menos de 5, avise o usuário em destaque no fim da resposta que é hora de criar novos posts.
+   - **Reels e Stories**: Reel de um vídeo só já cabe na fila (.mp4 único), mas não foi provado em uso real; **Story ainda não tem agendamento** no servidor. Em Story, faça blog + legenda + arte e **diga claramente que a publicação ficou pendente**.
    - Vídeo de carrossel com mais de 60s pode ser recusado pelo Instagram: avise o usuário em vez de cortar sozinho.
 8. **Relate** em poucas linhas: o que foi publicado (link), o que ficou rascunho/pendente e por quê.
 

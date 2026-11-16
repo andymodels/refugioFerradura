@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isB2Url } from "../lib/engine";
 import { parseHTML } from "linkedom";
 import {
   db,
@@ -1226,14 +1227,14 @@ router.get("/publish-scheduled-partner-content", async (req, res): Promise<void>
 // "published" — publicar continua sendo sempre uma ação manual no painel,
 // depois de revisar e adicionar as fotos.
 router.post("/create-draft-post", async (req, res): Promise<void> => {
-  const expected = process.env.CRON_SECRET;
+  // Aceita o segredo do GitHub (CRON_SECRET) ou o do Mac (ENGINE_SECRET, no Keychain).
   const authHeader = req.headers.authorization;
-  if (!expected || authHeader !== `Bearer ${expected}`) {
+  if (![process.env.CRON_SECRET, process.env.ENGINE_SECRET].some((x) => x && authHeader === `Bearer ${x}`)) {
     res.status(401).json({ error: "Não autorizado" });
     return;
   }
 
-  const { title, subtitle, excerpt, metaDescription, sections, servico, coverImage, tags } = req.body || {};
+  const { title, subtitle, excerpt, metaDescription, sections, servico, coverImage, coverImageDisplayMode, tags } = req.body || {};
 
   if (!title || !Array.isArray(sections) || sections.length === 0) {
     res.status(400).json({ error: "title e sections (array não vazio) são obrigatórios." });
@@ -1242,8 +1243,19 @@ router.post("/create-draft-post", async (req, res): Promise<void> => {
 
   try {
     const slug = `${slugify(title)}-${Date.now().toString(36)}`;
+    // Cada seção pode trazer uma foto (imageUrl) ou um vídeo (videoUrl) do nosso B2, no tamanho
+    // natural (quadrada, horizontal ou vertical, sem cortar). Seções antigas, só com texto, seguem iguais.
+    const urlB2 = (u: unknown): u is string => typeof u === "string" && isB2Url(u);
+    const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const body = sections
-      .map((s: { heading: string; paragraphHtml: string }) => `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>`)
+      .map((s: { heading: string; paragraphHtml: string; imageUrl?: string; videoUrl?: string; alt?: string }) => {
+        const midia = urlB2(s.videoUrl)
+          ? `<figure class="instagram-editorial-video"><video src="${esc(s.videoUrl)}" controls playsinline preload="metadata"></video></figure>`
+          : urlB2(s.imageUrl)
+            ? `<img src="${esc(s.imageUrl)}" alt="${esc(s.alt || title)}" loading="lazy">`
+            : "";
+        return `<h2>${s.heading}</h2><p>${s.paragraphHtml}</p>${midia}`;
+      })
       .join("\n");
     const servicoHtml = renderServicoBlock(servico || {});
     const content = servicoHtml ? `${body}\n${servicoHtml}` : body;
@@ -1257,6 +1269,8 @@ router.post("/create-draft-post", async (req, res): Promise<void> => {
         excerpt: excerpt ?? subtitle ?? null,
         content,
         coverImage: coverImage ?? null,
+        // "natural" mostra a capa inteira, em qualquer formato; "cover" recorta para preencher.
+        coverImageDisplayMode: coverImageDisplayMode === "cover" ? "cover" : "natural",
         tags: tags ? JSON.stringify(tags) : null,
         status: "draft",
         metaDescription: metaDescription ?? null,
