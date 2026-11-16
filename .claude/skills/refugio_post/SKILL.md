@@ -32,6 +32,7 @@ Responda sempre em português simples, sem jargão (o usuário não é técnico)
 8. **Relate** em poucas linhas: o que foi publicado (link), o que ficou rascunho/pendente e por quê.
 
 ## Limites
+- **Toda vez que for preciso fazer deploy (colocar mudança do servidor no ar), PRIMEIRO peça ao usuário para conectar o GitHub à Vercel e avise que o envio ao GitHub é o que dispara o deploy.** Só prossiga depois de ele confirmar. (Ordem do usuário.) Use sempre o e-mail privado do GitHub (noreply) nos commits; nunca desligue a proteção de e-mail dele.
 - Não commitar, não fazer deploy, não escrever direto no banco, não mexer em código do servidor sem o usuário pedir.
 - Se qualquer passo de publicação falhar, pare, mostre o erro em palavras simples e não tente de novo em loop.
 - Nunca publique algo que você mesmo não conferiu (arte e legenda revisadas).
