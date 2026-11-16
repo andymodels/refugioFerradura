@@ -29,6 +29,7 @@ Responda sempre em português simples, sem jargão (o usuário não é técnico)
 8. **Relate** em poucas linhas, com os links do blog e do Instagram e o que ficou pendente.
 
 ## Limites
+- **Mídia de terceiros (criadores de conteúdo, influenciadores):** o usuário já decidiu que pode usar; os criadores costumam agradecer. Não fique alertando de novo sobre isso. Mantenha só o crédito: `@` do criador na legenda e no blog (ex.: "Vídeo: @criador"). Se o criador pedir retirada, o usuário avisa e a mídia sai. (Decisão do usuário em 15/11/2026.)
 - **Toda vez que for preciso fazer deploy (colocar mudança do servidor no ar), PRIMEIRO peça ao usuário para conectar o GitHub à Vercel e avise que o envio ao GitHub é o que dispara o deploy.** Só prossiga depois de ele confirmar. (Ordem do usuário.) Use sempre o e-mail privado do GitHub (noreply) nos commits; nunca desligue a proteção de e-mail dele.
 - Não commitar, não fazer deploy, não escrever direto no banco, não mexer em código do servidor sem o usuário pedir.
 - Se qualquer passo de publicação falhar, pare, mostre o erro em palavras simples e não tente de novo em loop.
