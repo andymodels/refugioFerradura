@@ -1,0 +1,31 @@
+name: Reserva da fila do Instagram (manhã)
+
+# Rede de segurança do despertador diário da Vercel (vercel.json, 07h de Brasília).
+# Roda a cada 10 minutos só entre 07h e 09h50 de Brasília (10h a 12h50 UTC) e chama a fila, que
+# só publica o que já venceu e nunca repete (reserva atômica). Se a 1ª tentativa de um post falhar
+# (ex.: o Instagram demorar a processar um vídeo), esta reserva tenta de novo em poucos minutos,
+# sem ninguém precisar mexer. Fora dessa janela não roda nada.
+on:
+  schedule:
+    - cron: "*/10 10-12 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: instagram-queue-reserva
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rodar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Chamar a fila
+        run: |
+          code=$(curl --silent --max-time 400 -o resp.json -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://refugioferradura.com.br/api/cron/instagram-queue/run || echo 000)
+          echo "HTTP $code: $(head -c 400 resp.json)"
+          [ "$code" = "200" ] || exit 1

@@ -192,7 +192,7 @@ async function waitForContainerReady(containerId: string, accessToken: string, k
   statusUrl.searchParams.set("fields", "status_code");
   statusUrl.searchParams.set("access_token", accessToken);
 
-  const maxAttempts = kind === "video" ? 30 : 10;
+  const maxAttempts = kind === "video" ? 60 : 10;
   const intervalMs = kind === "video" ? 3000 : 2000;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -291,9 +291,10 @@ export async function publishCarouselToInstagram(imageUrls: string[], caption: s
     throw new Error("Um carrossel precisa de 2 a 10 imagens.");
   }
 
-  const children: string[] = [];
-  for (const imageUrl of imageUrls) {
-    // Cada item pode ser foto (JPEG) ou vídeo (MP4); o Instagram aceita os dois misturados no carrossel.
+  // Cada item pode ser foto (JPEG) ou vídeo (MP4); o Instagram aceita os dois misturados no carrossel.
+  // Todos os itens são criados de uma vez e processados em paralelo (vídeos demoram; em fila o
+  // total estourava o tempo). Depois espera cada um ficar pronto, na ordem dos slides.
+  const criar = async (imageUrl: string): Promise<{ id: string; ehVideo: boolean }> => {
     const ehVideo = /\.mp4(\?|$)/i.test(imageUrl);
     const itemUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
     if (ehVideo) {
@@ -310,8 +311,13 @@ export async function publishCarouselToInstagram(imageUrls: string[], caption: s
       logger.error({ status: itemRes.status, data: itemData, imageUrl }, "Falha ao criar item do carrossel no Instagram");
       throw new Error(itemData?.error?.error_user_msg || itemData?.error?.message || "Falha ao preparar uma mídia do carrossel.");
     }
-    await waitForContainerReady(itemData.id, accessToken, ehVideo ? "video" : "foto");
-    children.push(itemData.id);
+    return { id: itemData.id, ehVideo };
+  };
+  const itens = await Promise.all(imageUrls.map(criar));
+  const children: string[] = [];
+  for (const it of itens) {
+    await waitForContainerReady(it.id, accessToken, it.ehVideo ? "video" : "foto");
+    children.push(it.id);
   }
 
   const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);

@@ -14,7 +14,7 @@ import { logger } from "./logger";
 //     "publicando"), confere no próprio Instagram se aquela legenda já foi
 //     publicada depois da reserva. Se foi, só registra e não publica de novo.
 const MAX_TENTATIVAS = 3;
-const ESPERA_ENTRE_TENTATIVAS_MIN = 10;
+const ESPERA_ENTRE_TENTATIVAS_MIN = 5;
 const PRESO_APOS_MIN = 15;
 const ATRASO_MAXIMO_H = 24;
 const MAX_POR_EXECUCAO = 2;
