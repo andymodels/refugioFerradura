@@ -197,14 +197,16 @@ cronRouter.get("/status", async (req, res): Promise<void> => {
 });
 
 // ─── Relógio externo (cron-job.org) ────────────────────────────────────────
-// Modelo do blog UM2TRÊS: o relógio NÃO tem lógica nem segredo, só chama esta URL
-// a cada poucos minutos. Ela é pública de propósito: usa os segredos que já estão no
+// O relógio NÃO tem lógica, só chama esta URL: hoje é o Cron da Vercel (vercel.json, 1x por dia às 19h
+// de Brasília, plano Hobby), que envia o CRON_SECRET sozinho. A rota usa os segredos que já estão no
 // servidor e só publica o que JÁ VENCEU (a mesma fila e a mesma reserva atômica da
 // rota /run), então chamar à toa ou várias vezes é inofensivo. Trava de 45 s no banco
 // para não deixar ninguém martelar a Meta. Responde só contagens, nunca texto de itens.
 const TICK_MIN_S = 45;
 const K_TICK = "instagram_queue_tick_at";
-cronRouter.get("/tick", async (_req, res): Promise<void> => {
+cronRouter.get("/tick", async (req, res): Promise<void> => {
+  // O despertador da Vercel (Cron) envia o CRON_SECRET sozinho; qualquer outra chamada sem a chave é recusada.
+  if (!autorizado(req, res)) return;
   try {
     const agora = new Date();
     const limite = new Date(agora.getTime() - TICK_MIN_S * 1000).toISOString();

@@ -3,7 +3,19 @@
   "installCommand": "pnpm install",
   "outputDirectory": "artifacts/refugio-da-ferradura/dist/public",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/instagram-queue/tick",
+      "schedule": "0 22 * * *"
+    }
   ]
 }
