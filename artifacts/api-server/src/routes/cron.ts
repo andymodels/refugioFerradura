@@ -1220,6 +1220,28 @@ router.get("/publish-scheduled-partner-content", async (req, res): Promise<void>
   }
 });
 
+// Troca a capa de uma matéria por uma FOTO do nosso B2 (usada pela skill refugio_post para
+// corrigir capa de vídeo, que fica sem miniatura). Só mexe em capa; nada mais da matéria.
+router.post("/set-post-cover", async (req, res): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (![process.env.CRON_SECRET, process.env.ENGINE_SECRET].some((x) => x && authHeader === `Bearer ${x}`)) {
+    res.status(401).json({ error: "Não autorizado" });
+    return;
+  }
+  const { postId, coverImage } = req.body || {};
+  if (!Number.isInteger(postId) || !isB2Url(coverImage) || !/\.(jpe?g|png|webp)(\?|$)/i.test(coverImage)) {
+    res.status(400).json({ error: "postId (número) e coverImage (foto JPEG/PNG/WebP do nosso B2) são obrigatórios." });
+    return;
+  }
+  const [post] = await db.update(postsTable).set({ coverImage, coverImageDisplayMode: "natural", coverImageMeta: null, updatedAt: new Date() }).where(eq(postsTable.id, postId)).returning({ id: postsTable.id, slug: postsTable.slug });
+  if (!post) {
+    res.status(404).json({ error: "matéria não encontrada." });
+    return;
+  }
+  logger.info({ postId, slug: post.slug }, "[cron] Capa trocada via set-post-cover");
+  res.json({ id: post.id, slug: post.slug });
+});
+
 // Cria um post já pronto (matéria da Rota da Ferradura) como rascunho, a
 // partir de um payload de artigo já redigido — usado pelo workflow "Criar
 // post em rascunho" (acionado manualmente via gh workflow run), pra não
