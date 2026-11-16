@@ -67,6 +67,8 @@ if (materiaPath) {
   const m = JSON.parse(fs.readFileSync(materiaPath, "utf8"));
   const cache = {};
   const up = async (nome) => (cache[nome] ||= await subirMidia(path.join(origem, nome)));
+  if (m.capa && /\.(mp4|mov|m4v)$/i.test(m.capa)) throw new Error("RECUSADO: a capa do blog precisa ser uma FOTO, não vídeo. Escolha a foto mais bonita que mostra o lugar.");
+  if (!m.capa) throw new Error("RECUSADO: materia.json sem capa. Escolha uma foto bonita que mostre o lugar.");
   const payload = { ...m, sections: [] };
   if (m.capa) { payload.coverImage = await up(m.capa); payload.coverImageDisplayMode = "natural"; }
   delete payload.capa;
