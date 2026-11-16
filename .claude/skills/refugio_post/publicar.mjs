@@ -24,6 +24,10 @@ const pastaArte = arg("arte"), legendaPath = arg("legenda"), titulo = arg("titul
 const materiaPath = arg("materia"), origem = arg("origem");
 if (!pastaArte || !legendaPath || !titulo) throw new Error("Faltam --arte, --legenda ou --titulo.");
 if (materiaPath && !origem) throw new Error("--materia exige --origem (pasta das mídias originais).");
+// Ordem obrigatória do fluxo: BLOG primeiro, Instagram depois. Sem matéria o script não segue.
+if (!materiaPath && !process.argv.includes("--so-instagram-autorizado")) {
+  throw new Error("RECUSADO: falta --materia. O fluxo é blog primeiro, Instagram depois. Escreva a matéria nova do blog (materia.json) antes. Só use --so-instagram-autorizado se o usuário mandou, por escrito, publicar só no Instagram.");
+}
 const quando = arg("quando") ? new Date(arg("quando")) : new Date(Date.now() + (Number(arg("minutos")) || 5) * 60_000);
 if (isNaN(quando.getTime())) throw new Error("--quando inválido.");
 
