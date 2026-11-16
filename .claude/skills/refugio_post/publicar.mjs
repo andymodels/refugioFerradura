@@ -23,7 +23,8 @@ const publicar = process.argv.includes("--publicar");
 const pastaArte = arg("arte"), legendaPath = arg("legenda"), titulo = arg("titulo");
 const materiaPath = arg("materia"), origem = arg("origem");
 const soBlog = process.argv.includes("--so-blog"); // só a matéria do blog (Instagram já publicado ou fica para depois)
-if (!soBlog && (!pastaArte || !legendaPath || !titulo)) throw new Error("Faltam --arte, --legenda ou --titulo.");
+const reelArq = arg("reel"); // Reel: um único vídeo .mp4, sem arte por cima
+if (!soBlog && ((!pastaArte && !reelArq) || !legendaPath || !titulo)) throw new Error("Faltam --arte, --legenda ou --titulo.");
 if (soBlog && !materiaPath) throw new Error("--so-blog exige --materia e --origem.");
 if (materiaPath && !origem) throw new Error("--materia exige --origem (pasta das mídias originais).");
 // Ordem obrigatória do fluxo: BLOG primeiro, Instagram depois. Sem matéria o script não segue.
@@ -49,17 +50,19 @@ async function subirMidia(arq) {
   }
   let jpg = arq;
   if (!/\.jpe?g$/i.test(arq)) {
-    jpg = path.join(pastaArte || path.dirname(materiaPath), `_${path.basename(arq)}.jpg`);
+    jpg = path.join(pastaArte || path.dirname(path.resolve(materiaPath)), `_${path.basename(arq)}.jpg`);
     execFileSync("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "92", arq, "--out", jpg], { stdio: "ignore" });
   }
   return subir(jpg, "image/jpeg");
 }
 
 // 1) Arte do Instagram
-const arquivos = soBlog ? [] : fs.readdirSync(pastaArte).filter((f) => /^carrossel-\d+\.(png|jpg|mp4)$/i.test(f)).sort();
-if (!soBlog && (arquivos.length < 2 || arquivos.length > 10)) throw new Error(`Carrossel precisa de 2 a 10 itens; achei ${arquivos.length}.`);
+const arquivos = (soBlog || reelArq) ? [] : fs.readdirSync(pastaArte).filter((f) => /^carrossel-\d+\.(png|jpg|mp4)$/i.test(f)).sort();
+if (!soBlog && !reelArq && (arquivos.length < 2 || arquivos.length > 10)) throw new Error(`Carrossel precisa de 2 a 10 itens; achei ${arquivos.length}.`);
 const urls = [];
 for (const f of arquivos) { urls.push(await subirMidia(path.join(pastaArte, f))); console.log(`instagram: subiu ${f}`); }
+
+if (reelArq) { urls.push(await subirMidia(reelArq)); console.log("instagram: subiu o vídeo do Reel"); }
 
 // 2) Matéria do blog (rascunho) com as mídias originais
 let postId = null, slug = null;
