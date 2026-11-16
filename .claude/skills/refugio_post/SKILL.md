@@ -1,39 +1,60 @@
 ---
 name: refugio_post
-description: Produz e publica um post do Refúgio da Ferradura (blog + Instagram oficial @refugioferradura) a partir de uma PASTA com as fotos/vídeos que o usuário já baixou. O usuário só informa a pasta, o @ do Instagram do parceiro e o formato (Reels, Stories, Carrossel ou Feed). Use quando o usuário invocar "/refugio_post" ou disser algo como "Reels/Stories/Carrossel/Feed + @parceiro + pasta".
+description: Produz e publica/agenda post do Instagram oficial @refugioferradura (e blog, só quando o formato pede) a partir de uma PASTA com fotos/vídeos que o usuário já baixou. O usuário informa só a pasta, o @ do parceiro e o formato (Reels, Stories, Carrossel ou Feed), e às vezes "agora". Use quando o usuário invocar "/refugio_post" ou disser "Reels/Stories/Carrossel/Feed + @parceiro + pasta".
 ---
 
-Responda sempre em português simples, sem jargão (o usuário não é técnico). O usuário NÃO explica nada além de: **pasta + @ do parceiro + formato**. Você descobre o resto sozinho. Não faça perguntas se der para decidir com bom senso.
+Responda sempre em português simples, sem jargão (o usuário não é técnico). O usuário NÃO explica nada além de **pasta + @ do parceiro + formato** (e "agora", se for o caso). Você descobre o resto sozinho e não faz perguntas quando der para decidir com bom senso.
 
 ## O que o usuário garante
-- A pasta já tem o material certo para o formato: Reels = vídeo(s) vertical(is); Stories = material vertical; Carrossel = fotos numeradas 1, 2, 3... na ordem dos slides; Feed = 1 foto.
-- Mídia sempre vem do usuário. Nunca baixe nada do Instagram de ninguém e nunca contate parceiro.
+- A pasta já tem o material certo para o formato. Carrossel = fotos/vídeos numerados 001, 002... na ordem dos slides. Reels e Stories = material vertical. Feed = 1 foto.
+- Mídia sempre vem do usuário. Nunca baixe do Instagram de ninguém e nunca contate parceiro.
+- Mídia de criadores de conteúdo/influenciadores: já autorizada pelo usuário (decisão de 15/11/2026). Não alerte de novo; só credite o `@` do criador na legenda (ex.: "Vídeo: @criador") e no blog, se houver blog.
 
-## REGRA DE FORMATO x BLOG (ordem do usuário, 15/11/2026)
-**REELS e STORIES NÃO entram no blog.** Só entram no blog: **carrossel** (e feed de foto única), ou quando o usuário pedir matéria do blog explicitamente. Para Reel/Story: sem `--materia`, legenda SEM link de blog, e nenhuma matéria é criada.
+## O QUE VAI PARA ONDE (regra do usuário)
+| Formato | Instagram | Blog |
+|---|---|---|
+| **Carrossel** (fotos e vídeos misturados) | sim | **sim, matéria nova ANTES** |
+| **Feed** (1 foto) | sim | sim, matéria nova ANTES |
+| **Reels** | sim | **NÃO** (só se o usuário pedir matéria) |
+| **Stories** | sim | **NÃO** (só se o usuário pedir matéria) |
 
-## ORDEM OBRIGATÓRIA nos formatos com blog (carrossel/feed ou se pedido)
-**1º BLOG, 2º INSTAGRAM.** Nunca publique ou agende o Instagram sem a matéria nova do blog criada antes. O `publicar.mjs` recusa rodar sem `--materia` nesses formatos. Se algum passo não puder ser cumprido, PARE e avise o usuário; não contorne.
+Nos formatos com blog a ordem é **1º BLOG, 2º INSTAGRAM**: o servidor publica a matéria, confere que a página responde e só então publica no Instagram. O `publicar.mjs` recusa carrossel/feed sem `--materia`. Se algum passo não puder ser cumprido, PARE e avise; não contorne.
 
-## Passos
-1. **Leia a pasta** (ls). Confira se bate com o formato. Se não bater de forma que impeça o trabalho, diga o que está errado em uma frase e pare.
+## QUANDO PUBLICAR
+- **Padrão: SEMPRE às 07h da manhã (Brasília)**, no próximo dia livre, no máximo 1 post por dia. Ex.: `--quando 2026-11-17T07:00:00-03:00`. Nunca 19h.
+- **Se o usuário disser "agora"**: `--minutos 1`, e em seguida chame a fila à mão (veja "Publicar agora").
+- O despertador da Vercel (plano gratuito) roda 1x por dia às 07h (10h UTC) e publica o que venceu. Itens de outro horário só saem quando alguém chamar a fila.
+- Estoque: o script imprime quantos dias a fila cobre. Abaixo de 5 dias, avise em destaque no fim que é hora de o usuário mandar novas pastas.
+
+## PASSOS
+1. **Leia a pasta** (ls) e confira se bate com o formato. Se não bater de modo que impeça o trabalho, diga em uma frase e pare.
 2. **Olhe as mídias** (Read nas imagens; vídeo: extraia quadros com ffmpeg e olhe). Mantenha a ordem numerada.
-3. **Pesquise de verdade, como redator profissional de turismo**, sempre os três: (a) o Instagram público do parceiro (bio, via `meta[name="description"]` no navegador), (b) busca na internet (Google/WebSearch, site oficial, imprensa, fontes oficiais), (c) as matérias que o blog já tem desse parceiro (API `/api/posts?search=`). Só use fato **confirmado e oficial**. Nunca invente nem complete lacuna com suposição; se faltar dado, escreva menos. Sem comentário de hóspede como fonte. Sem nota do Google.
-4. **BLOG: escreva uma matéria NOVA e original** (mesmo que o parceiro já tenha matéria: o texto é novo, outro ângulo, jornalístico; não narre o que se vê nas fotos). Regras da skill `refugio_blog` (título começa com o nome do parceiro, sem travessão, Serviço só com dados confirmados). **No blog NÃO entra a arte do carrossel**: entram as fotos e vídeos ORIGINAIS da pasta, na mesma sequência numerada, cada um dentro de uma seção do texto, em qualquer formato (quadrada, horizontal, vertical), sem cortar. Monte o `materia.json`. **REGRA DA CAPA DO BLOG: a capa é sempre uma FOTO, nunca vídeo (vídeo fica sem miniatura no blog). Escolha a foto mais bonita que mostra bem o lugar (vista, fachada, ambiente), mesmo que não seja a 1ª da pasta.** Os vídeos entram dentro das seções, e as demais mídias seguem a sequência numerada (a foto escolhida para capa não precisa repetir numa seção).
-4b. **MARCAR O @ DO PARCEIRO, principalmente no blog (regra do usuário):** no corpo da matéria o @ do parceiro aparece como link (`<a href="https://www.instagram.com/<handle>/" target="_blank" rel="noopener noreferrer">@<handle></a>`) já no primeiro parágrafo e de novo onde falar de reservas/contato, além do bloco Serviço. O mesmo vale para @ de outros negócios citados que tenham perfil confirmado.
-5. **Legenda do Instagram**: texto jornalístico, não descritivo, com @ do parceiro, @refugioferradura e o endereço da matéria do blog. Sem travessão, sem inventar telefone ou preço.
-6. **Arte do Instagram** (só para o Instagram): monte `spec.json` em `engine-runner/output/post/<data>-<parceiro>/` e rode `node .claude/skills/refugio_post/render.mjs <spec.json>`. Degradê leve no rodapé; topo com site do Refúgio e @ do parceiro; capa com TÍTULO EM CAIXA ALTA + 3 destaques; páginas seguintes com CHAMADA em caixa alta + texto; vídeos entram como slides com a mesma camada. Confira cada slide com Read.
-7. **Mostre ao usuário e publique** (autorizado, 1 post por dia no máximo, SEMPRE às 07h da manhã (horário de Brasília, ex. `2026-11-17T07:00:00-03:00`; ordem do usuário, não use 19h), estoque em dias no fim da saída do script):
-   `node .claude/skills/refugio_post/publicar.mjs --arte <pasta-da-arte> --legenda <legenda.txt> --titulo "<título>" --materia <materia.json> --origem <pasta-do-usuário> --quando <ISO> --publicar`
-   Rode antes SEM `--publicar` (só confere). O script cria a matéria no blog como rascunho e enfileira o Instagram ligado a ela; na hora marcada o servidor publica o blog e, só depois de confirmar que a página responde, o Instagram.
-   - Estoque: se a fila cobrir menos de 5 dias, avise em destaque no fim que é hora de mandar novas pastas.
-   - Reel: use `--reel <arquivo.mp4>` no `publicar.mjs` (vídeo único, sem arte por cima, capa do blog = quadro bonito extraído do vídeo, pois a capa do blog é sempre foto); Reel provado em uso real em 15/11/2026 (Chalés Água Fresca); **Story**: gere a arte 1080x1920 com `render.mjs` (formato `story`) e publique com `--story <arquivo>` (a fila tem formato Story; o texto e o @ vão desenhados na arte, a API de Story não tem legenda). Story ainda não foi provado em uso real: avise o usuário do resultado.
-   - Vídeo de carrossel acima de 60s pode ser recusado: avise, não corte sozinho.
-8. **Relate** em poucas linhas, com os links do blog e do Instagram e o que ficou pendente.
+3. **Pesquise como redator profissional de turismo, nos três lugares**: (a) Instagram público do parceiro (bio via `meta[name="description"]` no navegador e legendas dos posts via `og:description`), (b) busca na internet (site oficial, imprensa, fontes oficiais), (c) matérias que o blog já tem dele (`/api/posts?search=`). Só use fato **confirmado e oficial**. Nunca invente nem preencha lacuna com suposição; se faltar dado, escreva menos. Sem comentário de hóspede como fonte, sem nota do Google, sem preço (muda), sem telefone não confirmado.
+4. **Texto jornalístico, nunca narração da foto.** Nada de "vemos uma piscina...". Sem travessão (—) em lugar nenhum.
+5. **Legenda do Instagram**: gancho, `@` do parceiro, `@refugioferradura`. Em carrossel/feed, termina com o endereço da matéria do blog. Em Reel/Story, **sem link de blog**.
+6. **Marque sempre o @ do parceiro** (principalmente no blog, quando houver): no corpo da matéria como link (`<a href="https://www.instagram.com/<handle>/" target="_blank" rel="noopener noreferrer">@<handle></a>`) no 1º parágrafo e onde falar de reservas/contato, além do Serviço. Vale também para outros negócios citados com perfil confirmado.
 
-## Limites
-- **Mídia de terceiros (criadores de conteúdo, influenciadores):** o usuário já decidiu que pode usar; os criadores costumam agradecer. Não fique alertando de novo sobre isso. Mantenha só o crédito: `@` do criador na legenda e no blog (ex.: "Vídeo: @criador"). Se o criador pedir retirada, o usuário avisa e a mídia sai. (Decisão do usuário em 15/11/2026.)
-- **Toda vez que for preciso fazer deploy (colocar mudança do servidor no ar), PRIMEIRO peça ao usuário para conectar o GitHub à Vercel e avise que o envio ao GitHub é o que dispara o deploy.** Só prossiga depois de ele confirmar. (Ordem do usuário.) Use sempre o e-mail privado do GitHub (noreply) nos commits; nunca desligue a proteção de e-mail dele.
-- Não commitar, não fazer deploy, não escrever direto no banco, não mexer em código do servidor sem o usuário pedir.
-- Se qualquer passo de publicação falhar, pare, mostre o erro em palavras simples e não tente de novo em loop.
+### Carrossel e Feed (com blog)
+7. **Matéria NOVA e original no blog** (mesmo que o parceiro já tenha matéria: outro ângulo). Regras da skill `refugio_blog` (título começa com o nome do parceiro; Serviço só com dados confirmados). **A arte do carrossel NÃO entra no blog**: entram as fotos e vídeos ORIGINAIS, na sequência numerada, cada um numa seção, em qualquer formato, sem cortar. **A capa do blog é sempre uma FOTO, nunca vídeo** (vídeo fica sem miniatura): a foto mais bonita que mostra o lugar; se não houver foto, um quadro bonito do vídeo SEM texto por cima. Monte o `materia.json`.
+8. **Arte do carrossel**: monte `spec.json` em `engine-runner/output/post/<data>-<parceiro>/` e rode `node .claude/skills/refugio_post/render.mjs <spec.json>`. Degradê leve no rodapé; topo com site do Refúgio e @ do parceiro; capa com TÍTULO EM CAIXA ALTA + 3 destaques; demais páginas com CHAMADA em caixa alta + texto; vídeos entram como slides com a mesma camada. Confira cada slide com Read. Vídeo de carrossel acima de 60s pode ser recusado: avise, não corte sozinho.
+9. Rode primeiro SEM `--publicar` (só confere), depois com:
+   `node .claude/skills/refugio_post/publicar.mjs --arte <pasta-da-arte> --legenda <legenda.txt> --titulo "<título>" --materia <materia.json> --origem <pasta-das-mídias> --quando <ISO> --publicar`
+   O script cria a matéria como rascunho e enfileira o Instagram ligado a ela.
+
+### Reels (sem blog)
+10. Vídeo único, sem arte por cima. Legenda sem link de blog. `node .claude/skills/refugio_post/publicar.mjs --reel <video.mp4> --legenda <legenda.txt> --titulo "<título>" --quando <ISO> --publicar` (sem `--materia`). Reel provado em uso real.
+
+### Stories (sem blog)
+11. Gere a arte 1080x1920 com `render.mjs` (`formato: "story"`, vídeo ou foto). A API de Story não tem legenda: o site, o `@` e os textos vão desenhados na arte. Se o vídeo já tem legenda escrita nele, use `"posicao": "topo"` no spec para o texto não cobrir. Confira com Read. Publique com `--story <arquivo> --titulo "<título>" --quando <ISO> --publicar` (sem `--materia`). Story provado em uso real; o Instagram pode demorar a processar o vídeo e a 1ª tentativa falhar, o servidor repete sozinho após 10 min.
+
+## PUBLICAR AGORA ("agora")
+Depois de enfileirar com `--minutos 1`, espere ~65 s e chame a fila com a chave do Keychain: `POST https://refugioferradura.com.br/api/cron/instagram-queue/run` (timeout de até 290 s; vídeo demora). Consulte o resultado em `GET .../instagram-queue/list` (mostra `status`, `lastError`, `nextAttemptAt`). Se falhar por demora do Instagram, espere o `nextAttemptAt` e chame `/run` de novo. Rotas úteis (todas com `Authorization: Bearer <chave>`): `/reagendar {id, scheduledAt}`, `/cancelar {id}`, `/set-post-cover {postId, coverImage}`.
+
+## DEPOIS DE PUBLICAR
+Confira que os links respondem (blog: `/api/posts/<slug>`; Instagram: o permalink) e **relate em poucas linhas**: links do blog (se houver) e do Instagram, o que ficou pendente e o estoque da fila.
+
+## LIMITES (ordens do usuário)
+- **Toda vez que for preciso fazer deploy** (colocar mudança do servidor no ar), PRIMEIRO peça ao usuário que confirme que o GitHub está conectado à Vercel e avise que o envio ao GitHub é o que dispara o deploy. Só prossiga depois de ele confirmar. Commits sempre com o e-mail privado do GitHub (noreply); nunca desligue a proteção de e-mail dele.
+- Não escreva direto no banco nem mexa em código do servidor sem o usuário pedir.
+- Se um passo de publicação falhar, pare, mostre o erro em palavras simples; não tente de novo em loop (a repetição do `/run` após o `nextAttemptAt` não é loop).
 - Nunca publique algo que você mesmo não conferiu (arte e legenda revisadas).
