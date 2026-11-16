@@ -293,17 +293,24 @@ export async function publishCarouselToInstagram(imageUrls: string[], caption: s
 
   const children: string[] = [];
   for (const imageUrl of imageUrls) {
+    // Cada item pode ser foto (JPEG) ou vídeo (MP4); o Instagram aceita os dois misturados no carrossel.
+    const ehVideo = /\.mp4(\?|$)/i.test(imageUrl);
     const itemUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
-    itemUrl.searchParams.set("image_url", imageUrl);
+    if (ehVideo) {
+      itemUrl.searchParams.set("media_type", "VIDEO");
+      itemUrl.searchParams.set("video_url", imageUrl);
+    } else {
+      itemUrl.searchParams.set("image_url", imageUrl);
+    }
     itemUrl.searchParams.set("is_carousel_item", "true");
     itemUrl.searchParams.set("access_token", accessToken);
     const itemRes = await fetch(itemUrl, { method: "POST" });
     const itemData: any = await itemRes.json();
     if (!itemRes.ok || !itemData?.id) {
       logger.error({ status: itemRes.status, data: itemData, imageUrl }, "Falha ao criar item do carrossel no Instagram");
-      throw new Error(itemData?.error?.error_user_msg || itemData?.error?.message || "Falha ao preparar uma imagem do carrossel.");
+      throw new Error(itemData?.error?.error_user_msg || itemData?.error?.message || "Falha ao preparar uma mídia do carrossel.");
     }
-    await waitForContainerReady(itemData.id, accessToken, "foto");
+    await waitForContainerReady(itemData.id, accessToken, ehVideo ? "video" : "foto");
     children.push(itemData.id);
   }
 

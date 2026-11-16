@@ -679,7 +679,7 @@ router.post("/instagram/carousel", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
   const { imageUrls, caption, postId, confirm, dryRun } = req.body || {};
   if (!Array.isArray(imageUrls) || imageUrls.length < 2 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) {
-    res.status(400).json({ status: "error", error: "imageUrls: de 2 a 10 URLs de imagem do nosso B2." });
+    res.status(400).json({ status: "error", error: "imageUrls: de 2 a 10 URLs (JPEG ou MP4) do nosso B2." });
     return;
   }
   if (typeof caption !== "string" || caption.trim().length < 10 || caption.length > 2200) {
@@ -696,8 +696,9 @@ router.post("/instagram/carousel", async (req, res): Promise<void> => {
       checadas.push({ url: u.split("/").slice(-1)[0], http: 0, tipo: null, bytes: null });
     }
   }
-  if (checadas.some((c) => c.http !== 200 || !(c.tipo || "").includes("jpeg"))) {
-    res.status(422).json({ status: "invalid", error: "imagem inacessível ou que não é JPEG", checadas });
+  // Cada item é JPEG ou vídeo MP4 (carrossel misto).
+  if (checadas.some((c) => c.http !== 200 || !(c.tipo || "").includes(/\.mp4$/i.test(c.url) ? "video" : "jpeg"))) {
+    res.status(422).json({ status: "invalid", error: "mídia inacessível, imagem que não é JPEG ou vídeo que não é MP4", checadas });
     return;
   }
   if (dryRun === true) {

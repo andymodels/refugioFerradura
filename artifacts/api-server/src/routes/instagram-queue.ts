@@ -5,7 +5,7 @@ import { and, desc, eq, inArray, gte, isNotNull, sql } from "drizzle-orm";
 import { executarFila } from "../lib/instagram-queue";
 import { getInstagramToken } from "../lib/instagram-token";
 import { isB2Url } from "../lib/engine";
-import { archiveRemoteMedia } from "../lib/b2-storage";
+import { archiveRemoteMedia, createDirectUpload } from "../lib/b2-storage";
 import { estadoProducao, levantamentoMidia } from "../lib/producao-estado";
 import { logger } from "../lib/logger";
 
@@ -88,6 +88,27 @@ cronRouter.post("/arquivar-midia", async (req, res): Promise<void> => {
     res.status(201).json({ status: "ok", url: b2 });
   } catch (err: any) {
     logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Falha ao arquivar mídia");
+    res.status(502).json({ status: "error", erro: String(err?.message ?? err).slice(0, 200) });
+  }
+});
+
+// ─── Envio de mídia do Mac para o B2 (post feito a partir de uma pasta) ─────
+// Devolve um link temporário para o Mac subir o arquivo (foto JPEG ou vídeo MP4) e a URL
+// pública final, para usar no /enqueue. A chave do B2 nunca sai do servidor.
+cronRouter.post("/upload-midia", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const { contentType } = req.body || {};
+  const ext = contentType === "image/jpeg" ? "jpg" : contentType === "video/mp4" ? "mp4" : null;
+  if (!ext) {
+    res.status(400).json({ status: "error", erro: "contentType deve ser image/jpeg ou video/mp4." });
+    return;
+  }
+  try {
+    const key = `refugio-da-ferradura/post-manual/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    const up = await createDirectUpload({ filename: `post.${ext}`, contentType, type: ext === "mp4" ? "video" : "image", key });
+    res.status(201).json({ status: "ok", uploadUrl: up.uploadUrl, url: up.url });
+  } catch (err: any) {
+    logger.error({ erro: String(err?.message ?? err) }, "[fila-instagram] Falha ao preparar upload");
     res.status(502).json({ status: "error", erro: String(err?.message ?? err).slice(0, 200) });
   }
 });
