@@ -8,6 +8,7 @@
 //   "saida": "/pasta/de/saida",
 //   "site": "refugioferradura.com.br",
 //   "arroba": "@nomedoparceiro",
+//   "posicao": "topo" (opcional: bloco de texto no alto, para não cobrir legenda embutida do vídeo),
 //   "titulo": "TÍTULO EM CAIXA ALTA",
 //   "destaques": ["destaque 1", "destaque 2", "destaque 3"],
 //   "paginas": [ { "foto": "/caminho.jpg", "chamada": "CHAMADA EM CAIXA ALTA", "texto": "texto normal" } ]
@@ -41,8 +42,8 @@ const degrade = `linear-gradient(to top,rgba(0,0,0,.82) 0%,rgba(0,0,0,.66) 20%,r
 function capa(foto) {
   const d = (spec.destaques || []).slice(0, 3);
   return `<style>${css}
-  .ov{background:${degrade}}
-  .b{position:absolute;left:64px;right:64px;bottom:${spec.formato === "story" ? 190 : 80}px;z-index:2}
+  .ov{background:${spec.posicao === "topo" ? degrade.replace("to top", "to bottom") : degrade}}
+  .b{position:absolute;left:64px;right:64px;${spec.posicao === "topo" ? "top:270px" : `bottom:${spec.formato === "story" ? 190 : 80}px`};z-index:2}
   h1{font-weight:800;font-size:76px;line-height:1.04;text-transform:uppercase;letter-spacing:-.01em;text-wrap:balance}
   ul{list-style:none;margin-top:30px}
   li{padding:13px 0;border-top:1px solid rgba(255,255,255,.25);font-weight:600;font-size:30px;display:flex;gap:20px}
