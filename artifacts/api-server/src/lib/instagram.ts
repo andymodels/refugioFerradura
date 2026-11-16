@@ -413,6 +413,41 @@ export async function publishReelToInstagram(videoUrl: string, caption: string):
   return { mediaId: publishData.id, caption, permalink };
 }
 
+// Publica UM Story (foto JPEG ou vídeo MP4 públicos, de preferência 1080x1920) no perfil oficial.
+// Story não tem legenda pela API; texto e @ já vão desenhados na própria arte.
+export async function publishStoryToInstagram(mediaUrl: string): Promise<InstagramPublishResult> {
+  const accessToken = (await getInstagramToken()).token;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!accessToken || !igUserId) {
+    throw new Error("Instagram não está configurado neste ambiente (faltam INSTAGRAM_ACCESS_TOKEN / INSTAGRAM_BUSINESS_ID).");
+  }
+  const ehVideo = /\.mp4(\?|$)/i.test(mediaUrl);
+  const containerUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media`);
+  containerUrl.searchParams.set("media_type", "STORIES");
+  containerUrl.searchParams.set(ehVideo ? "video_url" : "image_url", mediaUrl);
+  containerUrl.searchParams.set("access_token", accessToken);
+  const containerRes = await fetch(containerUrl, { method: "POST" });
+  const containerData: any = await containerRes.json();
+  if (!containerRes.ok || !containerData?.id) {
+    logger.error({ status: containerRes.status, data: containerData, mediaUrl }, "Falha ao criar container de Story no Instagram");
+    throw new Error(containerData?.error?.error_user_msg || containerData?.error?.message || "Falha ao preparar o Story.");
+  }
+  await waitForContainerReady(containerData.id, accessToken, ehVideo ? "video" : "foto");
+
+  const publishUrl = new URL(`https://graph.instagram.com/${GRAPH_API_VERSION}/${igUserId}/media_publish`);
+  publishUrl.searchParams.set("creation_id", containerData.id);
+  publishUrl.searchParams.set("access_token", accessToken);
+  const publishRes = await fetch(publishUrl, { method: "POST" });
+  const publishData: any = await publishRes.json();
+  if (!publishRes.ok || !publishData?.id) {
+    logger.error({ status: publishRes.status, data: publishData }, "Falha ao publicar Story no Instagram");
+    throw new Error(publishData?.error?.error_user_msg || publishData?.error?.message || "Falha ao publicar o Story.");
+  }
+  const permalink = await fetchPermalink(publishData.id, accessToken);
+  logger.info({ mediaId: publishData.id, permalink }, "Story publicado no Instagram");
+  return { mediaId: publishData.id, caption: "", permalink };
+}
+
 // O Instagram não tem sticker de menção via API (isso só existe no app,
 // composto manualmente) — pra Story em foto, grava o @ do parceiro
 // visualmente na imagem via transformação do Cloudinary, garantindo o

@@ -116,14 +116,19 @@ cronRouter.post("/upload-midia", async (req, res): Promise<void> => {
 // ─── Entrada de conteúdo FINALIZADO (vem do Mac) ───────────────────────────
 cronRouter.post("/enqueue", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
-  const { titulo, scheduledAt, caption, imageUrls, postId, capaFundo, dryRun, pauta, partnerIds } = req.body || {};
+  const { titulo, scheduledAt, caption, imageUrls, postId, capaFundo, dryRun, pauta, partnerIds, formato } = req.body || {};
+  const ehStory = formato === "story";
   const quando = new Date(String(scheduledAt));
   const erros: string[] = [];
   if (typeof titulo !== "string" || titulo.trim().length < 3) erros.push("titulo obrigatório.");
   if (isNaN(quando.getTime())) erros.push("scheduledAt inválido (use ISO com fuso, ex.: 2026-10-05T19:00:00-03:00).");
   else if (quando.getTime() < Date.now() - 60_000) erros.push("scheduledAt está no passado.");
-  if (typeof caption !== "string" || caption.trim().length < 10 || caption.length > 2200) erros.push("caption inválida (10 a 2200 caracteres).");
-  if (!Array.isArray(imageUrls) || imageUrls.length < 1 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) erros.push("imageUrls: de 1 a 10 URLs do nosso B2 (1 = foto única, 2 ou mais = carrossel).");
+  if (formato !== undefined && formato !== "feed" && formato !== "story") erros.push('formato deve ser "feed" ou "story".');
+  // Story não tem legenda na API (o texto vai desenhado na arte); a legenda guardada é só um rótulo.
+  if (!ehStory && (typeof caption !== "string" || caption.trim().length < 10 || caption.length > 2200)) erros.push("caption inválida (10 a 2200 caracteres).");
+  if (ehStory) {
+    if (!Array.isArray(imageUrls) || imageUrls.length !== 1 || !isB2Url(imageUrls[0])) erros.push("Story: exatamente 1 URL (JPEG ou MP4) do nosso B2.");
+  } else if (!Array.isArray(imageUrls) || imageUrls.length < 1 || imageUrls.length > 10 || !imageUrls.every((u: unknown) => isB2Url(u))) erros.push("imageUrls: de 1 a 10 URLs do nosso B2 (1 = foto única, 2 ou mais = carrossel).");
   if (postId !== undefined && postId !== null && !Number.isInteger(postId)) erros.push("postId inválido.");
   if (partnerIds !== undefined && !(Array.isArray(partnerIds) && partnerIds.every((n: unknown) => Number.isInteger(n)))) erros.push("partnerIds deve ser uma lista de números.");
   if (erros.length) {
@@ -151,19 +156,20 @@ cronRouter.post("/enqueue", async (req, res): Promise<void> => {
       return;
     }
   }
-  const dedupeKey = crypto.createHash("sha256").update(JSON.stringify([imageUrls, caption.trim()])).digest("hex");
+  const legendaGuardada = ehStory ? String(caption ?? "").trim() || `Story: ${String(titulo).trim()}` : String(caption).trim();
+  const dedupeKey = crypto.createHash("sha256").update(JSON.stringify([imageUrls, legendaGuardada, ehStory ? "story" : "feed"])).digest("hex");
   const [dup] = await db.select().from(instagramQueueTable).where(eq(instagramQueueTable.dedupeKey, dedupeKey));
   if (dup) {
     res.status(409).json({ status: "duplicate", id: dup.id, estado: dup.status, scheduledAt: dup.scheduledAt });
     return;
   }
   if (dryRun === true) {
-    res.json({ status: "dry_run_ok", slides: imageUrls.length, quando: quando.toISOString(), legendaCaracteres: caption.length });
+    res.json({ status: "dry_run_ok", slides: imageUrls.length, quando: quando.toISOString(), legendaCaracteres: legendaGuardada.length });
     return;
   }
   const [row] = await db
     .insert(instagramQueueTable)
-    .values({ titulo: titulo.trim(), scheduledAt: quando, caption: caption.trim(), imageUrls, postId: postId ? Number(postId) : null, capaFundo: typeof capaFundo === "string" ? capaFundo : null, pauta: typeof pauta === "string" ? pauta.trim() : null, partnerIds: Array.isArray(partnerIds) ? partnerIds : [], dedupeKey })
+    .values({ titulo: ehStory && !/^\[Story\]\s/i.test(titulo.trim()) ? `[Story] ${titulo.trim()}` : titulo.trim(), scheduledAt: quando, caption: legendaGuardada, imageUrls, postId: postId ? Number(postId) : null, capaFundo: typeof capaFundo === "string" ? capaFundo : null, pauta: typeof pauta === "string" ? pauta.trim() : null, partnerIds: Array.isArray(partnerIds) ? partnerIds : [], dedupeKey })
     .returning();
   res.status(201).json({ status: "queued", id: row.id, scheduledAt: row.scheduledAt, slides: imageUrls.length });
 });

@@ -24,7 +24,7 @@ Responda sempre em português simples, sem jargão (o usuário não é técnico)
    `node .claude/skills/refugio_post/publicar.mjs --arte <pasta-da-arte> --legenda <legenda.txt> --titulo "<título>" --materia <materia.json> --origem <pasta-do-usuário> --quando <ISO> --publicar`
    Rode antes SEM `--publicar` (só confere). O script cria a matéria no blog como rascunho e enfileira o Instagram ligado a ela; na hora marcada o servidor publica o blog e, só depois de confirmar que a página responde, o Instagram.
    - Estoque: se a fila cobrir menos de 5 dias, avise em destaque no fim que é hora de mandar novas pastas.
-   - Reel: use `--reel <arquivo.mp4>` no `publicar.mjs` (vídeo único, sem arte por cima, capa do blog = quadro bonito extraído do vídeo, pois a capa do blog é sempre foto); caminho do Reel na fila ainda não provado em uso real; **Story ainda não tem agendamento** no servidor: faça blog + legenda + arte e diga que o Instagram ficou pendente.
+   - Reel: use `--reel <arquivo.mp4>` no `publicar.mjs` (vídeo único, sem arte por cima, capa do blog = quadro bonito extraído do vídeo, pois a capa do blog é sempre foto); Reel provado em uso real em 15/11/2026 (Chalés Água Fresca); **Story**: gere a arte 1080x1920 com `render.mjs` (formato `story`) e publique com `--story <arquivo>` (a fila tem formato Story; o texto e o @ vão desenhados na arte, a API de Story não tem legenda). Story ainda não foi provado em uso real: avise o usuário do resultado.
    - Vídeo de carrossel acima de 60s pode ser recusado: avise, não corte sozinho.
 8. **Relate** em poucas linhas, com os links do blog e do Instagram e o que ficou pendente.
 

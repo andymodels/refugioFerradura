@@ -1,6 +1,6 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db, instagramQueueTable, postsTable, type InstagramQueueItem } from "@workspace/db";
-import { publishCarouselToInstagram, publishSinglePhotoToInstagram, publishReelToInstagram } from "./instagram";
+import { publishCarouselToInstagram, publishSinglePhotoToInstagram, publishReelToInstagram, publishStoryToInstagram } from "./instagram";
 import { getInstagramToken } from "./instagram-token";
 import { logger } from "./logger";
 
@@ -51,6 +51,33 @@ async function acharPublicada(caption: string, desde: Date): Promise<{ id: strin
     return "desconhecido";
   }
 }
+
+// Story é marcado pelo prefixo "[Story] " no título (evita mexer na estrutura do banco).
+export const ehStoryItem = (item: { titulo: string }) => /^\[Story\]\s/i.test(item.titulo);
+
+// Story não aparece na lista de mídia do perfil: confere na lista de Stories ativos (24 h).
+async function acharStoryPublicado(desde: Date): Promise<{ id: string; permalink: string | null } | null | "desconhecido"> {
+  const token = (await getInstagramToken()).token;
+  const igUserId = process.env.INSTAGRAM_BUSINESS_ID;
+  if (!token || !igUserId) return "desconhecido";
+  try {
+    const url = new URL(`https://graph.instagram.com/v21.0/${igUserId}/stories`);
+    url.searchParams.set("fields", "id,timestamp,permalink");
+    url.searchParams.set("access_token", token);
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const d: any = await r.json();
+    if (!r.ok || !Array.isArray(d?.data)) return "desconhecido";
+    const margem = desde.getTime() - 60_000;
+    const achou = d.data.find((m: any) => new Date(m.timestamp).getTime() >= margem);
+    return achou ? { id: String(achou.id), permalink: achou.permalink ?? null } : null;
+  } catch {
+    return "desconhecido";
+  }
+}
+
+// Confere se o item já saiu no Instagram (feed por legenda; Story pela lista de Stories).
+const acharDoItem = (item: InstagramQueueItem, desde: Date) =>
+  ehStoryItem(item) ? acharStoryPublicado(desde) : acharPublicada(item.caption, desde);
 
 const SITE = process.env.SITE_URL || "https://refugioferradura.com.br";
 
@@ -123,7 +150,7 @@ async function recuperarPresos(res: ResultadoFila) {
   const corte = new Date(Date.now() - PRESO_APOS_MIN * 60_000);
   const presos = await db.select().from(instagramQueueTable).where(and(eq(instagramQueueTable.status, "publicando"), lt(instagramQueueTable.claimedAt, corte)));
   for (const item of presos) {
-    const achou = await acharPublicada(item.caption, item.claimedAt ?? item.scheduledAt);
+    const achou = await acharDoItem(item, item.claimedAt ?? item.scheduledAt);
     if (achou === "desconhecido") continue; // sem certeza: deixa como está e tenta na próxima execução
     if (achou) {
       await marcarPublicado(item, achou.id, achou.permalink);
@@ -157,7 +184,7 @@ export async function executarFila(): Promise<ResultadoFila> {
 
     // Tentativa anterior pode ter publicado sem avisar: confere antes de repetir.
     if (item.attempts > 1) {
-      const achou = await acharPublicada(item.caption, item.scheduledAt);
+      const achou = await acharDoItem(item, item.scheduledAt);
       if (achou === "desconhecido") {
         await db.update(instagramQueueTable).set({ status: "aguardando", lastError: "Não foi possível conferir o Instagram; aguardando.", nextAttemptAt: new Date(Date.now() + ESPERA_ENTRE_TENTATIVAS_MIN * 60_000), updatedAt: new Date() }).where(eq(instagramQueueTable.id, item.id));
         continue;
@@ -172,7 +199,9 @@ export async function executarFila(): Promise<ResultadoFila> {
     try {
       await liberarMateria(item); // blog primeiro; se não confirmar, o Instagram não sai
       const ehVideo = item.imageUrls.length === 1 && /\.mp4(\?|$)/i.test(item.imageUrls[0]);
-      const r = ehVideo
+      const r = ehStoryItem(item)
+        ? await publishStoryToInstagram(item.imageUrls[0])
+        : ehVideo
         ? await publishReelToInstagram(item.imageUrls[0], item.caption)
         : item.imageUrls.length === 1
           ? await publishSinglePhotoToInstagram(item.imageUrls[0], item.caption)
@@ -184,7 +213,7 @@ export async function executarFila(): Promise<ResultadoFila> {
       const erro = String(err?.message ?? err).slice(0, 300);
       logger.error({ id: item.id, erro }, "[fila-instagram] Falha ao publicar");
       // A falha pode ter acontecido depois de o Instagram aceitar a publicação.
-      const achou = await acharPublicada(item.caption, item.claimedAt ?? new Date(Date.now() - 10 * 60_000));
+      const achou = await acharDoItem(item, item.claimedAt ?? new Date(Date.now() - 10 * 60_000));
       if (achou && achou !== "desconhecido") {
         await marcarPublicado(item, achou.id, achou.permalink);
         res.recuperados.push({ id: item.id, permalink: achou.permalink });

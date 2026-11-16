@@ -24,7 +24,8 @@ const pastaArte = arg("arte"), legendaPath = arg("legenda"), titulo = arg("titul
 const materiaPath = arg("materia"), origem = arg("origem");
 const soBlog = process.argv.includes("--so-blog"); // só a matéria do blog (Instagram já publicado ou fica para depois)
 const reelArq = arg("reel"); // Reel: um único vídeo .mp4, sem arte por cima
-if (!soBlog && ((!pastaArte && !reelArq) || !legendaPath || !titulo)) throw new Error("Faltam --arte, --legenda ou --titulo.");
+const storyArq = arg("story"); // Story: 1 arte pronta (1080x1920, .png/.jpg ou .mp4)
+if (!soBlog && ((!pastaArte && !reelArq && !storyArq) || (!legendaPath && !storyArq) || !titulo)) throw new Error("Faltam --arte, --legenda ou --titulo.");
 if (soBlog && !materiaPath) throw new Error("--so-blog exige --materia e --origem.");
 if (materiaPath && !origem) throw new Error("--materia exige --origem (pasta das mídias originais).");
 // Ordem obrigatória do fluxo: BLOG primeiro, Instagram depois. Sem matéria o script não segue.
@@ -57,11 +58,12 @@ async function subirMidia(arq) {
 }
 
 // 1) Arte do Instagram
-const arquivos = (soBlog || reelArq) ? [] : fs.readdirSync(pastaArte).filter((f) => /^carrossel-\d+\.(png|jpg|mp4)$/i.test(f)).sort();
-if (!soBlog && !reelArq && (arquivos.length < 2 || arquivos.length > 10)) throw new Error(`Carrossel precisa de 2 a 10 itens; achei ${arquivos.length}.`);
+const arquivos = (soBlog || reelArq || storyArq) ? [] : fs.readdirSync(pastaArte).filter((f) => /^carrossel-\d+\.(png|jpg|mp4)$/i.test(f)).sort();
+if (!soBlog && !reelArq && !storyArq && (arquivos.length < 2 || arquivos.length > 10)) throw new Error(`Carrossel precisa de 2 a 10 itens; achei ${arquivos.length}.`);
 const urls = [];
 for (const f of arquivos) { urls.push(await subirMidia(path.join(pastaArte, f))); console.log(`instagram: subiu ${f}`); }
 
+if (storyArq) { urls.push(await subirMidia(storyArq)); console.log("instagram: subiu a arte do Story"); }
 if (reelArq) { urls.push(await subirMidia(reelArq)); console.log("instagram: subiu o vídeo do Reel"); }
 
 // 2) Matéria do blog (rascunho) com as mídias originais
@@ -91,9 +93,9 @@ if (materiaPath) {
 
 if (soBlog) { console.log(postId ? `Matéria criada como rascunho (id ${postId}).` : "Conferência da matéria concluída (nada criado)."); process.exit(0); }
 // 3) Fila do Instagram
-let caption = fs.readFileSync(legendaPath, "utf8").trim();
+let caption = legendaPath ? fs.readFileSync(legendaPath, "utf8").trim() : "";
 if (slug) caption = caption.replace(/refugioferradura\.com\.br\/blog\/\S+/, `refugioferradura.com.br/blog/${slug}`);
-const r = await apiFila("/enqueue", { titulo, scheduledAt: quando.toISOString(), caption, imageUrls: urls, postId, dryRun: !publicar });
+const r = await apiFila("/enqueue", { titulo, scheduledAt: quando.toISOString(), caption, imageUrls: urls, postId, formato: storyArq ? "story" : "feed", dryRun: !publicar });
 console.log(JSON.stringify(r, null, 2));
 
 // 4) Estoque da fila (para avisar quando estiver acabando)
