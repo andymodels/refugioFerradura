@@ -347,7 +347,7 @@ cronRouter.get("/list", async (req, res): Promise<void> => {
   if (!autorizado(req, res)) return;
   const limite = Math.min(Number(req.query.limite) || 60, 200);
   const rows = await db.select().from(instagramQueueTable).orderBy(desc(instagramQueueTable.scheduledAt)).limit(limite);
-  res.json({ itens: rows.map((r) => ({ id: r.id, titulo: r.titulo, scheduledAt: r.scheduledAt, status: r.status, attempts: r.attempts, capaFundo: r.capaFundo, permalink: r.permalink, postId: r.postId, pauta: r.pauta, partnerIds: r.partnerIds, blogPublicadoEm: r.blogPublicadoEm, slides: r.imageUrls.length })) });
+  res.json({ itens: rows.map((r) => ({ id: r.id, titulo: r.titulo, scheduledAt: r.scheduledAt, status: r.status, attempts: r.attempts, capaFundo: r.capaFundo, permalink: r.permalink, postId: r.postId, pauta: r.pauta, partnerIds: r.partnerIds, blogPublicadoEm: r.blogPublicadoEm, slides: r.imageUrls.length, lastError: r.lastError, nextAttemptAt: r.nextAttemptAt })) });
 });
 
 // Acervo de imagens do blog no B2 (capa e fotos das matérias publicadas), para
