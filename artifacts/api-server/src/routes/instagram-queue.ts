@@ -386,6 +386,22 @@ cronRouter.get("/acervo", async (req, res): Promise<void> => {
   res.json({ total: itens.length, itens });
 });
 
+// Cancela um item que ainda não saiu (aguardando ou falhou), pela chave do servidor.
+cronRouter.post("/cancelar", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const id = Number(req.body?.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "id (número) obrigatório." });
+    return;
+  }
+  const r = await db.update(instagramQueueTable).set({ status: "cancelado", updatedAt: new Date() }).where(and(eq(instagramQueueTable.id, id), inArray(instagramQueueTable.status, ["aguardando", "falhou"]))).returning({ id: instagramQueueTable.id });
+  if (!r.length) {
+    res.status(409).json({ error: "Só dá para cancelar item aguardando ou que falhou." });
+    return;
+  }
+  res.json({ ok: true, id });
+});
+
 // Muda o horário de um item da fila (e reativa se falhou/cancelou), pela chave do servidor.
 // Usada pela skill refugio_post para antecipar ou refazer um post sem depender do painel.
 cronRouter.post("/reagendar", async (req, res): Promise<void> => {

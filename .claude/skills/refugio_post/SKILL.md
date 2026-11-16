@@ -9,8 +9,11 @@ Responda sempre em português simples, sem jargão (o usuário não é técnico)
 - A pasta já tem o material certo para o formato: Reels = vídeo(s) vertical(is); Stories = material vertical; Carrossel = fotos numeradas 1, 2, 3... na ordem dos slides; Feed = 1 foto.
 - Mídia sempre vem do usuário. Nunca baixe nada do Instagram de ninguém e nunca contate parceiro.
 
-## ORDEM OBRIGATÓRIA (o usuário exige; não reordene, não pule, não improvise)
-**1º BLOG, 2º INSTAGRAM.** Todo post tem os dois. Nunca publique ou agende o Instagram sem a matéria nova do blog criada antes. O `publicar.mjs` recusa rodar sem `--materia`. Se algum passo não puder ser cumprido, PARE e avise o usuário; não contorne.
+## REGRA DE FORMATO x BLOG (ordem do usuário, 15/11/2026)
+**REELS e STORIES NÃO entram no blog.** Só entram no blog: **carrossel** (e feed de foto única), ou quando o usuário pedir matéria do blog explicitamente. Para Reel/Story: sem `--materia`, legenda SEM link de blog, e nenhuma matéria é criada.
+
+## ORDEM OBRIGATÓRIA nos formatos com blog (carrossel/feed ou se pedido)
+**1º BLOG, 2º INSTAGRAM.** Nunca publique ou agende o Instagram sem a matéria nova do blog criada antes. O `publicar.mjs` recusa rodar sem `--materia` nesses formatos. Se algum passo não puder ser cumprido, PARE e avise o usuário; não contorne.
 
 ## Passos
 1. **Leia a pasta** (ls). Confira se bate com o formato. Se não bater de forma que impeça o trabalho, diga o que está errado em uma frase e pare.

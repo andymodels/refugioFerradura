@@ -29,7 +29,8 @@ if (!soBlog && ((!pastaArte && !reelArq && !storyArq) || (!legendaPath && !story
 if (soBlog && !materiaPath) throw new Error("--so-blog exige --materia e --origem.");
 if (materiaPath && !origem) throw new Error("--materia exige --origem (pasta das mídias originais).");
 // Ordem obrigatória do fluxo: BLOG primeiro, Instagram depois. Sem matéria o script não segue.
-if (!materiaPath && !process.argv.includes("--so-instagram-autorizado")) {
+// Exceção (regra do usuário, 15/11/2026): REELS e STORIES NÃO entram no blog; só carrossel, ou se o usuário pedir matéria.
+if (!materiaPath && !reelArq && !storyArq && !process.argv.includes("--so-instagram-autorizado")) {
   throw new Error("RECUSADO: falta --materia. O fluxo é blog primeiro, Instagram depois. Escreva a matéria nova do blog (materia.json) antes. Só use --so-instagram-autorizado se o usuário mandou, por escrito, publicar só no Instagram.");
 }
 const quando = arg("quando") ? new Date(arg("quando")) : new Date(Date.now() + (Number(arg("minutos")) || 5) * 60_000);
@@ -95,6 +96,8 @@ if (soBlog) { console.log(postId ? `Matéria criada como rascunho (id ${postId})
 // 3) Fila do Instagram
 let caption = legendaPath ? fs.readFileSync(legendaPath, "utf8").trim() : "";
 if (slug) caption = caption.replace(/refugioferradura\.com\.br\/blog\/\S+/, `refugioferradura.com.br/blog/${slug}`);
+else caption = caption.split("\n").filter((l) => !/blog\/SLUG/i.test(l)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+if (/blog\/SLUG/i.test(caption)) throw new Error("Legenda com link de blog sem matéria.");
 const r = await apiFila("/enqueue", { titulo, scheduledAt: quando.toISOString(), caption, imageUrls: urls, postId, formato: storyArq ? "story" : "feed", dryRun: !publicar });
 console.log(JSON.stringify(r, null, 2));
 
