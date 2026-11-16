@@ -380,6 +380,28 @@ cronRouter.get("/acervo", async (req, res): Promise<void> => {
   res.json({ total: itens.length, itens });
 });
 
+// Muda o horário de um item da fila (e reativa se falhou/cancelou), pela chave do servidor.
+// Usada pela skill refugio_post para antecipar ou refazer um post sem depender do painel.
+cronRouter.post("/reagendar", async (req, res): Promise<void> => {
+  if (!autorizado(req, res)) return;
+  const id = Number(req.body?.id);
+  const quando = new Date(String(req.body?.scheduledAt));
+  if (!Number.isInteger(id) || isNaN(quando.getTime()) || quando.getTime() < Date.now() - 60_000) {
+    res.status(400).json({ error: "id (número) e scheduledAt (ISO, não no passado) são obrigatórios." });
+    return;
+  }
+  const r = await db
+    .update(instagramQueueTable)
+    .set({ scheduledAt: quando, status: "aguardando", attempts: 0, nextAttemptAt: null, lastError: null, updatedAt: new Date() })
+    .where(and(eq(instagramQueueTable.id, id), inArray(instagramQueueTable.status, ["aguardando", "falhou", "cancelado"])))
+    .returning({ id: instagramQueueTable.id });
+  if (!r.length) {
+    res.status(409).json({ error: "Este item não pode mais ser alterado (já publicado ou em publicação)." });
+    return;
+  }
+  res.json({ ok: true, id, scheduledAt: quando.toISOString() });
+});
+
 // ─── Painel admin ──────────────────────────────────────────────────────────
 adminRouter.get("/instagram-queue", async (req, res): Promise<void> => {
   if (!admin(req, res)) return;
