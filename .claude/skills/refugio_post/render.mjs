@@ -19,7 +19,9 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { createRequire } from "node:module";
-const require = createRequire("/Users/joaoaraujo2/Documents/Ferradura-Refugio/engine-runner/package.json");
+const require = createRequire(fs.existsSync("/opt/node-tools/node_modules/playwright-core")
+  ? "/opt/node-tools/package.json"
+  : new URL("../../../engine-runner/package.json", import.meta.url).pathname);
 const { chromium } = require("playwright-core");
 
 const spec = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
@@ -67,7 +69,7 @@ function interna(p) {
 }
 
 fs.mkdirSync(spec.saida, { recursive: true });
-const browser = await chromium.launch({ channel: "chrome", headless: true });
+const browser = await chromium.launch(fs.existsSync("/opt/pw-browsers/chromium") ? { executablePath: "/opt/pw-browsers/chromium", headless: true } : { channel: "chrome", headless: true });
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const paginas = spec.paginas || [];
 const lista = spec.formato === "carrossel"

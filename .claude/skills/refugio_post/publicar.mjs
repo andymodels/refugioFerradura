@@ -14,7 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-const ENG = "/Users/joaoaraujo2/Documents/Ferradura-Refugio/engine-runner/src";
+const ENG = new URL("../../../engine-runner/src", import.meta.url).pathname;
 const { apiFila } = await import(`${ENG}/api.mjs`);
 const { getSecret } = await import(`${ENG}/config.mjs`);
 
@@ -54,7 +54,7 @@ async function subirMidia(arq) {
   let jpg = arq;
   if (!/\.jpe?g$/i.test(arq)) {
     jpg = path.join(pastaArte || path.dirname(path.resolve(materiaPath)), `_${path.basename(arq)}.jpg`);
-    execFileSync("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "92", arq, "--out", jpg], { stdio: "ignore" });
+    execFileSync("convert", [arq, "-quality", "92", jpg], { stdio: "ignore" });
   }
   return subir(jpg, "image/jpeg");
 }
