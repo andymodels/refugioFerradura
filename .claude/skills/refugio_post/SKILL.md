@@ -7,6 +7,8 @@ Responda sempre em português simples, sem jargão (o usuário não é técnico)
 
 ## O que o usuário garante
 - A pasta já tem o material certo para o formato. Carrossel = fotos/vídeos numerados 001, 002... na ordem dos slides. Reels e Stories = material vertical. Feed = 1 foto.
+- **O nome da pasta é o `@` do parceiro** (ex.: pasta `chales_bermond` → `@chales_bermond`). Identifique sozinho a partir do nome da pasta; não precisa perguntar nem confirmar.
+- **Reels: a pasta pode trazer 1 vídeo já pronto, OU vários vídeos brutos.** Se for 1 vídeo só, ele já está pronto e é só publicar direto. Se forem vários, é para você montar um único vídeo de Reel com eles (cortes dos melhores trechos, formato vertical 9:16, ~15-60s), antes de seguir para a legenda e publicação.
 - Mídia sempre vem do usuário. Nunca baixe do Instagram de ninguém e nunca contate parceiro.
 - Mídia de criadores de conteúdo/influenciadores: já autorizada pelo usuário (decisão de 15/11/2026). Não alerte de novo; só credite o `@` do criador na legenda (ex.: "Vídeo: @criador") e no blog, se houver blog.
 
@@ -42,7 +44,7 @@ Nos formatos com blog a ordem é **1º BLOG, 2º INSTAGRAM**: o servidor publica
    O script cria a matéria como rascunho e enfileira o Instagram ligado a ela.
 
 ### Reels (sem blog)
-10. Vídeo único, sem arte por cima. Legenda sem link de blog. `node .claude/skills/refugio_post/publicar.mjs --reel <video.mp4> --legenda <legenda.txt> --titulo "<título>" --quando <ISO> --publicar` (sem `--materia`). Reel provado em uso real.
+10. **Se a pasta tiver só 1 vídeo**: já está pronto, sem arte por cima. **Se tiver mais de 1 vídeo (brutos)**: monte você mesmo um único vídeo com ffmpeg antes de publicar — escolha os melhores trechos de cada clipe, encadeie com cortes ou transições simples (fade), mantenha vertical 9:16 e duração total entre ~15 e 60s. Salve o resultado montado numa subpasta (ex.: `review/`) e confira quadro a quadro (ffmpeg para extrair quadros + Read) antes de seguir. Legenda sem link de blog. `node .claude/skills/refugio_post/publicar.mjs --reel <video.mp4> --legenda <legenda.txt> --titulo "<título>" --quando <ISO> --publicar` (sem `--materia`). Reel provado em uso real.
 
 ### Stories (sem blog)
 11. Gere a arte 1080x1920 com `render.mjs` (`formato: "story"`, vídeo ou foto). A API de Story não tem legenda: o site, o `@` e os textos vão desenhados na arte. Se o vídeo já tem legenda escrita nele, use `"posicao": "topo"` no spec para o texto não cobrir. Confira com Read. Publique com `--story <arquivo> --titulo "<título>" --quando <ISO> --publicar` (sem `--materia`). Story provado em uso real; o Instagram pode demorar a processar o vídeo e a 1ª tentativa falhar, o servidor repete sozinho após 10 min.
